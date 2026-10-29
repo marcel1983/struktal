@@ -1,0 +1,68 @@
+{
+  "case_id": "V-LIN-002",
+  "title": "Axial bar, tension",
+  "feature_ids": [
+    "F02",
+    "F08"
+  ],
+  "model": "model.json",
+  "model_sha256": "4e594b70a1ee759f949ed1fb86f5e1c6bb6ae10bec8bc293edff53c4eafb90fe",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Hooke's law for a prismatic bar",
+    "derivation": [
+      "u = P L/(E A)",
+      "N = P (tension)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "2",
+      "component": "UX",
+      "value": 0.0001,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "2",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "1",
+      "component": "FX",
+      "value": -100000.0,
+      "unit": "N"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F1",
+      "component": "P",
+      "value": 100000.0,
+      "unit": "N",
+      "rel": 0.5
+    },
+    {
+      "result": "external_work",
+      "case": "LC1",
+      "entity": "",
+      "component": "",
+      "value": 5.0,
+      "unit": "J"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

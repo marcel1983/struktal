@@ -1,0 +1,99 @@
+{
+  "case_id": "V-LIN-005",
+  "title": "Simply supported beam, interior point load",
+  "feature_ids": [
+    "F06",
+    "F08",
+    "F18"
+  ],
+  "model": "model.json",
+  "model_sha256": "f490f7224694f238dbfe3e6cbf019413e180ba54876e619fb883d003f7f50710",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Simply supported beam with a concentrated load",
+    "derivation": [
+      "theta_A = P a b (L + b)/(6 E I L)",
+      "theta_B = P a b (L + a)/(6 E I L)",
+      "R_A = P b / L",
+      "M(x<=a) = R_A x",
+      "M(x>=a) = R_A x - P (x - a)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A",
+      "component": "RY",
+      "value": 0.000875,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B",
+      "component": "RY",
+      "value": -0.000625,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "FZ",
+      "value": 15000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B",
+      "component": "FZ",
+      "value": 5000.0,
+      "unit": "N"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F1",
+      "component": "M3",
+      "value": 15000.0,
+      "unit": "N*m",
+      "rel": 0.25
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F1",
+      "component": "M3",
+      "value": 10000.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F1",
+      "component": "V2",
+      "value": -15000.0,
+      "unit": "N",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F1",
+      "component": "V2",
+      "value": 5000.0,
+      "unit": "N",
+      "rel": 0.5
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

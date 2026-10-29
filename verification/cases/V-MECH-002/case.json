@@ -1,0 +1,32 @@
+{
+  "case_id": "V-MECH-002",
+  "title": "Simply supported beam with torsion unrestrained at both ends",
+  "feature_ids": [
+    "F08",
+    "stability"
+  ],
+  "model": "model.json",
+  "model_sha256": "3631be4f3af396b77c7cb129e2f6ea1bbfabfb5fc41f53e8cbfa12fdc150b4c8",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Rigid rotation about the member axis is unrestrained",
+    "derivation": [
+      "nullity(K) = 1 (RX)"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "1 zero pivot(s)"
+    }
+  ],
+  "expected": [],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

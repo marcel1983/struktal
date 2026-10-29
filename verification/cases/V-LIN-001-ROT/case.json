@@ -1,0 +1,94 @@
+{
+  "case_id": "V-LIN-001-ROT",
+  "title": "Cantilever rotated 45 deg in plan",
+  "feature_ids": [
+    "F01",
+    "F02",
+    "F08"
+  ],
+  "model": "model.json",
+  "model_sha256": "76ec889a0e4bcda431151e8c708347b5581c27b135c41f369c4cdd0d8c42942c",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Euler-Bernoulli cantilever with tip load (guide \u00a721.1)",
+    "derivation": [
+      "Uz = -P L^3/(3 E I)",
+      "Ry = P L^2/(2 E I)",
+      "Rz = P, My = -P L",
+      "W = P |Uz| / 2"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "2",
+      "component": "UZ",
+      "value": -0.0045,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "2",
+      "component": "RX",
+      "value": -0.0015909902576697317,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "2",
+      "component": "RY",
+      "value": 0.0015909902576697317,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "2",
+      "component": "UX",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "1",
+      "component": "FZ",
+      "value": 10000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "1",
+      "component": "MX",
+      "value": 21213.203435596424,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "1",
+      "component": "MY",
+      "value": -21213.203435596424,
+      "unit": "N*m"
+    },
+    {
+      "result": "external_work",
+      "case": "LC1",
+      "entity": "",
+      "component": "",
+      "value": 22.5,
+      "unit": "J"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

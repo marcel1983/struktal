@@ -1,0 +1,9 @@
+{
+  "linear-closed-form-v1": {
+    "description": "Internal tests against closed-form linear solutions in SI. Fixed before evaluation (guide §12). Not a commercial-compatibility tolerance.",
+    "rtol": 1e-8,
+    "atol": { "m": 1e-12, "rad": 1e-12, "N": 1e-6, "N*m": 1e-6, "J": 1e-9 },
+    "residual_max": 1e-10,
+    "equilibrium_max": 1e-9
+  }
+}

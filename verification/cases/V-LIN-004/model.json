@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "title": "V-LIN-004 vertical columns",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "C",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0002,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "A0",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "A1",
+      "x": 0,
+      "y": 0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B0",
+      "x": 5,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B1",
+      "x": 5,
+      "y": 0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "CA",
+      "i": "A0",
+      "j": "A1",
+      "section": "C"
+    },
+    {
+      "name": "CB",
+      "i": "B0",
+      "j": "B1",
+      "section": "C",
+      "angle_deg": 90.0
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "H"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "H",
+      "joint": "A1",
+      "values": [
+        1000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "H",
+      "joint": "B1",
+      "values": [
+        1000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "H",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

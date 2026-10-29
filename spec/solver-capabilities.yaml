@@ -1,0 +1,22 @@
+# Capacidades reales de cada backend (guía §6). Generado a mano; la fuente de
+# verdad ejecutable es `rust-fem capabilities`.
+backends:
+  - name: skyline-ldlt
+    version: 0.1.0
+    pure_rust: true
+    matrix_classes: [spd]
+    unsupported: [symmetric_indefinite, general_unsymmetric, complex]   # -> unsupported_backend
+    pivoting: none
+    ordering: reverse_cuthill_mckee
+    scaling: symmetric diagonal 1/sqrt(a_ii)
+    singularity: pivotes escalados |d| <= 1e-10; nulidad estimada, DOF identificados
+    inertia: exacta solo sin pivotes nulos (Sylvester)
+    multiple_rhs: true (una factorización por modelo)
+    symbolic_reuse: false
+    memory_estimate_before_factorization: true   # rechaza si excede --memory-budget-mib
+    index_types: {csc_rows: u32, profile: usize}
+    threads: 1
+    measured_limits: docs/benchmarks.md
+candidates_pending_evaluation:
+  - faer (Cholesky dispersa supernodal, LU, LDLT/Bunch-Kaufman): no evaluado; no extrapolar capacidades por nombre [S09]
+  - MUMPS (FFI opcional, indefinidas, inercia) [S11]

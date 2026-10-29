@@ -1,0 +1,68 @@
+{
+  "case_id": "V-LIN-004",
+  "title": "Vertical cantilevers: default local axes and 90 deg axis angle",
+  "feature_ids": [
+    "F01",
+    "F02",
+    "local-axes"
+  ],
+  "model": "model.json",
+  "model_sha256": "812f9014e0e1e0e453e73e6d0946e1750a7a38d9b5cd0cb49192bcf1d87a116a",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Cantilever tip load; documented SAP2000 default axes for vertical members (local 2 = +X), oracle pending",
+    "derivation": [
+      "CA bends about local 3 (I33): u = P L^3/(3 E I33)",
+      "CB (angle 90) bends about local 2 (I22): u = P L^3/(3 E I22)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "UX",
+      "value": 0.000225,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "RY",
+      "value": 0.0001125,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "UX",
+      "value": 0.00045,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "RY",
+      "value": 0.000225,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A0",
+      "component": "MY",
+      "value": -3000.0,
+      "unit": "N*m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

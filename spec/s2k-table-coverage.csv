@@ -1,0 +1,16 @@
+table,field,sap_version,import,export,semantic_target,status,note
+PROGRAM CONTROL,*,pending,specified,specified,unidades/versión,specified,Nombres de tablas y campos a confirmar con exportación real del build
+JOINT COORDINATES,*,pending,specified,specified,F01-001,specified,
+CONNECTIVITY - FRAME,*,pending,specified,specified,F01-002,specified,
+JOINT RESTRAINT ASSIGNMENTS,*,pending,specified,specified,F04-001,specified,
+MATERIAL PROPERTIES 01 - GENERAL,*,pending,specified,specified,F02-010,specified,
+MATERIAL PROPERTIES 02 - BASIC MECHANICAL PROPERTIES,*,pending,specified,specified,F02-010,specified,
+FRAME SECTION PROPERTIES 01 - GENERAL,*,pending,specified,specified,F02-001/F02-002,specified,
+FRAME SECTION ASSIGNMENTS,*,pending,specified,specified,F01-002,specified,
+FRAME LOCAL AXES ASSIGNMENTS 1 - TYPICAL,*,pending,specified,specified,F02-008,specified,
+LOAD PATTERN DEFINITIONS,*,pending,specified,specified,F06-001/F06-005,specified,
+JOINT LOADS - FORCE,*,pending,specified,specified,F06-002,specified,
+FRAME LOADS - DISTRIBUTED,*,pending,specified,specified,F06-003/F06-006,specified,
+FRAME LOADS - POINT,*,pending,specified,specified,F06-004,specified,
+LOAD CASE DEFINITIONS,*,pending,specified,specified,F08-001,specified,
+COMBINATION DEFINITIONS,*,pending,specified,specified,F16-*,specified,

@@ -1,0 +1,85 @@
+//! Result contracts. All values are SI (N, m, rad) in global axes unless the
+//! field name says `local`.
+
+use serde::{Deserialize, Serialize};
+
+use crate::status::CaseStatus;
+
+pub const RESULTS_SCHEMA_VERSION: u32 = 1;
+pub const COMPONENTS: [&str; 6] = ["UX", "UY", "UZ", "RX", "RY", "RZ"];
+pub const REACTION_COMPONENTS: [&str; 6] = ["FX", "FY", "FZ", "MX", "MY", "MZ"];
+pub const STATION_COMPONENTS: [&str; 6] = ["P", "V2", "V3", "T", "M2", "M3"];
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunResult {
+    pub manifest: Manifest,
+    pub cases: Vec<CaseResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Manifest {
+    pub results_schema_version: u32,
+    pub engine: String,
+    pub engine_version: String,
+    pub git_commit: String,
+    pub model_schema_version: u32,
+    pub model_sha256: String,
+    pub input_units: String,
+    pub result_units: String,
+    pub precision: String,
+    pub threads: usize,
+    pub backend: String,
+    pub equations: usize,
+    pub solver: Option<serde_json::Value>,
+    pub messages: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaseResult {
+    pub name: String,
+    pub kind: String,
+    pub status: CaseStatus,
+    pub messages: Vec<String>,
+    pub joints: Vec<JointResult>,
+    pub frames: Vec<FrameResult>,
+    pub checks: Option<Checks>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JointResult {
+    pub joint: String,
+    pub displacement: [f64; 6],
+    /// Present only for joints with at least one restrained component.
+    pub reaction: Option<[f64; 6]>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FrameResult {
+    pub frame: String,
+    pub length: f64,
+    /// Forces on the element at ends I and J in local axes.
+    pub end_forces_local: [f64; 12],
+    pub stations: Vec<Station>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Station {
+    pub x: f64,
+    pub rel: f64,
+    /// [P, V2, V3, T, M2, M3], convention in decision 0003.
+    pub actions: [f64; 6],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Checks {
+    /// ‖K u − f‖ / max(‖f‖, ‖K u‖) on the assembled operator.
+    pub residual_relative: f64,
+    /// Applied load resultant about the global origin [FX..MZ], computed from
+    /// load definitions, not from equivalent nodal loads.
+    pub applied_resultant: [f64; 6],
+    pub reaction_resultant: [f64; 6],
+    pub equilibrium_force_error: f64,
+    pub equilibrium_moment_error: f64,
+    /// ½ uᵀ f with consistent nodal loads.
+    pub external_work: f64,
+}

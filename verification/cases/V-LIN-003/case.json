@@ -1,0 +1,151 @@
+{
+  "case_id": "V-LIN-003",
+  "title": "Simply supported beam: UDL, self-weight, 1.2D+1.6L",
+  "feature_ids": [
+    "F02",
+    "F06",
+    "F07",
+    "F08",
+    "F16",
+    "F18"
+  ],
+  "model": "model.json",
+  "model_sha256": "775d1077a754028f0199f672c5c56065894f5c9bb4a351263f9eca19b2e4127f",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Simply supported Euler-Bernoulli beam, uniform load",
+    "derivation": [
+      "delta_mid = 5 q L^4/(384 E I)",
+      "theta_end = q L^3/(24 E I)",
+      "M_mid = q L^2/8",
+      "M(x) = q x (L - x)/2",
+      "R = q L/2"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LIVE",
+      "entity": "M",
+      "component": "UZ",
+      "value": -0.00421875,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LIVE",
+      "entity": "A",
+      "component": "RY",
+      "value": 0.00225,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LIVE",
+      "entity": "B",
+      "component": "RY",
+      "value": -0.00225,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LIVE",
+      "entity": "A",
+      "component": "FZ",
+      "value": 15000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LIVE",
+      "entity": "B",
+      "component": "FZ",
+      "value": 15000.0,
+      "unit": "N"
+    },
+    {
+      "result": "frame_station",
+      "case": "LIVE",
+      "entity": "F1",
+      "component": "M3",
+      "value": 22500.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LIVE",
+      "entity": "F2",
+      "component": "M3",
+      "value": 22500.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LIVE",
+      "entity": "F1",
+      "component": "M3",
+      "value": 9843.75,
+      "unit": "N*m",
+      "rel": 0.25
+    },
+    {
+      "result": "frame_station",
+      "case": "LIVE",
+      "entity": "F1",
+      "component": "M3",
+      "value": 16875.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "joint_displacement",
+      "case": "DEAD",
+      "entity": "M",
+      "component": "UZ",
+      "value": -0.00066234375,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "DEAD",
+      "entity": "A",
+      "component": "FZ",
+      "value": 2355.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "ULS",
+      "entity": "M",
+      "component": "UZ",
+      "value": -0.007544812500000001,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ULS",
+      "entity": "B",
+      "component": "FZ",
+      "value": 26826.0,
+      "unit": "N"
+    },
+    {
+      "result": "frame_station",
+      "case": "ULS",
+      "entity": "F2",
+      "component": "M3",
+      "value": 40239.0,
+      "unit": "N*m",
+      "rel": 0.0
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -1,0 +1,223 @@
+//! Canonical physical model, schema v1.
+//!
+//! Entity names are free text (SAP2000 names are not assumed to be integers).
+//! Values are stored in the declared `units` and converted to SI by
+//! [`Model::to_si`] before validation turns them into an immutable snapshot.
+
+use serde::{Deserialize, Serialize};
+
+use crate::units::{Dim, UnitSystem};
+
+pub const SCHEMA_VERSION: u32 = 1;
+
+pub type Name = String;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Model {
+    pub schema_version: u32,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub units: UnitSystem,
+    pub materials: Vec<Material>,
+    pub sections: Vec<FrameSection>,
+    pub joints: Vec<Joint>,
+    #[serde(default)]
+    pub frames: Vec<Frame>,
+    #[serde(default)]
+    pub load_patterns: Vec<LoadPattern>,
+    #[serde(default)]
+    pub joint_loads: Vec<JointLoad>,
+    #[serde(default)]
+    pub frame_loads: Vec<FrameLoad>,
+    #[serde(default)]
+    pub load_cases: Vec<LoadCase>,
+    #[serde(default)]
+    pub combinations: Vec<Combination>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Material {
+    pub name: Name,
+    /// Young's modulus [force/length²].
+    pub e: f64,
+    /// Poisson's ratio; G = E / (2 (1 + nu)) unless `g` is given.
+    pub nu: f64,
+    /// Optional explicit shear modulus [force/length²].
+    #[serde(default)]
+    pub g: Option<f64>,
+    /// Weight per unit volume [force/length³], used by self-weight.
+    #[serde(default)]
+    pub unit_weight: f64,
+}
+
+/// General frame section. Axis naming follows SAP2000: I33 is the inertia
+/// about local axis 3 (bending in the 1-2 plane), I22 about local axis 2.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FrameSection {
+    pub name: Name,
+    pub material: Name,
+    pub area: f64,
+    pub i33: f64,
+    pub i22: f64,
+    /// Torsional constant, independent from the inertias.
+    pub j: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Joint {
+    pub name: Name,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    /// Restrained components [UX, UY, UZ, RX, RY, RZ] in global axes.
+    #[serde(default)]
+    pub restraint: [bool; 6],
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Frame {
+    pub name: Name,
+    pub i: Name,
+    pub j: Name,
+    pub section: Name,
+    /// Rotation of local axes 2 and 3 about local 1 [degrees], right-hand rule.
+    #[serde(default)]
+    pub angle_deg: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LoadPattern {
+    pub name: Name,
+    /// Multiplier on material unit weight × area, acting in global −Z.
+    #[serde(default)]
+    pub self_weight_multiplier: f64,
+}
+
+/// Concentrated joint load in global axes: [FX, FY, FZ, MX, MY, MZ].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JointLoad {
+    pub pattern: Name,
+    pub joint: Name,
+    pub values: [f64; 6],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LoadDirection {
+    Local1,
+    Local2,
+    Local3,
+    GlobalX,
+    GlobalY,
+    GlobalZ,
+    /// Global −Z.
+    Gravity,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", deny_unknown_fields)]
+pub enum FrameLoadKind {
+    /// Uniform force per unit member length over the full length.
+    Uniform { direction: LoadDirection, value: f64 },
+    /// Concentrated force at relative distance `rel` ∈ [0, 1] from end I.
+    Point { direction: LoadDirection, rel: f64, value: f64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FrameLoad {
+    pub pattern: Name,
+    pub frame: Name,
+    pub load: FrameLoadKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScaledPattern {
+    pub pattern: Name,
+    pub scale: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", deny_unknown_fields)]
+pub enum LoadCase {
+    LinearStatic { name: Name, loads: Vec<ScaledPattern> },
+}
+
+impl LoadCase {
+    pub fn name(&self) -> &str {
+        match self {
+            LoadCase::LinearStatic { name, .. } => name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScaledCase {
+    pub case: Name,
+    pub scale: f64,
+}
+
+/// Only linear addition is supported in v1; envelopes, SRSS, absolute and
+/// range combinations are pending (features F16-*).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", deny_unknown_fields)]
+pub enum Combination {
+    LinearAdd { name: Name, cases: Vec<ScaledCase> },
+}
+
+impl Combination {
+    pub fn name(&self) -> &str {
+        match self {
+            Combination::LinearAdd { name, .. } => name,
+        }
+    }
+}
+
+impl Model {
+    /// Returns a copy with every dimensional value converted to SI and
+    /// `units` set to SI. The original units are recorded by the caller.
+    pub fn to_si(&self) -> Model {
+        let u = self.units;
+        let l = u.factor(Dim::LENGTH);
+        let mut m = self.clone();
+        m.units = UnitSystem::default();
+        for mat in &mut m.materials {
+            mat.e *= u.factor(Dim::STRESS);
+            mat.g = mat.g.map(|g| g * u.factor(Dim::STRESS));
+            mat.unit_weight *= u.factor(Dim::FORCE_PER_VOLUME);
+        }
+        for s in &mut m.sections {
+            s.area *= u.factor(Dim::AREA);
+            s.i33 *= u.factor(Dim::INERTIA);
+            s.i22 *= u.factor(Dim::INERTIA);
+            s.j *= u.factor(Dim::INERTIA);
+        }
+        for j in &mut m.joints {
+            j.x *= l;
+            j.y *= l;
+            j.z *= l;
+        }
+        for jl in &mut m.joint_loads {
+            for k in 0..3 {
+                jl.values[k] *= u.factor(Dim::FORCE);
+                jl.values[k + 3] *= u.factor(Dim::MOMENT);
+            }
+        }
+        for fl in &mut m.frame_loads {
+            match &mut fl.load {
+                FrameLoadKind::Uniform { value, .. } => *value *= u.factor(Dim::FORCE_PER_LENGTH),
+                FrameLoadKind::Point { value, .. } => *value *= u.factor(Dim::FORCE),
+            }
+        }
+        m
+    }
+}

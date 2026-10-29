@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = ["crates/fem-core", "crates/fem-math", "crates/fem-elements", "crates/fem-analysis", "crates/fem-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+clap = { version = "4", features = ["derive"] }
+fem-core = { path = "crates/fem-core" }
+fem-math = { path = "crates/fem-math" }
+fem-elements = { path = "crates/fem-elements" }
+fem-analysis = { path = "crates/fem-analysis" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
