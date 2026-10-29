@@ -1,0 +1,765 @@
+{
+  "schema_version": 1,
+  "title": "V-MECH-003 free 3D frame",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "N000",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N100",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N200",
+      "x": 8.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N010",
+      "x": 0.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N110",
+      "x": 4.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N210",
+      "x": 8.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N020",
+      "x": 0.0,
+      "y": 8.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N120",
+      "x": 4.0,
+      "y": 8.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N220",
+      "x": 8.0,
+      "y": 8.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N001",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N101",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N201",
+      "x": 8.0,
+      "y": 0.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N011",
+      "x": 0.0,
+      "y": 4.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N111",
+      "x": 4.0,
+      "y": 4.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N211",
+      "x": 8.0,
+      "y": 4.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N021",
+      "x": 0.0,
+      "y": 8.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N121",
+      "x": 4.0,
+      "y": 8.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N221",
+      "x": 8.0,
+      "y": 8.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N002",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N102",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N202",
+      "x": 8.0,
+      "y": 0.0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N012",
+      "x": 0.0,
+      "y": 4.0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N112",
+      "x": 4.0,
+      "y": 4.0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N212",
+      "x": 8.0,
+      "y": 4.0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N022",
+      "x": 0.0,
+      "y": 8.0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N122",
+      "x": 4.0,
+      "y": 8.0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "N222",
+      "x": 8.0,
+      "y": 8.0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "X100",
+      "i": "N000",
+      "j": "N100",
+      "section": "B"
+    },
+    {
+      "name": "X200",
+      "i": "N100",
+      "j": "N200",
+      "section": "B"
+    },
+    {
+      "name": "Y010",
+      "i": "N000",
+      "j": "N010",
+      "section": "B"
+    },
+    {
+      "name": "X110",
+      "i": "N010",
+      "j": "N110",
+      "section": "B"
+    },
+    {
+      "name": "Y110",
+      "i": "N100",
+      "j": "N110",
+      "section": "B"
+    },
+    {
+      "name": "X210",
+      "i": "N110",
+      "j": "N210",
+      "section": "B"
+    },
+    {
+      "name": "Y210",
+      "i": "N200",
+      "j": "N210",
+      "section": "B"
+    },
+    {
+      "name": "Y020",
+      "i": "N010",
+      "j": "N020",
+      "section": "B"
+    },
+    {
+      "name": "X120",
+      "i": "N020",
+      "j": "N120",
+      "section": "B"
+    },
+    {
+      "name": "Y120",
+      "i": "N110",
+      "j": "N120",
+      "section": "B"
+    },
+    {
+      "name": "X220",
+      "i": "N120",
+      "j": "N220",
+      "section": "B"
+    },
+    {
+      "name": "Y220",
+      "i": "N210",
+      "j": "N220",
+      "section": "B"
+    },
+    {
+      "name": "C001",
+      "i": "N000",
+      "j": "N001",
+      "section": "B"
+    },
+    {
+      "name": "C101",
+      "i": "N100",
+      "j": "N101",
+      "section": "B"
+    },
+    {
+      "name": "X101",
+      "i": "N001",
+      "j": "N101",
+      "section": "B"
+    },
+    {
+      "name": "C201",
+      "i": "N200",
+      "j": "N201",
+      "section": "B"
+    },
+    {
+      "name": "X201",
+      "i": "N101",
+      "j": "N201",
+      "section": "B"
+    },
+    {
+      "name": "C011",
+      "i": "N010",
+      "j": "N011",
+      "section": "B"
+    },
+    {
+      "name": "Y011",
+      "i": "N001",
+      "j": "N011",
+      "section": "B"
+    },
+    {
+      "name": "C111",
+      "i": "N110",
+      "j": "N111",
+      "section": "B"
+    },
+    {
+      "name": "X111",
+      "i": "N011",
+      "j": "N111",
+      "section": "B"
+    },
+    {
+      "name": "Y111",
+      "i": "N101",
+      "j": "N111",
+      "section": "B"
+    },
+    {
+      "name": "C211",
+      "i": "N210",
+      "j": "N211",
+      "section": "B"
+    },
+    {
+      "name": "X211",
+      "i": "N111",
+      "j": "N211",
+      "section": "B"
+    },
+    {
+      "name": "Y211",
+      "i": "N201",
+      "j": "N211",
+      "section": "B"
+    },
+    {
+      "name": "C021",
+      "i": "N020",
+      "j": "N021",
+      "section": "B"
+    },
+    {
+      "name": "Y021",
+      "i": "N011",
+      "j": "N021",
+      "section": "B"
+    },
+    {
+      "name": "C121",
+      "i": "N120",
+      "j": "N121",
+      "section": "B"
+    },
+    {
+      "name": "X121",
+      "i": "N021",
+      "j": "N121",
+      "section": "B"
+    },
+    {
+      "name": "Y121",
+      "i": "N111",
+      "j": "N121",
+      "section": "B"
+    },
+    {
+      "name": "C221",
+      "i": "N220",
+      "j": "N221",
+      "section": "B"
+    },
+    {
+      "name": "X221",
+      "i": "N121",
+      "j": "N221",
+      "section": "B"
+    },
+    {
+      "name": "Y221",
+      "i": "N211",
+      "j": "N221",
+      "section": "B"
+    },
+    {
+      "name": "C002",
+      "i": "N001",
+      "j": "N002",
+      "section": "B"
+    },
+    {
+      "name": "C102",
+      "i": "N101",
+      "j": "N102",
+      "section": "B"
+    },
+    {
+      "name": "X102",
+      "i": "N002",
+      "j": "N102",
+      "section": "B"
+    },
+    {
+      "name": "C202",
+      "i": "N201",
+      "j": "N202",
+      "section": "B"
+    },
+    {
+      "name": "X202",
+      "i": "N102",
+      "j": "N202",
+      "section": "B"
+    },
+    {
+      "name": "C012",
+      "i": "N011",
+      "j": "N012",
+      "section": "B"
+    },
+    {
+      "name": "Y012",
+      "i": "N002",
+      "j": "N012",
+      "section": "B"
+    },
+    {
+      "name": "C112",
+      "i": "N111",
+      "j": "N112",
+      "section": "B"
+    },
+    {
+      "name": "X112",
+      "i": "N012",
+      "j": "N112",
+      "section": "B"
+    },
+    {
+      "name": "Y112",
+      "i": "N102",
+      "j": "N112",
+      "section": "B"
+    },
+    {
+      "name": "C212",
+      "i": "N211",
+      "j": "N212",
+      "section": "B"
+    },
+    {
+      "name": "X212",
+      "i": "N112",
+      "j": "N212",
+      "section": "B"
+    },
+    {
+      "name": "Y212",
+      "i": "N202",
+      "j": "N212",
+      "section": "B"
+    },
+    {
+      "name": "C022",
+      "i": "N021",
+      "j": "N022",
+      "section": "B"
+    },
+    {
+      "name": "Y022",
+      "i": "N012",
+      "j": "N022",
+      "section": "B"
+    },
+    {
+      "name": "C122",
+      "i": "N121",
+      "j": "N122",
+      "section": "B"
+    },
+    {
+      "name": "X122",
+      "i": "N022",
+      "j": "N122",
+      "section": "B"
+    },
+    {
+      "name": "Y122",
+      "i": "N112",
+      "j": "N122",
+      "section": "B"
+    },
+    {
+      "name": "C222",
+      "i": "N221",
+      "j": "N222",
+      "section": "B"
+    },
+    {
+      "name": "X222",
+      "i": "N122",
+      "j": "N222",
+      "section": "B"
+    },
+    {
+      "name": "Y222",
+      "i": "N212",
+      "j": "N222",
+      "section": "B"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "H"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "H",
+      "joint": "N222",
+      "values": [
+        1000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "H",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

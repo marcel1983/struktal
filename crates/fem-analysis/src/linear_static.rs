@@ -4,7 +4,9 @@ use std::collections::HashMap;
 
 use fem_core::{Combination, FrameLoadKind, LoadCase, LoadDirection, Snapshot};
 use fem_elements::frame3d::{self, LocalSpanLoads, Mat12, SectionProps, Vec3};
-use fem_math::{MatrixClass, SolverError, TripletBuilder, relative_residual, skyline};
+use std::time::Instant;
+
+use fem_math::{Backend, MatrixClass, SolverError, TripletBuilder, relative_residual};
 
 use crate::results::*;
 use crate::status::{CaseStatus, Completion, PhysicalStatus};
@@ -15,11 +17,12 @@ pub struct Options {
     pub stations: usize,
     /// Memory budget for the factor in bytes.
     pub memory_budget: usize,
+    pub backend: Backend,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { stations: 3, memory_budget: 1 << 30 }
+        Self { stations: 3, memory_budget: 1 << 30, backend: Backend::default() }
     }
 }
 
@@ -188,9 +191,10 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         result_units: "N, m, rad".into(),
         precision: "f64".into(),
         threads: 1,
-        backend: format!("{} {}", skyline::capabilities().name, skyline::capabilities().version),
+        backend: format!("{} {}", opts.backend.capabilities().name, opts.backend.capabilities().version),
         equations: 0,
         solver: None,
+        timings: Timings::default(),
         messages: vec![],
     };
 
@@ -236,6 +240,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         })
         .collect();
 
+    let t_asm = Instant::now();
     let mut tb = match TripletBuilder::new(n) {
         Ok(t) => t,
         Err(e) => {
@@ -262,17 +267,22 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         }
     }
     let k = tb.to_csc();
+    manifest.timings.assembly_s = t_asm.elapsed().as_secs_f64();
 
     let factor = if n == 0 {
         None
     } else {
-        match skyline::factorize(&k, MatrixClass::Spd, opts.memory_budget) {
+        let t_fact = Instant::now();
+        let fres = fem_math::factorize(opts.backend, &k, MatrixClass::Spd, opts.memory_budget);
+        manifest.timings.factorization_s = t_fact.elapsed().as_secs_f64();
+        match fres {
             Ok(f) => {
-                manifest.solver = serde_json::to_value(&f.diagnostics).ok();
+                manifest.solver = serde_json::to_value(f.diagnostics()).ok();
                 Some(f)
             }
             Err(err) => {
                 manifest.solver = serde_json::to_value(&err).ok();
+
                 let free_to_global: Vec<usize> = {
                     let mut v = vec![0; n];
                     for (g, &e) in eq.iter().enumerate() {
@@ -283,27 +293,35 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                     v
                 };
                 let (phys, msgs) = match &err {
-                    SolverError::Singular { zero_pivots, inertia } => (
-                        PhysicalStatus::Mechanism,
-                        vec![format!(
-                            "mechanism: {} zero pivot(s) (numerical estimate of nullity, inertia exact = {}); first DOFs: {}",
-                            inertia.zero,
-                            inertia.exact,
-                            zero_pivots
-                                .iter()
-                                .take(12)
-                                .map(|&e| dof_name(s, free_to_global[e]))
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        )],
-                    ),
-                    SolverError::NotPositiveDefinite { negative_pivots, .. } => (
-                        PhysicalStatus::Indeterminate,
-                        vec![format!(
-                            "stiffness not positive definite ({} negative pivot(s)); indefinite solve is unsupported by this backend",
-                            negative_pivots.len()
-                        )],
-                    ),
+                    // The assembled K is positive semidefinite by construction
+                    // (sum of frame matrices with validated E, G, A, I, J > 0),
+                    // so zero and negative pivots both mean (numerical)
+                    // singularity, never negative stiffness. Pivot counts
+                    // without a rank-revealing method are not a nullity.
+                    SolverError::Singular { zero_pivots: flagged, .. }
+                    | SolverError::NotPositiveDefinite { negative_pivots: flagged, .. } => {
+                        let mut all: Vec<usize> = flagged.clone();
+                        if let SolverError::NotPositiveDefinite { zero_pivots, .. } = &err {
+                            all.extend(zero_pivots);
+                        }
+                        all.sort_unstable();
+                        all.dedup();
+                        (
+                            PhysicalStatus::Mechanism,
+                            vec![format!(
+                                "mechanism: stiffness is singular or numerically singular (positive semidefinite by \
+                                 construction, {} non-positive pivot(s) in {}); nullity >= 1, exact count not determined; \
+                                 DOFs at flagged pivots (indicative, ordering-dependent): {}",
+                                all.len(),
+                                opts.backend.capabilities().name,
+                                all.iter()
+                                    .take(12)
+                                    .map(|&e| dof_name(s, free_to_global[e]))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            )],
+                        )
+                    }
                     other => (PhysicalStatus::Indeterminate, vec![other.to_string()]),
                 };
                 let cases = m
@@ -334,7 +352,9 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         let pats: Vec<(usize, f64)> = loads.iter().map(|sp| (s.pattern_index[&sp.pattern], sp.scale)).collect();
         let cl = build_case_loads(s, &frames, &pats);
         let rhs: Vec<f64> = (0..6 * nj).filter(|&g| eq[g] != usize::MAX).map(|g| cl.f_full[g]).collect();
+        let t_solve = Instant::now();
         let x = factor.as_ref().map(|f| f.solve(&rhs)).unwrap_or_default();
+        manifest.timings.solve_s += t_solve.elapsed().as_secs_f64();
         let residual = if n == 0 { 0.0 } else { relative_residual(&k, &x, &rhs) };
         let mut u = vec![0.0; 6 * nj];
         for g in 0..6 * nj {

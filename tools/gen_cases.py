@@ -276,7 +276,7 @@ write("V-MECH-001", "Free body: no supports", ["F08", "stability"], model(
     [SEC], [{"name": "TIP"}],
     joint_loads=[{"pattern": "TIP", "joint": "2", "values": [0, 0, -P, 0, 0, 0]}],
 ), {"kind": "analytical", "source": "Unsupported 3D body has 6 rigid-body modes", "derivation": ["nullity(K) = 6"]},
-    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "6 zero pivot(s)"}])
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity >= 1"}])
 
 write("V-MECH-002", "Simply supported beam with torsion unrestrained at both ends", ["F08", "stability"], model(
     "V-MECH-002 torsional mechanism",
@@ -285,6 +285,26 @@ write("V-MECH-002", "Simply supported beam with torsion unrestrained at both end
     [SEC], [{"name": "LIVE"}],
     frame_loads=[{"pattern": "LIVE", "frame": "F1", "load": {"kind": "Uniform", "direction": "Gravity", "value": w}}],
 ), {"kind": "analytical", "source": "Rigid rotation about the member axis is unrestrained", "derivation": ["nullity(K) = 1 (RX)"]},
-    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "1 zero pivot(s)"}])
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": " RX"}])
+
+# Multi-element free body: pivot counts are unreliable here (decision 0005),
+# only the classification as a mechanism is asserted.
+gj, gf = [], []
+for k in range(3):
+    for j in range(3):
+        for i in range(3):
+            gj.append(J(f"N{i}{j}{k}", 4.0 * i, 4.0 * j, 3.0 * k))
+            if k > 0:
+                gf.append({"name": f"C{i}{j}{k}", "i": f"N{i}{j}{k-1}", "j": f"N{i}{j}{k}", "section": "B"})
+            if i > 0:
+                gf.append({"name": f"X{i}{j}{k}", "i": f"N{i-1}{j}{k}", "j": f"N{i}{j}{k}", "section": "B"})
+            if j > 0:
+                gf.append({"name": f"Y{i}{j}{k}", "i": f"N{i}{j-1}{k}", "j": f"N{i}{j}{k}", "section": "B"})
+write("V-MECH-003", "Unsupported 3D frame (27 joints, 54 bars)", ["F08", "stability"], model(
+    "V-MECH-003 free 3D frame",
+    gj, gf, [SEC], [{"name": "H"}],
+    joint_loads=[{"pattern": "H", "joint": "N222", "values": [1000.0, 0, 0, 0, 0, 0]}],
+), {"kind": "analytical", "source": "Unsupported 3D body has 6 rigid-body modes", "derivation": ["nullity(K) = 6 (not asserted: pivot counts are not rank-revealing)"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity >= 1"}])
 
 print("cases written to", ROOT)

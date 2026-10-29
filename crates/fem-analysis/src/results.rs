@@ -31,7 +31,17 @@ pub struct Manifest {
     pub backend: String,
     pub equations: usize,
     pub solver: Option<serde_json::Value>,
+    /// Wall-clock seconds per stage (not part of reproducible results).
+    #[serde(default)]
+    pub timings: Timings,
     pub messages: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Timings {
+    pub assembly_s: f64,
+    pub factorization_s: f64,
+    pub solve_s: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

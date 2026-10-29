@@ -1,0 +1,32 @@
+{
+  "case_id": "V-MECH-003",
+  "title": "Unsupported 3D frame (27 joints, 54 bars)",
+  "feature_ids": [
+    "F08",
+    "stability"
+  ],
+  "model": "model.json",
+  "model_sha256": "fac7df05824860784668b3edf370d12428c5249d79e99e5cb888000553202c68",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Unsupported 3D body has 6 rigid-body modes",
+    "derivation": [
+      "nullity(K) = 6 (not asserted: pivot counts are not rank-revealing)"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "nullity >= 1"
+    }
+  ],
+  "expected": [],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

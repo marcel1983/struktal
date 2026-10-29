@@ -6,25 +6,26 @@ No se ha ejecutado SAP2000. Ningún requisito está `verified_sap`. No se afirma
 
 ## Inventario (spec/features.csv, no congelado: P00 sigue abierto hasta disponer de la instalación)
 
-Denominador: 123 requisitos atómicos iniciales, 20 familias.
+Denominador: 124 requisitos atómicos, 20 familias (+1 en esta revisión: F08-007).
 
 | Estado global | Requisitos |
 |---|---|
 | verified_independent | 20 |
 | implemented | 2 |
 | partial | 6 |
-| specified | 93 |
+| specified | 94 |
 | blocked | 2 |
 | verified_sap | 0 |
 
-Cobertura verificada independientemente: 20/123 (16 %). Cobertura contrastada con SAP2000: 0/123 (0 %). El inventario crecerá en P00; el porcentaje bajará cuando se añadan requisitos descubiertos, y eso es lo esperado.
+Cobertura verificada independientemente: 20/124 (16 %). Cobertura contrastada con SAP2000: 0/124 (0 %). El inventario crecerá en P00; el porcentaje bajará cuando se añadan requisitos descubiertos, y eso es lo esperado.
 
 ## Lo que existe (subconjunto H0/H1 parcial)
 
 - Pórtico 3D lineal Euler–Bernoulli: barras, apoyos, cargas nodales, uniformes, puntuales y peso propio; casos lineales y combinaciones de suma lineal.
-- Diagnóstico de mecanismo con DOF identificados; rechazo explícito de matrices no SPD.
+- Backend por defecto `faer-sparse-ldlt` (decisión 0005); `skyline-ldlt` como referencia.
+- Diagnóstico de mecanismo (nulidad ≥ 1, recuento exacto no determinado); rechazo explícito de clases de matriz no admitidas.
 - CLI con manifiesto, hash de snapshot y estados por caso.
-- Banco de 10 casos analíticos, todos pasan (rtol 1e-8; errores observados ≤ 1,5e-15).
+- Banco de 11 casos analíticos, todos pasan con ambos backends (rtol 1e-8; errores observados ≤ 1,5e-15).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 
@@ -36,6 +37,7 @@ Cobertura verificada independientemente: 20/123 (16 %). Cobertura contrastada co
 | Carga uniforme en barras inclinadas | Por longitud real; las opciones de proyección no están implementadas. |
 | Malla analítica | Sin subdivisión automática; SAP2000 puede discretizar internamente. |
 | Intercambio S2K/OAPI | Nada implementado. |
+| Recuento de modos de mecanismo | Solo se afirma nulidad ≥ 1; falta verificación del espacio nulo (F08-007). |
 
 ## Bloqueos
 

@@ -16,3 +16,25 @@ Conclusiones:
 - El perfil skyline crece aproximadamente como n^1,6 en estos edificios; es el cuello de botella. Ver decisión 0002.
 - El residuo empeora con el tamaño (7,6e-11 a 52k ecuaciones); el umbral de verificación 1e-10 solo se aplica a los casos de `verification/`.
 - Pendiente: medir etapas por separado (ensamblaje, ordenación, factorización, E/S), mediana de varias ejecuciones y la PC Windows de referencia.
+
+## Comparación skyline / faer (2026-10-29, decisión 0005)
+
+Mismo equipo. `python3 tools/bench.py DIR faer` y `BENCH_MAX_SIZES=4 python3 tools/bench.py DIR skyline`; presupuesto 4096 MiB. Tiempos por etapa tomados del manifiesto. «Entradas del factor» = perfil (skyline) o `len_val` (faer). Una ejecución por tamaño.
+
+| Backend | Modelo | Ecuaciones | Entradas del factor | Factor MB | Ensamblaje s | Factorización s | 2 soluciones s | Total s | RSS pico MiB | Residuo máx. |
+|---|---|---|---|---|---|---|---|---|---|---|
+| skyline | 4×4×5 | 750 | 70 341 | 0,6 | 0,00 | 0,00 | 0,00 | 0,02 | 12 | 3,9e-13 |
+| faer | 4×4×5 | 750 | 65 772 | 0,5 | 0,00 | 0,00 | 0,00 | 0,02 | 12 | 2,1e-13 |
+| skyline | 8×8×10 | 4 860 | 1 469 070 | 11,9 | 0,03 | 0,24 | 0,01 | 0,35 | 34 | 3,0e-12 |
+| faer | 8×8×10 | 4 860 | 1 103 472 | 8,8 | 0,03 | 0,03 | 0,00 | 0,13 | 34 | 1,0e-12 |
+| skyline | 12×12×20 | 20 280 | 14 688 924 | 118,2 | 0,12 | 6,27 | 0,09 | 6,92 | 195 | 2,1e-11 |
+| faer | 12×12×20 | 20 280 | 9 018 324 | 72,1 | 0,18 | 0,42 | 0,04 | 1,05 | 160 | 4,5e-12 |
+| skyline | 16×16×30 | 52 020 | 67 358 502 | 540,5 | 0,38 | 51,98 | 0,41 | 53,83 | 719 | 7,6e-11 |
+| faer | 16×16×30 | 52 020 | 37 084 428 | 296,7 | 0,43 | 2,41 | 0,11 | 3,83 | 511 | 1,0e-11 |
+| faer | 20×20×40 | 105 840 | 121 310 316 | 970,5 | 1,00 | 13,52 | 0,46 | 16,19 | 1 379 | 1,9e-11 |
+| faer | 24×24×60 | 225 000 | 360 148 212 | 2 881,2 | 4,07 | 60,49 | 1,09 | 68,43 | 3 681 | 4,4e-11 |
+
+- skyline no se ejecutó en los dos mayores: necesitaría 1,7 GB y del orden de 10 min solo para 20×20×40.
+- Desplazamientos skyline vs faer en 16×16×30: diferencia relativa máxima 1,6e-12 (DEAD) y 8,2e-11 (WIND).
+- Diagnóstico de singularidad a escala: el mismo edificio 20×20×40 sin apoyos se clasifica como mecanismo en 11 s con faer.
+- El ensamblaje (4 s a 225 000 ecuaciones) empieza a pesar: usa tripletas y ordenación global; pendiente el ensamblaje simbólico reutilizable.

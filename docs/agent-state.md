@@ -13,7 +13,7 @@ Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 |---|---|---|
 | P00 | Parcial. Perfil, inventario (123 req.), convenciones, matrices S2K/API, tolerancias, formato de casos y comparador creados. Falta instalación de SAP2000, build exacto, manuales, y congelar inventario. | `spec/`, `verification/`, decisión 0004 |
 | P01 | Hecho para el subconjunto: modelo v1 serializable, validación todo-o-nada, rechazo de esquema futuro, CLI (`validate`, `solve`, `capabilities`, `verify`, `compare`), manifiesto y estados por caso. Migración: solo gancho. | `fem-core`, `fem-cli`, tests |
-| P02 | Parcial. Tripletas→CSC determinista, RCM, skyline LDLᵀ escalado, residuo, diagnóstico de mecanismo/indefinida, presupuesto de memoria. Falta: búsqueda de vectores del espacio nulo, backend para indefinidas y grande (faer/MUMPS). | `fem-math`, decisión 0002 |
+| P02 | Parcial. Tripletas→CSC determinista; backends `faer-sparse-ldlt` (por defecto, AMD, supernodal) y `skyline-ldlt` (referencia) tras el mismo contrato; residuo; clasificación de mecanismo; presupuesto de memoria antes de reservar. Falta: verificación del espacio nulo (F08-007), backend para indefinidas (MUMPS u otro), ensamblaje simbólico reutilizable. | `fem-math`, decisiones 0002 y 0005 |
 | P03 | No iniciado (no hay mallado ni subdivisión). | — |
 | P04 | Parcial. Barra Euler–Bernoulli 3D, sección general, cargas nodales/uniformes/puntuales/peso propio, suma lineal. Falta: Timoshenko, secciones paramétricas y variables, cargas trapezoidales/térmicas, envolventes, importación S2K mínima. | `fem-elements`, `fem-analysis`, V-LIN-001..005 |
 | P05–P16 | No iniciados. | `spec/features.csv` |
@@ -22,19 +22,19 @@ Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
-- `cargo test --workspace`: 41 pruebas, 0 fallos.
-- `rust-fem verify verification/cases/*/case.json`: 10/10 `pass`; todos `oracle_pending` para SAP2000.
+- `cargo test --workspace`: 52 pruebas, 0 fallos. `cargo test -p fem-math --no-default-features` (solo skyline): 14, 0 fallos.
+- `rust-fem verify --backend {faer,skyline} verification/cases/*/case.json`: 11/11 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - Benchmarks: docs/benchmarks.md.
 
 ## Decisiones pendientes
 
-1. Backend definitivo: evaluar `faer` (Cholesky dispersa, LDLᵀ con pivoteo) con el banco de matrices de `fem-math`.
+1. Backend para matrices indefinidas (P-Delta, pandeo, multiplicadores): MUMPS por FFI u otra opción; faer LBLᵀ intranodal descartado.
 2. Convención de signos de salida compatible con SAP2000: requiere oráculo.
 3. Si la deformación por cortante debe estar activa por defecto (como SAP2000) cuando exista Timoshenko.
 
 ## Siguiente paso concreto
 
-1. P02: prueba de viabilidad de `faer` como segundo backend detrás del mismo contrato (`MatrixClass`, `SolverError`, diagnósticos); comparar con skyline en los casos y en `tools/gen_grid.py 16 16 30`.
+1. P02/F08-007: vectores del espacio nulo verificados (‖K z‖) para dar una cota inferior fiable de modos de mecanismo; caso V-MECH-003 debe pasar a afirmar nulidad 6.
 2. P05: liberaciones de extremo con condensación de K **y** de cargas, con caso analítico de viga articulada y resorte (caso 4 de §21 aún no creado).
 3. P13 mínimo: parser S2K con AST para las tablas de `spec/s2k-table-coverage.csv`, en modo estricto.
 
@@ -42,6 +42,8 @@ Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 ```bash
 cargo test --workspace
-cargo run -q -p fem-cli -- verify verification/cases/*/case.json
+cargo run -q -p fem-cli -- verify verification/cases/*/case.json                    # faer
+cargo run -q -p fem-cli -- verify --backend skyline verification/cases/*/case.json
+cargo build --release && python3 tools/bench.py /tmp/bench faer
 python3 tools/gen_cases.py   # solo si se cambia un caso a propósito; revisar el diff de case.json
 ```

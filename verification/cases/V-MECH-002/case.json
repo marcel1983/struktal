@@ -21,7 +21,7 @@
       "case": "LC1",
       "completion": "error",
       "physical_status": "mechanism",
-      "message_contains": "1 zero pivot(s)"
+      "message_contains": " RX"
     }
   ],
   "expected": [],

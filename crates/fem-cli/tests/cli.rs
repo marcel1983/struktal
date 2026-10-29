@@ -37,12 +37,21 @@ fn copy_case(id: &str, tag: &str) -> PathBuf {
 }
 
 #[test]
-fn all_verification_cases_pass() {
+fn all_verification_cases_pass_with_every_backend() {
     let cases = case_files();
-    assert!(cases.len() >= 10, "expected the verification bench, found {}", cases.len());
-    let out = bin().arg("verify").args(&cases).output().expect("run");
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(out.status.success(), "verify failed:\n{stdout}\n{}", String::from_utf8_lossy(&out.stderr));
+    assert!(cases.len() >= 11, "expected the verification bench, found {}", cases.len());
+    for backend in ["faer", "skyline"] {
+        let out = bin().args(["verify", "--backend", backend]).args(&cases).output().expect("run");
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(out.status.success(), "{backend}: verify failed:\n{stdout}\n{}", String::from_utf8_lossy(&out.stderr));
+    }
+}
+
+#[test]
+fn unknown_backend_is_input_error() {
+    let model = repo().join("verification/cases/V-LIN-001/model.json");
+    let out = bin().args(["solve", "--backend", "nope"]).arg(&model).output().expect("run");
+    assert_eq!(out.status.code(), Some(2));
 }
 
 #[test]
@@ -141,5 +150,9 @@ fn capabilities_declares_unsupported_families() {
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("json");
     let ns = v["not_supported"].as_array().expect("array");
     assert!(ns.iter().any(|x| x == "modal"));
-    assert_eq!(v["solver_backends"][0]["matrix_classes"], serde_json::json!(["spd"]));
+    let backends = v["solver_backends"].as_array().expect("array");
+    assert_eq!(backends.len(), 2);
+    for b in backends {
+        assert_eq!(b["matrix_classes"], serde_json::json!(["spd"]));
+    }
 }

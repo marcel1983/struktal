@@ -10,6 +10,7 @@ La versión 0.1.0 es un subconjunto: análisis estático lineal de pórticos 3D 
 cargo build --release
 ./target/release/rust-fem validate verification/cases/V-LIN-001/model.json
 ./target/release/rust-fem solve verification/cases/V-LIN-003/model.json --stations 5 -o results.json
+./target/release/rust-fem solve verification/cases/V-LIN-003/model.json --backend skyline   # backend de referencia
 ./target/release/rust-fem capabilities
 ./target/release/rust-fem verify verification/cases/*/case.json
 ```
@@ -21,7 +22,7 @@ Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 en
 | Ruta | Contenido |
 |---|---|
 | `crates/fem-core` | Modelo canónico v1, unidades, validación, hash de snapshot |
-| `crates/fem-math` | Tripletas/CSC, RCM, backend skyline LDLᵀ y contrato de capacidades |
+| `crates/fem-math` | Tripletas/CSC, contrato de solver; backends `faer-sparse-ldlt` (por defecto) y `skyline-ldlt` (referencia) |
 | `crates/fem-elements` | Barra 3D Euler–Bernoulli, ejes locales, cargas equivalentes, acciones en estaciones |
 | `crates/fem-analysis` | Estática lineal, combinaciones, resultados, manifiesto, estados por caso |
 | `crates/fem-cli` | Binario `rust-fem` y comparador de verificación |

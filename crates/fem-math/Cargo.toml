@@ -8,6 +8,11 @@ license.workspace = true
 
 [dependencies]
 serde.workspace = true
+faer = { version = "=0.24.4", default-features = false, features = ["std", "sparse-linalg"], optional = true }
+
+[features]
+default = ["faer"]
+faer = ["dep:faer"]
 
 [lints]
 workspace = true

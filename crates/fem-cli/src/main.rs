@@ -10,6 +10,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use fem_analysis::{Completion, Options, RunResult};
+use fem_math::Backend;
 
 #[derive(Parser)]
 #[command(
@@ -38,6 +39,9 @@ enum Cmd {
         /// Memory budget for the factorization, in MiB.
         #[arg(long, default_value_t = 1024)]
         memory_budget_mib: usize,
+        /// Linear solver backend: faer | skyline.
+        #[arg(long, default_value = "faer")]
+        backend: String,
     },
     /// Print engine and solver backend capabilities as JSON.
     Capabilities,
@@ -48,6 +52,9 @@ enum Cmd {
         /// Write the full JSON report here.
         #[arg(long)]
         report: Option<PathBuf>,
+        /// Linear solver backend: faer | skyline.
+        #[arg(long, default_value = "faer")]
+        backend: String,
     },
     /// Compare an existing results file with a verification case.
     Compare { results: PathBuf, case: PathBuf },
@@ -75,9 +82,13 @@ fn stations_ok(n: usize) -> Result<usize, Fail> {
     if n < 2 { Err(Fail::Input("--stations must be >= 2".into())) } else { Ok(n) }
 }
 
-fn solve(path: &Path, stations: usize, budget_mib: usize) -> Result<RunResult, Fail> {
+fn backend(name: &str) -> Result<Backend, Fail> {
+    Backend::parse(name).ok_or_else(|| Fail::Input(format!("unknown backend '{name}' (available: skyline, faer)")))
+}
+
+fn solve(path: &Path, stations: usize, budget_mib: usize, backend: Backend) -> Result<RunResult, Fail> {
     let snap = load_snapshot(path)?;
-    let opts = Options { stations: stations_ok(stations)?, memory_budget: budget_mib.saturating_mul(1 << 20) };
+    let opts = Options { stations: stations_ok(stations)?, memory_budget: budget_mib.saturating_mul(1 << 20), backend };
     Ok(fem_analysis::run(&snap, &opts))
 }
 
@@ -101,7 +112,12 @@ fn write_out(path: Option<&Path>, text: &str) -> Result<(), Fail> {
     }
 }
 
-fn run_verify(cases: &[PathBuf], report: Option<&Path>, existing: Option<&Path>) -> Result<bool, Fail> {
+fn run_verify(
+    cases: &[PathBuf],
+    report: Option<&Path>,
+    existing: Option<&Path>,
+    backend: Backend,
+) -> Result<bool, Fail> {
     let mut reports = Vec::new();
     for case_path in cases {
         let (cf, dir) = verify::load_case(case_path).map_err(Fail::Input)?;
@@ -118,7 +134,7 @@ fn run_verify(cases: &[PathBuf], report: Option<&Path>, existing: Option<&Path>)
                 }
                 r
             }
-            None => solve(&model_path, 5, 1024)?,
+            None => solve(&model_path, 5, 1024, backend)?,
         };
         let rep = verify::compare(&cf, &tol, &result, &hash);
         let failed: Vec<_> = rep.rows.iter().filter(|r| !r.pass).collect();
@@ -159,8 +175,8 @@ fn main() -> ExitCode {
             );
             true
         }),
-        Cmd::Solve { model, output, stations, memory_budget_mib } => solve(&model, stations, memory_budget_mib)
-            .and_then(|r| {
+        Cmd::Solve { model, output, stations, memory_budget_mib, backend: b } => {
+            backend(&b).and_then(|b| solve(&model, stations, memory_budget_mib, b)).and_then(|r| {
                 let ok = r.cases.iter().all(|c| c.status.completion() == Completion::Complete);
                 for c in &r.cases {
                     if c.status.completion() != Completion::Complete {
@@ -174,7 +190,8 @@ fn main() -> ExitCode {
                     }
                 }
                 write_out(output.as_deref(), &json(&r)).map(|_| ok)
-            }),
+            })
+        }
         Cmd::Capabilities => {
             let caps = serde_json::json!({
                 "engine": "rust-fem",
@@ -186,14 +203,16 @@ fn main() -> ExitCode {
                 "elements": ["frame3d_euler_bernoulli"],
                 "loads": ["joint_force_moment", "frame_uniform_full_length", "frame_point_force", "self_weight"],
                 "not_supported": ["releases", "offsets", "springs", "constraints", "shear_deformation", "areas", "solids", "modal", "response_spectrum", "time_history", "nonlinear", "staged_construction", "moving_loads", "design", "s2k_import", "s2k_export", "oapi"],
-                "solver_backends": [fem_math::skyline::capabilities()],
+                "solver_backends": Backend::all().into_iter().map(Backend::capabilities).collect::<Vec<_>>(),
                 "compatibility": "specified_not_verified (see spec/sap_profile.yaml)"
             });
             println!("{}", json(&caps));
             Ok(true)
         }
-        Cmd::Verify { cases, report } => run_verify(&cases, report.as_deref(), None),
-        Cmd::Compare { results, case } => run_verify(&[case], None, Some(&results)),
+        Cmd::Verify { cases, report, backend: b } => {
+            backend(&b).and_then(|b| run_verify(&cases, report.as_deref(), None, b))
+        }
+        Cmd::Compare { results, case } => run_verify(&[case], None, Some(&results), Backend::default()),
     };
     match res {
         Ok(true) => ExitCode::SUCCESS,

@@ -1,6 +1,25 @@
 # Capacidades reales de cada backend (guía §6). Generado a mano; la fuente de
 # verdad ejecutable es `rust-fem capabilities`.
+default_backend: faer-sparse-ldlt   # decisión 0005
 backends:
+  - name: faer-sparse-ldlt
+    version: faer 0.24.4 (fijada)
+    pure_rust: true
+    matrix_classes: [spd]
+    unsupported: [symmetric_indefinite, general_unsymmetric, complex]
+    pivoting: none (LDLT)
+    ordering: AMD (faer)
+    scaling: symmetric diagonal 1/sqrt(a_ii)
+    singularity: regularización dinámica de faer (eps 1e-10, delta centinela 1e30); pivotes nulos y negativos leídos de D
+    nullity_count: NO fiable en modelos de varias barras (decisión 0005); el análisis informa nulidad >= 1
+    inertia: signos de D; exacta solo sin pivotes nulos
+    multiple_rhs: true
+    symbolic_reuse: posible en faer, no usado aún
+    memory_estimate_before_factorization: true
+    index_types: {csc: u32}
+    threads: 1 (Par::Seq)
+    determinism: resultados idénticos bit a bit entre ejecuciones (medido)
+    measured_limits: docs/benchmarks.md
   - name: skyline-ldlt
     version: 0.1.0
     pure_rust: true
@@ -9,7 +28,8 @@ backends:
     pivoting: none
     ordering: reverse_cuthill_mckee
     scaling: symmetric diagonal 1/sqrt(a_ii)
-    singularity: pivotes escalados |d| <= 1e-10; nulidad estimada, DOF identificados
+    singularity: pivotes escalados |d| <= 1e-10; DOF identificados
+    nullity_count: NO fiable en modelos de varias barras (decisión 0005)
     inertia: exacta solo sin pivotes nulos (Sylvester)
     multiple_rhs: true (una factorización por modelo)
     symbolic_reuse: false
@@ -18,5 +38,5 @@ backends:
     threads: 1
     measured_limits: docs/benchmarks.md
 candidates_pending_evaluation:
-  - faer (Cholesky dispersa supernodal, LU, LDLT/Bunch-Kaufman): no evaluado; no extrapolar capacidades por nombre [S09]
-  - MUMPS (FFI opcional, indefinidas, inercia) [S11]
+  - MUMPS (FFI opcional, indefinidas con pivoteo, inercia) [S11] — necesario para F08-004
+  - faer LBLT intranodal: descartado como solver indefinido general (pivoteo solo dentro del supernodo)
