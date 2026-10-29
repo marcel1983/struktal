@@ -125,6 +125,13 @@ fn mechanism_solve_exits_nonzero_with_diagnosis() {
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("json");
     assert_eq!(v["cases"][0]["status"]["physical_status"], "mechanism");
     assert_eq!(v["cases"][0]["status"]["compatibility_status"], "not_verified");
+    let st = &v["manifest"]["stability"];
+    assert_eq!(st["nullity"], 1);
+    assert_eq!(st["modes"].as_array().expect("modes").len(), 1);
+    // The torsional mode moves only rotations about X.
+    for e in st["modes"][0]["dominant"].as_array().expect("dominant") {
+        assert_eq!(e["component"], "RX");
+    }
 }
 
 #[test]

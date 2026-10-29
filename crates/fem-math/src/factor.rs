@@ -64,6 +64,29 @@ pub fn factorize(backend: Backend, a: &Csc, class: MatrixClass, budget_bytes: us
     }
 }
 
+/// PSD-regularized factorization for null-space analysis; see
+/// [`crate::skyline::factorize_psd_regularized`]. Returns flagged DOFs.
+pub fn factorize_psd_regularized(
+    backend: Backend,
+    a: &Csc,
+    budget_bytes: usize,
+    eps: f64,
+) -> Result<(Factor, Vec<usize>), SolverError> {
+    match backend {
+        Backend::Skyline => {
+            skyline::factorize_psd_regularized(a, budget_bytes, eps).map(|(f, z)| (Factor::Skyline(f), z))
+        }
+        #[cfg(feature = "faer")]
+        Backend::Faer => crate::faer_backend::factorize_psd_regularized(
+            a,
+            budget_bytes,
+            eps,
+            crate::faer_backend::SupernodalThreshold::AUTO,
+        )
+        .map(|(f, z)| (Factor::Faer(f), z)),
+    }
+}
+
 impl Factor {
     pub fn solve(&self, b: &[f64]) -> Vec<f64> {
         match self {

@@ -13,7 +13,7 @@
     "kind": "analytical",
     "source": "Unsupported 3D body has 6 rigid-body modes",
     "derivation": [
-      "nullity(K) = 6 (not asserted: pivot counts are not rank-revealing)"
+      "nullity(K) = 6"
     ]
   },
   "expected_status": [
@@ -21,7 +21,7 @@
       "case": "LC1",
       "completion": "error",
       "physical_status": "mechanism",
-      "message_contains": "nullity >= 1"
+      "message_contains": "nullity = 6 (exact)"
     }
   ],
   "expected": [],

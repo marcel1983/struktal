@@ -11,6 +11,7 @@
 pub mod factor;
 #[cfg(feature = "faer")]
 pub mod faer_backend;
+pub mod nullspace;
 pub mod ordering;
 pub mod skyline;
 pub mod sparse;

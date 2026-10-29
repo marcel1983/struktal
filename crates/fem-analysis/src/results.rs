@@ -34,7 +34,67 @@ pub struct Manifest {
     /// Wall-clock seconds per stage (not part of reproducible results).
     #[serde(default)]
     pub timings: Timings,
+    /// Present when the stiffness is singular: null-space analysis.
+    #[serde(default)]
+    pub stability: Option<StabilityReport>,
     pub messages: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StabilityReport {
+    pub method: String,
+    pub backend: String,
+    pub pivot_eps: f64,
+    pub residual_tol: f64,
+    pub gap_factor: f64,
+    pub spectral_gap_ratio: Option<f64>,
+    /// First 64 flagged DOFs (ordering-dependent, indicative only).
+    pub flagged_dofs: Vec<String>,
+    pub flagged_count: usize,
+    pub truncated: bool,
+    pub min_unflagged_pivot: f64,
+    /// Null vectors found by inverse iteration on K with flagged DOFs fixed.
+    pub found_by_iteration: usize,
+    pub iterations: usize,
+    pub iteration_converged: bool,
+    /// Smallest eigenvalue estimate of the fixed stiffness (scaled); the upper
+    /// bound requires `spectral_gap_ratio >= gap_factor`.
+    pub fixed_min_eigenvalue: Option<f64>,
+    pub solve_backward_error: f64,
+    pub solves: usize,
+    /// Number of verified, independent null vectors.
+    pub nullity_lower_bound: usize,
+    pub nullity_upper_bound: Option<usize>,
+    /// Set only when both bounds agree.
+    pub nullity: Option<usize>,
+    pub max_residual: f64,
+    pub modes: Vec<MechanismMode>,
+}
+
+/// A verified null vector. Values are displacements normalized so that the
+/// largest translation is 1 (largest rotation if there is no translation).
+/// Any basis of the null space is valid: modes are not unique.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MechanismMode {
+    pub seed_dof: String,
+    pub residual: f64,
+    /// Norm of the projection on the six global rigid-body motions about the
+    /// centroid (scaled coordinates). 1 means the whole structure moves as a
+    /// rigid body (missing supports); intermediate values are not a measure
+    /// of locality, see `moving_joints`.
+    pub rigid_body_share: f64,
+    /// Joints with a non-negligible component (> 1e-8 of the unit scaled
+    /// vector). Fewer than `total_joints` means a local mechanism.
+    pub moving_joints: usize,
+    pub total_joints: usize,
+    pub dominant: Vec<ModeEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModeEntry {
+    pub joint: String,
+    pub component: String,
+    pub value: f64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

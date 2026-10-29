@@ -21,6 +21,12 @@
       "case": "LC1",
       "completion": "error",
       "physical_status": "mechanism",
+      "message_contains": "nullity = 1 (exact)"
+    },
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
       "message_contains": " RX"
     }
   ],

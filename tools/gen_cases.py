@@ -276,7 +276,7 @@ write("V-MECH-001", "Free body: no supports", ["F08", "stability"], model(
     [SEC], [{"name": "TIP"}],
     joint_loads=[{"pattern": "TIP", "joint": "2", "values": [0, 0, -P, 0, 0, 0]}],
 ), {"kind": "analytical", "source": "Unsupported 3D body has 6 rigid-body modes", "derivation": ["nullity(K) = 6"]},
-    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity >= 1"}])
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"}])
 
 write("V-MECH-002", "Simply supported beam with torsion unrestrained at both ends", ["F08", "stability"], model(
     "V-MECH-002 torsional mechanism",
@@ -285,10 +285,11 @@ write("V-MECH-002", "Simply supported beam with torsion unrestrained at both end
     [SEC], [{"name": "LIVE"}],
     frame_loads=[{"pattern": "LIVE", "frame": "F1", "load": {"kind": "Uniform", "direction": "Gravity", "value": w}}],
 ), {"kind": "analytical", "source": "Rigid rotation about the member axis is unrestrained", "derivation": ["nullity(K) = 1 (RX)"]},
-    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": " RX"}])
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 1 (exact)"},
+                     {"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": " RX"}])
 
-# Multi-element free body: pivot counts are unreliable here (decision 0005),
-# only the classification as a mechanism is asserted.
+# Multi-element free body: plain pivot counts are unreliable here (decision
+# 0005); the verified null-space analysis must give the exact nullity (0006).
 gj, gf = [], []
 for k in range(3):
     for j in range(3):
@@ -304,7 +305,27 @@ write("V-MECH-003", "Unsupported 3D frame (27 joints, 54 bars)", ["F08", "stabil
     "V-MECH-003 free 3D frame",
     gj, gf, [SEC], [{"name": "H"}],
     joint_loads=[{"pattern": "H", "joint": "N222", "values": [1000.0, 0, 0, 0, 0, 0]}],
-), {"kind": "analytical", "source": "Unsupported 3D body has 6 rigid-body modes", "derivation": ["nullity(K) = 6 (not asserted: pivot counts are not rank-revealing)"]},
-    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity >= 1"}])
+), {"kind": "analytical", "source": "Unsupported 3D body has 6 rigid-body modes", "derivation": ["nullity(K) = 6"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"}])
+
+# Same frame held only in translation at one joint: free rotation about it.
+gj4 = json.loads(json.dumps(gj))
+gj4[0]["restraint"] = [True, True, True, False, False, False]
+write("V-MECH-004", "3D frame held in translation at a single joint", ["F08", "stability"], model(
+    "V-MECH-004 frame pinned at one joint",
+    gj4, gf, [SEC], [{"name": "H"}],
+    joint_loads=[{"pattern": "H", "joint": "N222", "values": [1000.0, 0, 0, 0, 0, 0]}],
+), {"kind": "analytical", "source": "A rigid body fixed at one point keeps its three rotations", "derivation": ["nullity(K) = 3"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 3 (exact)"}])
+
+# Supported cantilever plus an unconnected floating bar: local mechanism.
+write("V-MECH-005", "Supported cantilever plus an unconnected floating bar", ["F08", "stability"], model(
+    "V-MECH-005 floating bar",
+    [J("1", 0, 0, 0, FIX), J("2", 3, 0, 0), J("3", 0, 2, 0), J("4", 3, 2, 0)],
+    [{"name": "F1", "i": "1", "j": "2", "section": "B"}, {"name": "F2", "i": "3", "j": "4", "section": "B"}],
+    [SEC], [{"name": "TIP"}],
+    joint_loads=[{"pattern": "TIP", "joint": "2", "values": [0, 0, -P, 0, 0, 0]}],
+), {"kind": "analytical", "source": "The floating bar has 6 rigid-body modes; the cantilever is stable", "derivation": ["nullity(K) = 6"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"}])
 
 print("cases written to", ROOT)

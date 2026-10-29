@@ -38,3 +38,14 @@ Mismo equipo. `python3 tools/bench.py DIR faer` y `BENCH_MAX_SIZES=4 python3 too
 - Desplazamientos skyline vs faer en 16×16×30: diferencia relativa máxima 1,6e-12 (DEAD) y 8,2e-11 (WIND).
 - Diagnóstico de singularidad a escala: el mismo edificio 20×20×40 sin apoyos se clasifica como mecanismo en 11 s con faer.
 - El ensamblaje (4 s a 225 000 ecuaciones) empieza a pesar: usa tripletas y ordenación global; pendiente el ensamblaje simbólico reutilizable.
+
+## Diagnóstico de mecanismo a escala (2026-10-29, decisión 0006)
+
+Edificios de `tools/gen_grid.py` con todos los apoyos retirados (nulidad real 6), presupuesto 4096 MiB. El tiempo es el total de `solve`: factorización estricta fallida, factorización regularizada y análisis del espacio nulo.
+
+| Modelo | Ecuaciones | faer | skyline |
+|---|---|---|---|
+| 4×4×5 | 900 | 6 exacta, <0,1 s | 6 exacta, <0,1 s |
+| 8×8×10 | 5 346 | 6 exacta, 0,2 s | 6 exacta, 0,8 s |
+| 16×16×30 | 53 754 | 6 exacta, 7,1 s | 6 exacta, 121 s |
+| 20×20×40 | 108 486 | ≥ 6, no certificada (hueco 4,3), 25,5 s | — |

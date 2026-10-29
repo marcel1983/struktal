@@ -10,22 +10,22 @@ Denominador: 124 requisitos atómicos, 20 familias (+1 en esta revisión: F08-00
 
 | Estado global | Requisitos |
 |---|---|
-| verified_independent | 20 |
+| verified_independent | 22 |
 | implemented | 2 |
-| partial | 6 |
-| specified | 94 |
+| partial | 5 |
+| specified | 93 |
 | blocked | 2 |
 | verified_sap | 0 |
 
-Cobertura verificada independientemente: 20/124 (16 %). Cobertura contrastada con SAP2000: 0/124 (0 %). El inventario crecerá en P00; el porcentaje bajará cuando se añadan requisitos descubiertos, y eso es lo esperado.
+Cobertura verificada independientemente: 22/124 (18 %). Cobertura contrastada con SAP2000: 0/124 (0 %). El inventario crecerá en P00; el porcentaje bajará cuando se añadan requisitos descubiertos, y eso es lo esperado.
 
 ## Lo que existe (subconjunto H0/H1 parcial)
 
 - Pórtico 3D lineal Euler–Bernoulli: barras, apoyos, cargas nodales, uniformes, puntuales y peso propio; casos lineales y combinaciones de suma lineal.
 - Backend por defecto `faer-sparse-ldlt` (decisión 0005); `skyline-ldlt` como referencia.
-- Diagnóstico de mecanismo (nulidad ≥ 1, recuento exacto no determinado); rechazo explícito de clases de matriz no admitidas.
+- Diagnóstico de mecanismo con vectores del espacio nulo verificados: nulidad exacta cuando hay hueco espectral, modos con DOF dominantes y nudos afectados (decisión 0006); rechazo explícito de clases de matriz no admitidas.
 - CLI con manifiesto, hash de snapshot y estados por caso.
-- Banco de 11 casos analíticos, todos pasan con ambos backends (rtol 1e-8; errores observados ≤ 1,5e-15).
+- Banco de 13 casos analíticos, todos pasan con ambos backends (rtol 1e-8; errores observados ≤ 1,5e-15).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 
@@ -37,7 +37,7 @@ Cobertura verificada independientemente: 20/124 (16 %). Cobertura contrastada co
 | Carga uniforme en barras inclinadas | Por longitud real; las opciones de proyección no están implementadas. |
 | Malla analítica | Sin subdivisión automática; SAP2000 puede discretizar internamente. |
 | Intercambio S2K/OAPI | Nada implementado. |
-| Recuento de modos de mecanismo | Solo se afirma nulidad ≥ 1; falta verificación del espacio nulo (F08-007). |
+| Recuento de modos de mecanismo | Exacto con hueco espectral; por encima de ~10⁵ ecuaciones puede quedar como cota inferior (F08-007, decisión 0006). Formato de aviso de SAP2000 no comparado. |
 
 ## Bloqueos
 

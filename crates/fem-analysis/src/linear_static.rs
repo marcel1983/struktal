@@ -6,6 +6,7 @@ use fem_core::{Combination, FrameLoadKind, LoadCase, LoadDirection, Snapshot};
 use fem_elements::frame3d::{self, LocalSpanLoads, Mat12, SectionProps, Vec3};
 use std::time::Instant;
 
+use fem_math::nullspace::{self, NullSpaceOptions, NullVector};
 use fem_math::{Backend, MatrixClass, SolverError, TripletBuilder, relative_residual};
 
 use crate::results::*;
@@ -165,6 +166,182 @@ fn build_case_loads(s: &Snapshot, frames: &[FrameData], loads: &[(usize, f64)]) 
     CaseLoads { f_full, joint_loads, span, resultant }
 }
 
+/// Null-space analysis after a failed SPD factorization (decision 0006).
+fn mechanism_report(
+    s: &Snapshot,
+    k: &fem_math::Csc,
+    free_to_global: &[usize],
+    opts: &Options,
+) -> (String, Option<StabilityReport>) {
+    let backend = opts.backend.capabilities().name;
+    let ns_opts = NullSpaceOptions { budget_bytes: opts.memory_budget, ..Default::default() };
+    let r = match nullspace::analyze(opts.backend, k, &ns_opts) {
+        Ok(r) => r,
+        Err(e) => {
+            return (
+                format!(
+                    "mechanism: stiffness is singular or numerically singular (positive semidefinite by construction, \
+                     non-positive pivots in {backend}); null-space analysis unavailable: {e}; nullity >= 1"
+                ),
+                None,
+            );
+        }
+    };
+    let count = match (r.exact(), r.nullity_upper_bound) {
+        (Some(n), _) => format!("nullity = {n} (exact)"),
+        (None, Some(u)) => format!("nullity >= {} and <= {u}", r.nullity_lower_bound.max(1)),
+        (None, None) => format!(
+            "nullity >= {} (upper bound not certified: spectral gap ratio {})",
+            r.nullity_lower_bound.max(1),
+            r.spectral_gap_ratio.map(|g| format!("{g:.1}")).unwrap_or_else(|| "n/a".into())
+        ),
+    };
+    let rigid = rigid_body_basis(s, free_to_global, k);
+    let modes: Vec<MechanismMode> =
+        r.vectors.iter().take(MAX_REPORTED_MODES).map(|v| describe_mode(s, free_to_global, v, &rigid)).collect();
+    let msg = format!(
+        "mechanism: {count}; {} verified null vector(s), max scaled residual {:.1e} (tol {:.0e}); {} flagged pivot(s) in {backend}{}. \
+         Modes (dominant DOFs): {}",
+        r.nullity_lower_bound,
+        r.max_residual,
+        r.options.residual_tol,
+        r.flagged.len(),
+        if r.truncated { ", search truncated" } else { "" },
+        modes
+            .iter()
+            .take(6)
+            .map(|m| format!(
+                "[{} | moves {}/{} joints]",
+                m.dominant
+                    .iter()
+                    .take(3)
+                    .map(|d| format!("{} {}", d.joint, d.component))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                m.moving_joints,
+                m.total_joints
+            ))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    let report = StabilityReport {
+        method: "PSD-regularized LDLT + verified null vectors (decision 0006)".into(),
+        backend: backend.into(),
+        pivot_eps: r.options.pivot_eps,
+        residual_tol: r.options.residual_tol,
+        gap_factor: r.options.gap_factor,
+        spectral_gap_ratio: r.spectral_gap_ratio,
+        flagged_dofs: r.flagged.iter().take(64).map(|&e| dof_name(s, free_to_global[e])).collect(),
+        flagged_count: r.flagged.len(),
+        truncated: r.truncated,
+        min_unflagged_pivot: r.min_unflagged_pivot,
+        found_by_iteration: r.found_by_iteration,
+        iterations: r.iterations,
+        iteration_converged: r.iteration_converged,
+        fixed_min_eigenvalue: r.fixed_min_eigenvalue,
+        solve_backward_error: r.solve_backward_error,
+        solves: r.solves,
+        nullity_lower_bound: r.nullity_lower_bound,
+        nullity_upper_bound: r.nullity_upper_bound,
+        nullity: r.exact(),
+        max_residual: r.max_residual,
+        modes,
+    };
+    (msg, Some(report))
+}
+
+const MAX_REPORTED_MODES: usize = 24;
+
+/// Orthonormal basis (scaled coordinates, free DOFs) of the six global
+/// rigid-body motions about the centroid, used only to describe modes.
+fn rigid_body_basis(s: &Snapshot, free_to_global: &[usize], k: &fem_math::Csc) -> Vec<Vec<f64>> {
+    let n = free_to_global.len();
+    let sc: Vec<f64> = k.diagonal().iter().map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 1.0 }).collect();
+    let nj = s.model.joints.len().max(1) as f64;
+    let mut c = [0.0; 3];
+    for j in 0..s.model.joints.len() {
+        let p = s.joint_xyz(j);
+        for d in 0..3 {
+            c[d] += p[d] / nj;
+        }
+    }
+    let mut basis: Vec<Vec<f64>> = Vec::new();
+    for mode in 0..6 {
+        let mut y = vec![0.0; n];
+        for (e, &g) in free_to_global.iter().enumerate() {
+            let (j, comp) = (g / 6, g % 6);
+            let p = s.joint_xyz(j);
+            let r = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];
+            let val = if mode < 3 {
+                if comp == mode { 1.0 } else { 0.0 }
+            } else {
+                let mut w = [0.0; 3];
+                w[mode - 3] = 1.0;
+                if comp < 3 { cross(w, r)[comp] } else { w[comp - 3] }
+            };
+            y[e] = val / sc[e];
+        }
+        for _ in 0..2 {
+            for b in &basis {
+                let d: f64 = y.iter().zip(b).map(|(p, q)| p * q).sum();
+                y.iter_mut().zip(b).for_each(|(p, q)| *p -= d * q);
+            }
+        }
+        let nr = y.iter().map(|v| v * v).sum::<f64>().sqrt();
+        if nr > 1e-9 {
+            y.iter_mut().for_each(|v| *v /= nr);
+            basis.push(y);
+        }
+    }
+    basis
+}
+
+fn describe_mode(s: &Snapshot, free_to_global: &[usize], v: &NullVector, rigid: &[Vec<f64>]) -> MechanismMode {
+    let share = rigid
+        .iter()
+        .map(|b| b.iter().zip(&v.scaled).map(|(p, q)| p * q).sum::<f64>().powi(2))
+        .sum::<f64>()
+        .sqrt()
+        .min(1.0);
+    // Display normalization: largest translation = 1 (rotations if none).
+    let max_t =
+        free_to_global.iter().zip(&v.original).filter(|(g, _)| *g % 6 < 3).fold(0.0_f64, |m, (_, x)| m.max(x.abs()));
+    let max_r =
+        free_to_global.iter().zip(&v.original).filter(|(g, _)| *g % 6 >= 3).fold(0.0_f64, |m, (_, x)| m.max(x.abs()));
+    let norm = if max_t > 1e-12 * max_r.max(1e-300) { max_t } else { max_r.max(f64::MIN_POSITIVE) };
+    let mut idx: Vec<usize> = (0..v.scaled.len()).collect();
+    idx.sort_by(|&a, &b| v.scaled[b].abs().total_cmp(&v.scaled[a].abs()).then(a.cmp(&b)));
+    // Entries below 1e-8 of a unit scaled vector are numerical zeros.
+    const NEGLIGIBLE: f64 = 1e-8;
+    let mut moving = std::collections::BTreeSet::new();
+    for (e, &g) in free_to_global.iter().enumerate() {
+        if v.scaled[e].abs() > NEGLIGIBLE {
+            moving.insert(g / 6);
+        }
+    }
+    let dominant = idx
+        .into_iter()
+        .filter(|&e| v.scaled[e].abs() > NEGLIGIBLE)
+        .take(8)
+        .map(|e| {
+            let g = free_to_global[e];
+            ModeEntry {
+                joint: s.model.joints[g / 6].name.clone(),
+                component: COMPONENTS[g % 6].to_string(),
+                value: v.original[e] / norm,
+            }
+        })
+        .collect();
+    MechanismMode {
+        seed_dof: dof_name(s, free_to_global[v.seed]),
+        residual: v.residual,
+        rigid_body_share: share,
+        moving_joints: moving.len(),
+        total_joints: s.model.joints.len(),
+        dominant,
+    }
+}
+
 fn failed_case(name: &str, kind: &str, c: Completion, p: PhysicalStatus, messages: Vec<String>) -> CaseResult {
     CaseResult {
         name: name.to_string(),
@@ -195,6 +372,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         equations: 0,
         solver: None,
         timings: Timings::default(),
+        stability: None,
         messages: vec![],
     };
 
@@ -298,29 +476,10 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                     // so zero and negative pivots both mean (numerical)
                     // singularity, never negative stiffness. Pivot counts
                     // without a rank-revealing method are not a nullity.
-                    SolverError::Singular { zero_pivots: flagged, .. }
-                    | SolverError::NotPositiveDefinite { negative_pivots: flagged, .. } => {
-                        let mut all: Vec<usize> = flagged.clone();
-                        if let SolverError::NotPositiveDefinite { zero_pivots, .. } = &err {
-                            all.extend(zero_pivots);
-                        }
-                        all.sort_unstable();
-                        all.dedup();
-                        (
-                            PhysicalStatus::Mechanism,
-                            vec![format!(
-                                "mechanism: stiffness is singular or numerically singular (positive semidefinite by \
-                                 construction, {} non-positive pivot(s) in {}); nullity >= 1, exact count not determined; \
-                                 DOFs at flagged pivots (indicative, ordering-dependent): {}",
-                                all.len(),
-                                opts.backend.capabilities().name,
-                                all.iter()
-                                    .take(12)
-                                    .map(|&e| dof_name(s, free_to_global[e]))
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            )],
-                        )
+                    SolverError::Singular { .. } | SolverError::NotPositiveDefinite { .. } => {
+                        let (msg, report) = mechanism_report(s, &k, &free_to_global, opts);
+                        manifest.stability = report;
+                        (PhysicalStatus::Mechanism, vec![msg])
                     }
                     other => (PhysicalStatus::Indeterminate, vec![other.to_string()]),
                 };

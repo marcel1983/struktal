@@ -27,13 +27,10 @@ use faer::sparse::linalg::cholesky::{
 use faer::sparse::{SparseColMatRef, SymbolicSparseColMatRef};
 use faer::{Conj, MatMut, Par, Side};
 
-use crate::skyline::{BackendCapabilities, FactorDiagnostics, Inertia, MatrixClass, PIVOT_TOL, SolverError};
+use crate::skyline::{BackendCapabilities, FactorDiagnostics, Inertia, MatrixClass, PIVOT_TOL, SENTINEL, SolverError};
 use crate::sparse::Csc;
 
 pub const NAME: &str = "faer-sparse-ldlt";
-
-/// Replacement value for zero pivots of the scaled matrix (unit diagonal).
-pub const SENTINEL: f64 = 1e30;
 
 pub fn capabilities() -> BackendCapabilities {
     BackendCapabilities {
@@ -116,6 +113,28 @@ pub fn factorize_with(
     budget_bytes: usize,
     threshold: SupernodalThreshold,
 ) -> Result<FaerFactor, SolverError> {
+    factorize_impl(a, class, budget_bytes, threshold, None).map(|(f, _)| f)
+}
+
+/// Same contract as [`crate::skyline::factorize_psd_regularized`]: with
+/// `signs = +1` faer replaces every pivot `d <= eps` (small or negative) by
+/// [`SENTINEL`]. Only for matrices known to be positive semidefinite.
+pub fn factorize_psd_regularized(
+    a: &Csc,
+    budget_bytes: usize,
+    eps: f64,
+    threshold: SupernodalThreshold,
+) -> Result<(FaerFactor, Vec<usize>), SolverError> {
+    factorize_impl(a, MatrixClass::Spd, budget_bytes, threshold, Some(eps))
+}
+
+fn factorize_impl(
+    a: &Csc,
+    class: MatrixClass,
+    budget_bytes: usize,
+    threshold: SupernodalThreshold,
+    psd_eps: Option<f64>,
+) -> Result<(FaerFactor, Vec<usize>), SolverError> {
     if class != MatrixClass::Spd {
         return Err(SolverError::UnsupportedBackend { class, backend: NAME });
     }
@@ -169,10 +188,11 @@ pub fn factorize_with(
     let mut mem = MemBuffer::try_new(numeric_scratch)
         .map_err(|_| SolverError::ResourceExceeded { required_bytes: required, budget_bytes })?;
     let fwd = forward_perm(&symbolic);
+    let all_positive = vec![1i8; if psd_eps.is_some() { n } else { 0 }];
     let reg = LdltRegularization {
-        dynamic_regularization_signs: None,
+        dynamic_regularization_signs: psd_eps.map(|_| all_positive.as_slice()),
         dynamic_regularization_delta: SENTINEL,
-        dynamic_regularization_epsilon: PIVOT_TOL,
+        dynamic_regularization_epsilon: psd_eps.unwrap_or(PIVOT_TOL),
     };
     let result = symbolic.factorize_numeric_ldlt::<f64>(
         &mut values,
@@ -212,28 +232,34 @@ pub fn factorize_with(
     neg.sort_unstable();
     let inertia =
         Inertia { positive: n - zero.len() - neg.len(), negative: neg.len(), zero: zero.len(), exact: zero.is_empty() };
-    if !neg.is_empty() {
-        return Err(SolverError::NotPositiveDefinite { negative_pivots: neg, zero_pivots: zero, inertia });
+    if psd_eps.is_none() {
+        if !neg.is_empty() {
+            return Err(SolverError::NotPositiveDefinite { negative_pivots: neg, zero_pivots: zero, inertia });
+        }
+        if !zero.is_empty() {
+            return Err(SolverError::Singular { zero_pivots: zero, inertia });
+        }
     }
-    if !zero.is_empty() {
-        return Err(SolverError::Singular { zero_pivots: zero, inertia });
-    }
+    let flagged = zero;
 
-    Ok(FaerFactor {
-        diagnostics: FactorDiagnostics {
-            n,
-            nnz_input: a.nnz(),
-            profile_entries: len_val,
-            factor_bytes,
-            min_scaled_pivot: if n == 0 { 0.0 } else { dmin },
-            max_scaled_pivot: dmax,
-            inertia,
+    Ok((
+        FaerFactor {
+            diagnostics: FactorDiagnostics {
+                n,
+                nnz_input: a.nnz(),
+                profile_entries: len_val,
+                factor_bytes,
+                min_scaled_pivot: if n == 0 { 0.0 } else { dmin },
+                max_scaled_pivot: dmax,
+                inertia,
+            },
+            symbolic,
+            values,
+            scale,
+            solve_bytes,
         },
-        symbolic,
-        values,
-        scale,
-        solve_bytes,
-    })
+        flagged,
+    ))
 }
 
 impl FaerFactor {

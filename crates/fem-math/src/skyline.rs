@@ -15,6 +15,9 @@ use crate::sparse::Csc;
 /// Pivot of the scaled matrix (unit diagonal) at or below this value is zero.
 pub const PIVOT_TOL: f64 = 1e-10;
 
+/// Replacement for flagged pivots in PSD-regularized factorizations.
+pub const SENTINEL: f64 = 1e30;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MatrixClass {
@@ -149,6 +152,29 @@ pub struct SkylineFactor {
 }
 
 pub fn factorize(a: &Csc, class: MatrixClass, budget_bytes: usize) -> Result<SkylineFactor, SolverError> {
+    factorize_impl(a, class, budget_bytes, None).map(|(f, _)| f)
+}
+
+/// Factorization of a matrix known to be positive semidefinite, for null-space
+/// analysis. Every pivot `d <= eps` of the scaled matrix (zero or negative by
+/// roundoff) is replaced by [`SENTINEL`]; this is exactly the factorization of
+/// K + Σ_j c_j e_j e_jᵀ (scaled coordinates) with c_j ≈ SENTINEL at the flagged
+/// positions. Returns the factor and the flagged DOFs (original numbering).
+/// Not for matrices that may be genuinely indefinite.
+pub fn factorize_psd_regularized(
+    a: &Csc,
+    budget_bytes: usize,
+    eps: f64,
+) -> Result<(SkylineFactor, Vec<usize>), SolverError> {
+    factorize_impl(a, MatrixClass::Spd, budget_bytes, Some(eps))
+}
+
+fn factorize_impl(
+    a: &Csc,
+    class: MatrixClass,
+    budget_bytes: usize,
+    psd_eps: Option<f64>,
+) -> Result<(SkylineFactor, Vec<usize>), SolverError> {
     if class != MatrixClass::Spd {
         return Err(SolverError::UnsupportedBackend { class, backend: "skyline-ldlt" });
     }
@@ -206,6 +232,7 @@ pub fn factorize(a: &Csc, class: MatrixClass, budget_bytes: usize) -> Result<Sky
 
     let mut zero_new = Vec::new();
     let mut neg_new = Vec::new();
+    let mut flagged_new = Vec::new();
     let mut is_zero = vec![false; n];
     let (mut dmin, mut dmax) = (f64::INFINITY, 0.0_f64);
     for j in 0..n {
@@ -227,13 +254,23 @@ pub fn factorize(a: &Csc, class: MatrixClass, budget_bytes: usize) -> Result<Sky
             d -= l * g;
             data[idx(&start, &first, i, j)] = l;
         }
-        dmin = dmin.min(d.abs());
-        dmax = dmax.max(d.abs());
-        if d.abs() <= PIVOT_TOL {
-            is_zero[j] = true;
-            zero_new.push(j);
-        } else if d < 0.0 {
-            neg_new.push(j);
+        if let Some(eps) = psd_eps {
+            if d <= eps {
+                flagged_new.push(j);
+                d = SENTINEL;
+            } else {
+                dmin = dmin.min(d);
+                dmax = dmax.max(d);
+            }
+        } else {
+            dmin = dmin.min(d.abs());
+            dmax = dmax.max(d.abs());
+            if d.abs() <= PIVOT_TOL {
+                is_zero[j] = true;
+                zero_new.push(j);
+            } else if d < 0.0 {
+                neg_new.push(j);
+            }
         }
         data[idx(&start, &first, j, j)] = d;
     }
@@ -249,6 +286,7 @@ pub fn factorize(a: &Csc, class: MatrixClass, budget_bytes: usize) -> Result<Sky
         o.sort_unstable();
         o
     };
+    let flagged_old = to_old(&flagged_new);
     if !neg_new.is_empty() {
         return Err(SolverError::NotPositiveDefinite {
             negative_pivots: to_old(&neg_new),
@@ -260,23 +298,26 @@ pub fn factorize(a: &Csc, class: MatrixClass, budget_bytes: usize) -> Result<Sky
         return Err(SolverError::Singular { zero_pivots: to_old(&zero_new), inertia });
     }
 
-    Ok(SkylineFactor {
-        n,
-        perm,
-        scale,
-        first,
-        start,
-        data,
-        diagnostics: FactorDiagnostics {
+    Ok((
+        SkylineFactor {
             n,
-            nnz_input: a.nnz(),
-            profile_entries: profile,
-            factor_bytes,
-            min_scaled_pivot: if n == 0 { 0.0 } else { dmin },
-            max_scaled_pivot: dmax,
-            inertia,
+            perm,
+            scale,
+            first,
+            start,
+            data,
+            diagnostics: FactorDiagnostics {
+                n,
+                nnz_input: a.nnz(),
+                profile_entries: profile,
+                factor_bytes,
+                min_scaled_pivot: if n == 0 { 0.0 } else { dmin },
+                max_scaled_pivot: dmax,
+                inertia,
+            },
         },
-    })
+        flagged_old,
+    ))
 }
 
 impl SkylineFactor {

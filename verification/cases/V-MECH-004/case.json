@@ -1,0 +1,32 @@
+{
+  "case_id": "V-MECH-004",
+  "title": "3D frame held in translation at a single joint",
+  "feature_ids": [
+    "F08",
+    "stability"
+  ],
+  "model": "model.json",
+  "model_sha256": "020a11bdf3820ed2415eb10ed0b2cc0a2e1e9c7c0c03730db3f3aa7c6f4c8e2d",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "A rigid body fixed at one point keeps its three rotations",
+    "derivation": [
+      "nullity(K) = 3"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "nullity = 3 (exact)"
+    }
+  ],
+  "expected": [],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "case_id": "V-MECH-005",
+  "title": "Supported cantilever plus an unconnected floating bar",
+  "feature_ids": [
+    "F08",
+    "stability"
+  ],
+  "model": "model.json",
+  "model_sha256": "4f6afaa55c2a8e63da2abd96c377da97e0d887dc83cd83b75e7ba03aa94bd61e",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "The floating bar has 6 rigid-body modes; the cantilever is stable",
+    "derivation": [
+      "nullity(K) = 6"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "nullity = 6 (exact)"
+    }
+  ],
+  "expected": [],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}
