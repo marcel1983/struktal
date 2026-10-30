@@ -16,14 +16,15 @@ Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 | P02 | Parcial. Tripletas→CSC determinista; backends `faer-sparse-ldlt` (por defecto, AMD, supernodal) y `skyline-ldlt` (referencia) tras el mismo contrato; residuo; presupuesto de memoria antes de reservar; espacio nulo verificado con cotas y hueco espectral (F08-007). Falta: backend para indefinidas (MUMPS u otro), ensamblaje simbólico reutilizable. | `fem-math`, decisiones 0002, 0005 y 0006 |
 | P03 | No iniciado (no hay mallado ni subdivisión). | — |
 | P04 | Parcial. Barra 3D Timoshenko/Euler–Bernoulli (As2, As3; decisión 0007), sección general, cargas nodales/uniformes/puntuales/peso propio con fuerzas de empotramiento exactas, suma lineal. Falta: secciones paramétricas (y As automático) y variables, cargas trapezoidales/térmicas, envolventes, importación S2K mínima. | `fem-elements`, `fem-analysis`, V-LIN-001..005 |
-| P05–P16 | No iniciados. | `spec/features.csv` |
+| P05 | Parcial: liberaciones y fijación parcial con condensación de K y cargas, combinaciones inestables rechazadas (decisión 0008). Falta: offsets/zonas rígidas, restricciones (equalDOF, diafragmas), masas. | `fem-elements/src/release.rs`, V-REL-001/002, V-MECH-006 |
+| P06–P16 | No iniciados. | `spec/features.csv` |
 
 ## Último resultado de pruebas (ejecutado)
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
-- `cargo test --workspace`: 65 pruebas, 0 fallos. `cargo test -p fem-math --no-default-features` (solo skyline): 20, 0 fallos.
-- `rust-fem verify --backend {faer,skyline} verification/cases/*/case.json`: 15/15 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `cargo test --workspace`: 74 pruebas, 0 fallos. `cargo test -p fem-math --no-default-features` (solo skyline): 20, 0 fallos.
+- `rust-fem verify --backend {faer,skyline} verification/cases/*/case.json`: 18/18 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - Benchmarks: docs/benchmarks.md.
 
 ## Decisiones pendientes
@@ -33,7 +34,7 @@ Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 ## Siguiente paso concreto
 
-1. P05: liberaciones de extremo con condensación de K **y** de cargas, con caso analítico de viga articulada y resorte (caso 4 de §21 aún no creado).
+1. P05: offsets y zonas rígidas (F04-004), con transformación cinemática y brazos; después restricciones (F04-005) y masas (F07).
 2. P13 mínimo: parser S2K con AST para las tablas de `spec/s2k-table-coverage.csv`, en modo estricto.
 
 ## Comandos de reproducción

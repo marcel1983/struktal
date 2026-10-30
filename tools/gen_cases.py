@@ -372,10 +372,13 @@ write("V-TIM-001", "Timoshenko cantilevers: short, long, and As = 0", ["F02-003"
                    "As = 0: shear deformation neglected (Euler-Bernoulli)"]}, exp_t)
 
 
-def fixed_fixed_timoshenko(L, EI, GAs, P, a, q, n=4000):
-    """Clamped-clamped beam, downward point load P at a and downward uniform q.
+def fixed_fixed_timoshenko(L, EI, GAs, P, a, q, n=4000, kb=None):
+    """Beam clamped at A, downward point load P at a and downward uniform q.
+    End B has its transverse displacement fixed and its rotation: fixed
+    (kb=None), free (kb=0, moment release) or joined to the support by a
+    rotational spring kb > 0 (adds 1/kb to the moment flexibility).
     Virtual work with composite Simpson integration (independent of the Rust
-    flexibility formulas). Returns reactions and the deflection at a (down +).
+    flexibility formulas). Returns reactions, M(x) and the deflection at a.
     Sign rule: sagging moment positive; an upward force F at s > x gives
     M(x) = F (s - x), V(x) = -F; a ccw couple C at the right end gives M = C."""
     def M0(x):
@@ -407,15 +410,20 @@ def fixed_fixed_timoshenko(L, EI, GAs, P, a, q, n=4000):
         return integ(lambda x: Ma(x) * Mb(x) / EI + Va(x) * Vb(x) / GAs)
     d11, d12, d22 = w(m1, v1, m1, v1), w(m1, v1, m2, v2), w(m2, v2, m2, v2)
     d10, d20 = w(M0, V0, m1, v1), w(M0, V0, m2, v2)
-    det = d11 * d22 - d12 * d12
-    X1 = -(d22 * d10 - d12 * d20) / det
-    X2 = -(-d12 * d10 + d11 * d20) / det
+    if kb == 0:
+        X1, X2 = -d10 / d11, 0.0
+    else:
+        if kb is not None:
+            d22 += 1.0 / kb
+        det = d11 * d22 - d12 * d12
+        X1 = -(d22 * d10 - d12 * d20) / det
+        X2 = -(-d12 * d10 + d11 * d20) / det
     M = lambda x: M0(x) + X1 * m1(x) + X2 * m2(x)
     V = lambda x: V0(x) + X1 * v1(x) + X2 * v2(x)
     up_at_a = w(M, V, ma, va)                          # upward deflection at a
     RA = P + q * L - X1
     MA = P * a + q * L * L / 2 - X1 * L - X2           # ccw support moment at A
-    return {"RA": RA, "MA": MA, "RB": X1, "MB": X2, "down_a": -up_at_a}
+    return {"RA": RA, "MA": MA, "RB": X1, "MB": X2, "down_a": -up_at_a, "M": M}
 
 
 Lf, af, Pf, qf = 2.0, 0.6, 50_000.0, 20_000.0
@@ -449,5 +457,92 @@ write("V-TIM-002", "Clamped-clamped deep beam (Phi ~ 0.16): point + uniform load
     "derivation": ["redundants V_B, M_B from compatibility", "deflection at the load by the unit-load method",
                    f"Euler-Bernoulli would give R_A = {ref_eb['RA']:.3f} N, M_A = {ref_eb['MA']:.3f} N m, deflection {ref_eb['down_a']:.6e} m",
                    f"Timoshenko: R_A = {ref['RA']:.3f} N, M_A = {ref['MA']:.3f} N m, deflection {ref['down_a']:.6e} m"]}, exp_ff)
+
+# ---------------------------------------------------------------- releases
+Lr, ar, Pr, qr = 4.0, 1.5, 40_000.0, 10_000.0
+SR = {"name": "R", "material": "STEEL", "area": 0.01, "i33": 1e-4, "i22": 1e-4, "j": 2e-4, "as2": 0.004, "as3": 0.004}
+EIr, GAr = E * SR["i33"], G * SR["as2"]
+kspr = 5.0e6   # N m / rad
+rel_pin_j = {"j": [False, False, False, False, False, True]}
+rel_spr_j = {"j": [False, False, False, False, False, True], "j_springs": [0, 0, 0, 0, 0, kspr]}
+rel_ss = {"i": [False, False, False, False, False, True], "j": [False, False, False, False, False, True]}
+refs = {"H1": fixed_fixed_timoshenko(Lr, EIr, GAr, Pr, ar, qr, kb=0),
+        "H2": fixed_fixed_timoshenko(Lr, EIr, GAr, Pr, ar, qr, kb=kspr)}
+# Simply supported by releasing M3 at both ends: statically determinate.
+RB3 = (Pr * ar + qr * Lr * Lr / 2) / Lr
+RA3 = Pr + qr * Lr - RB3
+M3ss = lambda x: RA3 * x - qr * x * x / 2 - (Pr * (x - ar) if x > ar else 0.0)
+refs["H3"] = {"RA": RA3, "MA": 0.0, "RB": RB3, "MB": 0.0, "M": M3ss}
+rj, rf, rfl, exp_r = [], [], [], []
+for k, (nm, rel) in enumerate([("H1", rel_pin_j), ("H2", rel_spr_j), ("H3", rel_ss)]):
+    y0 = 3.0 * k
+    rj += [J(nm + "A", 0, y0, 0, FIX), J(nm + "B", Lr, y0, 0, FIX)]
+    rf.append({"name": nm, "i": nm + "A", "j": nm + "B", "section": "R", "releases": rel})
+    rfl += [{"pattern": "L", "frame": nm, "load": {"kind": "Point", "direction": "Gravity", "rel": ar / Lr, "value": Pr}},
+            {"pattern": "L", "frame": nm, "load": {"kind": "Uniform", "direction": "Gravity", "value": qr}}]
+    r = refs[nm]
+    exp_r += [exp("joint_reaction", "LC1", nm + "A", "FZ", r["RA"], "N"),
+              exp("joint_reaction", "LC1", nm + "A", "MY", -r["MA"], "N*m"),
+              exp("joint_reaction", "LC1", nm + "B", "FZ", r["RB"], "N"),
+              exp("joint_reaction", "LC1", nm + "B", "MY", -r["MB"], "N*m")]
+    for rel_ in (0.0, 0.5, 1.0):
+        exp_r.append(exp("frame_station", "LC1", nm, "M3", r["M"](rel_ * Lr), "N*m", rel_))
+write("V-REL-001", "End releases and partial fixity on beams between clamped joints", ["F04-003", "F02-003", "F06-003", "F06-004"], model(
+    "V-REL-001 released beams",
+    rj, rf, [SR], [{"name": "L"}], frame_loads=rfl, schema=2,
+), {"kind": "analytical", "source": "Force method with virtual work (bending + shear); spring adds 1/k to the moment flexibility; simply supported case by statics",
+    "derivation": ["H1: M3 released at J (fixed-pinned)", f"H2: M3 spring k = {kspr} N m/rad at J", "H3: M3 released at both ends (simply supported)"]}, exp_r)
+
+# Two-bar truss made of frame members with releases.
+Ct = (2.0, 0.0, 3.0)
+Ft = (10_000.0, 0.0, -50_000.0)
+L13 = math.sqrt(13.0)
+e1, e2 = (2 / L13, 0.0, 3 / L13), (-2 / L13, 0.0, 3 / L13)
+# N1 e1 + N2 e2 = F (x, z):  [[e1x, e2x], [e1z, e2z]] [N1, N2] = [Fx, Fz]
+det_t = e1[0] * e2[2] - e2[0] * e1[2]
+N1 = (Ft[0] * e2[2] - e2[0] * Ft[2]) / det_t
+N2 = (e1[0] * Ft[2] - Ft[0] * e1[2]) / det_t
+At = 0.002
+def unit_forces(fx, fz):
+    return ((fx * e2[2] - e2[0] * fz) / det_t, (e1[0] * fz - fx * e1[2]) / det_t)
+n1x, n2x = unit_forces(1.0, 0.0)
+n1z, n2z = unit_forces(0.0, 1.0)
+ux = (N1 * n1x + N2 * n2x) * L13 / (E * At)
+uz = (N1 * n1z + N2 * n2z) * L13 / (E * At)
+ST = {"name": "TR", "material": "STEEL", "area": At, "i33": 1e-6, "i22": 1e-6, "j": 1e-6}
+truss_rel = {"i": [False, False, False, True, True, True], "j": [False, False, False, False, True, True]}
+write("V-REL-002", "Two-bar truss built from frame members with releases", ["F04-003", "F08"], model(
+    "V-REL-002 released truss",
+    [J("A", 0, 0, 0, FIX), J("B", 4, 0, 0, FIX), J("C", *Ct, [False, False, False, True, True, True])],
+    [{"name": "T1", "i": "A", "j": "C", "section": "TR", "releases": truss_rel},
+     {"name": "T2", "i": "B", "j": "C", "section": "TR", "releases": truss_rel}],
+    [ST], [{"name": "F"}],
+    joint_loads=[{"pattern": "F", "joint": "C", "values": [Ft[0], 0, Ft[2], 0, 0, 0]}], schema=2,
+), {"kind": "analytical", "source": "Joint equilibrium and virtual work for a pin-jointed truss",
+    "derivation": ["N1 e1 + N2 e2 = F at the apex", "u = sum N n L / (E A)", "moments released: zero end moments and zero support moments"]}, [
+    exp("frame_station", "LC1", "T1", "P", N1, "N", 0.5),
+    exp("frame_station", "LC1", "T2", "P", N2, "N", 0.5),
+    exp("frame_station", "LC1", "T1", "M3", 0.0, "N*m", 0.0),
+    exp("frame_station", "LC1", "T1", "M2", 0.0, "N*m", 0.5),
+    exp("joint_displacement", "LC1", "C", "UX", ux, "m"),
+    exp("joint_displacement", "LC1", "C", "UZ", uz, "m"),
+    exp("joint_reaction", "LC1", "A", "FX", -N1 * e1[0], "N"),
+    exp("joint_reaction", "LC1", "A", "FZ", -N1 * e1[2], "N"),
+    exp("joint_reaction", "LC1", "B", "FZ", -N2 * e2[2], "N"),
+    exp("joint_reaction", "LC1", "A", "MY", 0.0, "N*m"),
+    exp("joint_reaction", "LC1", "B", "MY", 0.0, "N*m"),
+    exp("joint_reaction", "LC1", "C", "MY", 0.0, "N*m"),
+])
+
+# Cantilever pinned at its support by a release: mechanism of nullity 1.
+write("V-MECH-006", "Cantilever with M3 released at the clamped end", ["F04-003", "F08", "stability"], model(
+    "V-MECH-006 released cantilever",
+    [J("1", 0, 0, 0, FIX), J("2", 3, 0, 0)],
+    [{"name": "F1", "i": "1", "j": "2", "section": "B", "releases": {"i": [False, False, False, False, False, True]}}],
+    [SEC], [{"name": "TIP"}],
+    joint_loads=[{"pattern": "TIP", "joint": "2", "values": [0, 0, -P, 0, 0, 0]}], schema=2,
+), {"kind": "analytical", "source": "A bar pinned at one end rotates freely in the 1-2 plane", "derivation": ["nullity(K) = 1"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 1 (exact)"},
+                     {"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "moves 1/2 joints"}])
 
 print("cases written to", ROOT)

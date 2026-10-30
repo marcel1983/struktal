@@ -220,6 +220,22 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
             issues.push(issue(&e, "section", format!("unknown section '{}'", f.section)));
         }
         check_finite(f.angle_deg, &e, "angle_deg", &mut issues);
+        if let Some(r) = &f.releases {
+            for (end, rel, springs) in [("i", &r.i, &r.i_springs), ("j", &r.j, &r.j_springs)] {
+                for c in 0..6 {
+                    let k = springs[c];
+                    let field = format!("releases.{end}_springs[{}]", RELEASE_COMPONENTS[c]);
+                    if !k.is_finite() || k < 0.0 {
+                        issues.push(issue(&e, &field, format!("must be finite and >= 0, got {k}")));
+                    } else if k > 0.0 && !rel[c] {
+                        issues.push(issue(&e, &field, "partial-fixity spring on a component that is not released"));
+                    }
+                }
+            }
+            for why in r.unstable_combinations() {
+                issues.push(issue(&e, "releases", format!("unstable release combination: {why}")));
+            }
+        }
         if let (Some(a), Some(b)) = (ji, jj) {
             let (pa, pb) = (&m.joints[a], &m.joints[b]);
             let len = ((pb.x - pa.x).powi(2) + (pb.y - pa.y).powi(2) + (pb.z - pa.z).powi(2)).sqrt();
@@ -388,6 +404,7 @@ mod tests {
                 j: "2".into(),
                 section: "B".into(),
                 angle_deg: 0.0,
+                releases: None,
             }],
             load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0 }],
             joint_loads: vec![JointLoad {
@@ -452,6 +469,62 @@ mod tests {
         m.materials[0].e = 200e3;
         let s = validate(&m).expect("ok");
         assert!((s.model.sections[0].as2 - 5e-3).abs() < 1e-18);
+    }
+
+    #[test]
+    fn release_validation() {
+        let rel = |i: [bool; 6], j: [bool; 6]| EndReleases { i, j, ..Default::default() };
+        let t = true;
+        let f = false;
+        let cases: [(EndReleases, bool); 9] = [
+            (rel([f, f, f, f, f, t], [f; 6]), true),              // pin M3 at I
+            (rel([f, f, f, f, t, t], [f, f, f, t, t, t]), true),  // truss-like, T at one end
+            (rel([t, f, f, f, f, f], [t, f, f, f, f, f]), false), // P both ends
+            (rel([f, f, f, t, f, f], [f, f, f, t, f, f]), false), // T both ends
+            (rel([f, t, f, f, f, f], [f, t, f, f, f, f]), false), // V2 both ends
+            (rel([f, f, f, f, f, t], [f, t, f, f, f, t]), false), // M3 both + V2
+            (rel([f, f, f, f, t, f], [f, f, t, f, t, f]), false), // M2 both + V3
+            (rel([f, f, f, f, f, t], [f, f, f, f, f, t]), true),  // M3 both ends only
+            (
+                EndReleases {
+                    i: [f, t, f, f, f, f],
+                    j: [f, t, f, f, f, f],
+                    i_springs: [0.0, 1e6, 0.0, 0.0, 0.0, 0.0],
+                    ..Default::default()
+                },
+                true,
+            ), // V2 both ends but one has a spring
+        ];
+        for (k, (r, ok)) in cases.into_iter().enumerate() {
+            let mut m = cantilever();
+            m.frames[0].releases = Some(r);
+            assert_eq!(validate(&m).is_ok(), ok, "case {k}");
+        }
+        let mut m = cantilever();
+        m.frames[0].releases = Some(EndReleases { j_springs: [0.0, 0.0, 0.0, 0.0, 0.0, 5.0], ..Default::default() });
+        let errs = validate(&m).expect_err("spring without release");
+        assert!(errs.iter().any(|i| i.field == "releases.j_springs[M3]"));
+    }
+
+    #[test]
+    fn release_spring_units_converted() {
+        let mut m = cantilever();
+        m.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
+        m.materials[0].e = 200.0;
+        m.sections[0].area = 1e4;
+        m.sections[0].i33 = 1e8;
+        m.sections[0].i22 = 1e8;
+        m.sections[0].j = 2e8;
+        m.joints[1].x = 3000.0;
+        m.frames[0].releases = Some(EndReleases {
+            j: [false, true, false, false, false, true],
+            j_springs: [0.0, 2.0, 0.0, 0.0, 0.0, 3.0],
+            ..Default::default()
+        });
+        let s = validate(&m).expect("ok");
+        let r = s.model.frames[0].releases.as_ref().expect("rel");
+        assert!((r.j_springs[1] - 2.0e6).abs() < 1e-6); // kN/mm -> N/m
+        assert!((r.j_springs[5] - 3.0).abs() < 1e-12); // 3 kN·mm = 3 N·m
     }
 
     #[test]

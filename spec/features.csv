@@ -31,7 +31,7 @@ F03-007,F03,Leyes no lineales de sólidos introducidas en v27,sap2000-ultimate-2
 F03-008,F03,Mallado automático de áreas y transferencia de cargas,sap2000-ultimate-27.1.0-target,,,S08 / pending P00,specified,specified,specified,specified,n/a,,specified,
 F04-001,F04,Restricciones de apoyo por componente global,sap2000-ultimate-27.1.0-target,restraint[6],,,specified,specified,verified_independent,verified_independent,n/a,V-LIN-*; V-MECH-*,verified_independent,Sin apoyos en ejes locales del nudo
 F04-002,F04,Resortes de nudo,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
-F04-003,F04,Liberaciones de extremo y fijación parcial de barras,sap2000-ultimate-27.1.0-target,,,S07 / pending P00,specified,specified,specified,specified,n/a,,specified,
+F04-003,F04,Liberaciones de extremo y fijación parcial de barras,sap2000-ultimate-27.1.0-target,"releases.i/j [P,V2,V3,T,M2,M3], i_springs/j_springs",,S07 (componentes y fijación parcial): oracle_pending,specified,specified,verified_independent,verified_independent,n/a,V-REL-001; V-REL-002; V-MECH-006; release tests; release_validation; cli unstable_release,verified_independent,Reglas de inestabilidad derivadas de modos rígidos; equivalencia con SAP2000 pendiente (decisión 0008)
 F04-004,F04,"Offsets, zonas rígidas y punto de inserción",sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F04-005,F04,"Constraints (body, diaphragm, equal, local...)",sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F04-006,F04,Desplazamientos impuestos en apoyos,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,

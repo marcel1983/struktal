@@ -1,0 +1,39 @@
+{
+  "case_id": "V-MECH-006",
+  "title": "Cantilever with M3 released at the clamped end",
+  "feature_ids": [
+    "F04-003",
+    "F08",
+    "stability"
+  ],
+  "model": "model.json",
+  "model_sha256": "84a579e4b7b0ce30490654433ba722be8d728b040fba8e27c0df03ef3a08d246",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "A bar pinned at one end rotates freely in the 1-2 plane",
+    "derivation": [
+      "nullity(K) = 1"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "nullity = 1 (exact)"
+    },
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "moves 1/2 joints"
+    }
+  ],
+  "expected": [],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -1,3 +1,4 @@
-//! Element formulations. v0.1: 3D Euler–Bernoulli frame only.
+//! Element formulations: 3D Timoshenko/Euler–Bernoulli frame and end releases.
 
 pub mod frame3d;
+pub mod release;

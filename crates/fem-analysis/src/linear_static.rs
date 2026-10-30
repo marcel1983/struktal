@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use fem_core::{Combination, FrameLoadKind, LoadCase, LoadDirection, Snapshot};
 use fem_elements::frame3d::{self, LocalSpanLoads, Mat12, SectionProps, Vec3};
+use fem_elements::release::Condensation;
 use std::time::Instant;
 
 use fem_math::nullspace::{self, NullSpaceOptions, NullVector};
@@ -31,6 +32,10 @@ struct FrameData {
     length: f64,
     axes: [Vec3; 3],
     k_local: Mat12,
+    /// End-release condensation; `None` for a fully connected member.
+    cond: Option<Condensation>,
+    /// Stiffness acting on joint DOFs (local axes): condensed or `k_local`.
+    k_node: Mat12,
     t: Mat12,
     dofs: [usize; 12],
     xi: Vec3,
@@ -159,7 +164,8 @@ fn build_case_loads(s: &Snapshot, frames: &[FrameData], loads: &[(usize, f64)]) 
     let mut f_full = joint_loads.clone();
     for (f, fd) in frames.iter().enumerate() {
         let feq = frame3d::equivalent_nodal_loads(fd.length, &fd.props, &span[f]);
-        let fg = frame3d::mat_t_vec(&fd.t, &feq);
+        let fnode = fd.cond.as_ref().map_or(feq, |c| c.condense_loads(&feq));
+        let fg = frame3d::mat_t_vec(&fd.t, &fnode);
         for (k, &d) in fd.dofs.iter().enumerate() {
             f_full[d] += fg[k];
         }
@@ -390,7 +396,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     }
     manifest.equations = n;
 
-    let frames: Vec<FrameData> = s
+    let frames: Result<Vec<FrameData>, String> = s
         .frame_refs
         .iter()
         .zip(&m.frames)
@@ -411,15 +417,53 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                 as3: sc.as3,
             };
             let k_local = frame3d::local_stiffness(length, &props);
+            let cond = match &fr.releases {
+                Some(r) if r.i.iter().chain(&r.j).any(|&x| x) => {
+                    let mut released = [false; 12];
+                    let mut springs = [0.0; 12];
+                    released[..6].copy_from_slice(&r.i);
+                    released[6..].copy_from_slice(&r.j);
+                    springs[..6].copy_from_slice(&r.i_springs);
+                    springs[6..].copy_from_slice(&r.j_springs);
+                    Some(
+                        Condensation::new(&k_local, released, springs)
+                            .map_err(|e| format!("frame {}: {e}", fr.name))?,
+                    )
+                }
+                _ => None,
+            };
+            let k_node = cond.as_ref().map_or(k_local, |c| c.k_c);
             let t = frame3d::transformation(&axes);
             let mut dofs = [0usize; 12];
             for d in 0..6 {
                 dofs[d] = 6 * i + d;
                 dofs[6 + d] = 6 * j + d;
             }
-            FrameData { length, axes, k_local, t, dofs, xi, props }
+            Ok(FrameData { length, axes, k_local, cond, k_node, t, dofs, xi, props })
         })
-        .collect();
+        .collect::<Result<_, String>>();
+    let frames: Vec<FrameData> = match frames {
+        Ok(f) => f,
+        Err(msg) => {
+            manifest.messages.push(msg.clone());
+            let cases = m
+                .load_cases
+                .iter()
+                .map(|c| c.name())
+                .chain(m.combinations.iter().map(|c| c.name()))
+                .map(|name| {
+                    failed_case(
+                        name,
+                        "linear_static",
+                        Completion::Error,
+                        PhysicalStatus::Indeterminate,
+                        vec![msg.clone()],
+                    )
+                })
+                .collect();
+            return RunResult { manifest, cases };
+        }
+    };
 
     let t_asm = Instant::now();
     let mut tb = match TripletBuilder::new(n) {
@@ -430,7 +474,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         }
     };
     for fd in &frames {
-        let kg = frame3d::to_global(&fd.k_local, &fd.t);
+        let kg = frame3d::to_global(&fd.k_node, &fd.t);
         for a in 0..12 {
             let ea = eq[fd.dofs[a]];
             if ea == usize::MAX {
@@ -531,8 +575,21 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         for (f, fd) in frames.iter().enumerate() {
             let ue: [f64; 12] = fd.dofs.map(|d| u[d]);
             let feq = frame3d::equivalent_nodal_loads(fd.length, &fd.props, &cl.span[f]);
-            let fl = frame3d::end_forces_local(&fd.k_local, &fd.t, &ue, &feq);
-            let fg = frame3d::mat_t_vec(&fd.t, &fl);
+            let ul = frame3d::mat_vec(&fd.t, &ue);
+            // Forces on joints: condensed stiffness and loads.
+            let fnode = fd.cond.as_ref().map_or(feq, |c| c.condense_loads(&feq));
+            let ku = frame3d::mat_vec(&fd.k_node, &ul);
+            let nodal: [f64; 12] = std::array::from_fn(|k| ku[k] - fnode[k]);
+            let fg = frame3d::mat_t_vec(&fd.t, &nodal);
+            // Forces on the element ends, from the element-end displacements.
+            let fl = match &fd.cond {
+                None => nodal,
+                Some(c) => {
+                    let w = c.end_displacements(&ul, &feq);
+                    let kw = frame3d::mat_vec(&fd.k_local, &w);
+                    std::array::from_fn(|k| kw[k] - feq[k])
+                }
+            };
             for (kk, &d) in fd.dofs.iter().enumerate() {
                 internal[d] += fg[kk];
             }

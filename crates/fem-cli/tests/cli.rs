@@ -107,6 +107,20 @@ fn invalid_model_reports_entity_field_cause() {
 }
 
 #[test]
+fn unstable_release_combination_is_input_error() {
+    let dir = copy_case("V-REL-001", "unstable");
+    let model = dir.join("model.json");
+    let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&model).expect("read")).expect("json");
+    // V2 released at both ends of H1: the member can translate freely.
+    v["frames"][0]["releases"] = serde_json::json!({"i": [false, true, false, false, false, false], "j": [false, true, false, false, false, false]});
+    std::fs::write(&model, serde_json::to_string_pretty(&v).expect("ser")).expect("write");
+    let out = bin().arg("validate").arg(&model).output().expect("run");
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("frame H1 / releases: unstable release combination: V2 released at both ends"), "{err}");
+}
+
+#[test]
 fn future_schema_rejected() {
     let dir = copy_case("V-LIN-001", "future");
     let model = dir.join("model.json");

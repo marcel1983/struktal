@@ -98,6 +98,73 @@ pub struct Frame {
     /// Rotation of local axes 2 and 3 about local 1 [degrees], right-hand rule.
     #[serde(default)]
     pub angle_deg: f64,
+    /// End releases and partial-fixity springs (decision 0008).
+    #[serde(default)]
+    pub releases: Option<EndReleases>,
+}
+
+/// Releases in local components [P, V2, V3, T, M2, M3] (= local DOF order
+/// u1, u2, u3, r1, r2, r3) at ends I and J. A released component is joined
+/// to the joint through a spring of the given stiffness: 0 is a full
+/// release; > 0 is partial fixity. Springs on unreleased components are
+/// invalid. Units: force/length for P, V2, V3; force·length/rad for T, M2, M3.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EndReleases {
+    #[serde(default)]
+    pub i: [bool; 6],
+    #[serde(default)]
+    pub j: [bool; 6],
+    #[serde(default)]
+    pub i_springs: [f64; 6],
+    #[serde(default)]
+    pub j_springs: [f64; 6],
+}
+
+pub const RELEASE_COMPONENTS: [&str; 6] = ["P", "V2", "V3", "T", "M2", "M3"];
+
+impl EndReleases {
+    /// Components that are released with no spring, as 12 local DOFs.
+    pub fn free(&self) -> [bool; 12] {
+        let mut f = [false; 12];
+        for c in 0..6 {
+            f[c] = self.i[c] && self.i_springs[c] == 0.0;
+            f[6 + c] = self.j[c] && self.j_springs[c] == 0.0;
+        }
+        f
+    }
+
+    /// Release combinations that leave the element itself with a rigid-body
+    /// motion, so its released block cannot be condensed. Derived from the
+    /// element's rigid modes restricted to the freely released DOFs: axial
+    /// translation (P at both ends), twist (T at both ends), and in each
+    /// bending plane transverse translation (V at both ends) or rotation
+    /// (M at both ends with V at either end).
+    pub fn unstable_combinations(&self) -> Vec<&'static str> {
+        let f = self.free();
+        let both = |c: usize| f[c] && f[6 + c];
+        let either = |c: usize| f[c] || f[6 + c];
+        let mut out = Vec::new();
+        if both(0) {
+            out.push("P released at both ends");
+        }
+        if both(3) {
+            out.push("T released at both ends");
+        }
+        if both(1) {
+            out.push("V2 released at both ends");
+        }
+        if both(2) {
+            out.push("V3 released at both ends");
+        }
+        if both(5) && either(1) {
+            out.push("M3 released at both ends with V2 released at an end");
+        }
+        if both(4) && either(2) {
+            out.push("M2 released at both ends with V3 released at an end");
+        }
+        out
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -216,6 +283,15 @@ impl Model {
             j.x *= l;
             j.y *= l;
             j.z *= l;
+        }
+        for f in &mut m.frames {
+            if let Some(r) = &mut f.releases {
+                for c in 0..6 {
+                    let dim = if c < 3 { Dim::FORCE_PER_LENGTH } else { Dim::MOMENT };
+                    r.i_springs[c] *= u.factor(dim);
+                    r.j_springs[c] *= u.factor(dim);
+                }
+            }
         }
         for jl in &mut m.joint_loads {
             for k in 0..3 {

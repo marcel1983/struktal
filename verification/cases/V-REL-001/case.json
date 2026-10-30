@@ -1,0 +1,207 @@
+{
+  "case_id": "V-REL-001",
+  "title": "End releases and partial fixity on beams between clamped joints",
+  "feature_ids": [
+    "F04-003",
+    "F02-003",
+    "F06-003",
+    "F06-004"
+  ],
+  "model": "model.json",
+  "model_sha256": "ea93f87a1634170772d9baa8d85e7137d4f08d0b8767df7677c1f6c535eb0e94",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Force method with virtual work (bending + shear); spring adds 1/k to the moment flexibility; simply supported case by statics",
+    "derivation": [
+      "H1: M3 released at J (fixed-pinned)",
+      "H2: M3 spring k = 5000000.0 N m/rad at J",
+      "H3: M3 released at both ends (simply supported)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H1A",
+      "component": "FZ",
+      "value": 57465.267057733785,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H1A",
+      "component": "MY",
+      "value": -49861.068230935125,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H1B",
+      "component": "FZ",
+      "value": 22534.73294226622,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H1B",
+      "component": "MY",
+      "value": -0.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "H1",
+      "component": "M3",
+      "value": -49861.068230935125,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "H1",
+      "component": "M3",
+      "value": 25069.465884532437,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "H1",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H2A",
+      "component": "FZ",
+      "value": 55360.47081902876,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H2A",
+      "component": "MY",
+      "value": -47123.07912375298,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H2B",
+      "component": "FZ",
+      "value": 24639.529180971243,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H2B",
+      "component": "MY",
+      "value": 5681.1958476379505,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "H2",
+      "component": "M3",
+      "value": -47123.07912375298,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "H2",
+      "component": "M3",
+      "value": 23597.862514304536,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "H2",
+      "component": "M3",
+      "value": -5681.1958476379505,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H3A",
+      "component": "FZ",
+      "value": 45000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H3A",
+      "component": "MY",
+      "value": -0.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H3B",
+      "component": "FZ",
+      "value": 35000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "H3B",
+      "component": "MY",
+      "value": -0.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "H3",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "H3",
+      "component": "M3",
+      "value": 50000.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "H3",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 1.0
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "case_id": "V-REL-002",
+  "title": "Two-bar truss built from frame members with releases",
+  "feature_ids": [
+    "F04-003",
+    "F08"
+  ],
+  "model": "model.json",
+  "model_sha256": "b96ba0a10c029efa3a33c8e01e163128563715a6944f3198051512364cefc39a",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Joint equilibrium and virtual work for a pin-jointed truss",
+    "derivation": [
+      "N1 e1 + N2 e2 = F at the apex",
+      "u = sum N n L / (E A)",
+      "moments released: zero end moments and zero support moments"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "T1",
+      "component": "P",
+      "value": -21032.382440206606,
+      "unit": "N",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "T2",
+      "component": "P",
+      "value": -39060.13881752655,
+      "unit": "N",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "T1",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "T1",
+      "component": "M2",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C",
+      "component": "UX",
+      "value": 0.00014647552056572458,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C",
+      "component": "UZ",
+      "value": -0.00032550115681272124,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "FX",
+      "value": 11666.666666666668,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "FZ",
+      "value": 17500.000000000004,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B",
+      "component": "FZ",
+      "value": 32500.000000000004,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "MY",
+      "value": 0.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B",
+      "component": "MY",
+      "value": 0.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "C",
+      "component": "MY",
+      "value": 0.0,
+      "unit": "N*m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

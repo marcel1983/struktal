@@ -31,6 +31,12 @@ Estado: convenciones de rust-fem definidas y verificadas analíticamente. La cor
 - Consecuencia ejemplo: en una viga horizontal según +X (2 = +Z, 3 = −Y), un momento positivo M3 produce tracción en la fibra inferior (flexión positiva).
 - **El mapeo a las convenciones de signo de SAP2000 para V2, V3, M2, M3 está pendiente de oráculo.** No se debe aplicar un cambio de signo sin un caso de referencia ejecutado.
 
+## Liberaciones de extremo
+
+- Componentes en ejes locales y en el orden [P, V2, V3, T, M2, M3] = DOF [u1, u2, u3, r1, r2, r3] de cada extremo.
+- Resortes de fijación parcial: fuerza/longitud (P, V2, V3) y fuerza·longitud/rad (T, M2, M3); 0 = liberación total.
+- `end_forces_local` y las acciones en estaciones se refieren a los extremos del elemento (después del resorte): en una componente liberada sin resorte valen 0. Las reacciones y el equilibrio de nudos usan la rigidez y las cargas condensadas.
+
 ## Cargas en barras
 
 - Uniforme: por unidad de longitud real del miembro, en toda la longitud. La opción proyectada es F06-009.
