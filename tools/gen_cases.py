@@ -21,9 +21,11 @@ E, NU = 200e9, 0.3
 
 
 def model(title, joints, frames, sections, patterns, joint_loads=(), frame_loads=(), cases=None,
-          combos=(), units=None, materials=None):
+          combos=(), units=None, materials=None, schema=1):
+    # Cases created before schema v2 stay at v1 on purpose: they exercise the
+    # v1 -> v2 migration end to end (decision 0007).
     return {
-        "schema_version": 1,
+        "schema_version": schema,
         "title": title,
         "units": units or {"force": "N", "length": "m"},
         "materials": materials or [{"name": "STEEL", "e": E, "nu": NU, "unit_weight": 0.0}],
@@ -327,5 +329,125 @@ write("V-MECH-005", "Supported cantilever plus an unconnected floating bar", ["F
     joint_loads=[{"pattern": "TIP", "joint": "2", "values": [0, 0, -P, 0, 0, 0]}],
 ), {"kind": "analytical", "source": "The floating bar has 6 rigid-body modes; the cantilever is stable", "derivation": ["nullity(K) = 6"]},
     expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"}])
+
+# ---------------------------------------------------------------- Timoshenko
+G = E / (2 * (1 + NU))
+STIM = {"name": "T", "material": "STEEL", "area": 0.01, "i33": 1e-4, "i22": 2e-4, "j": 2e-4, "as2": 0.004, "as3": 0.006}
+SEB = dict(STIM, name="TEB", as2=0.0, as3=0.0)
+Pt = 20_000.0
+
+
+def tip(L, I, As):
+    """Timoshenko cantilever tip deflection and rotation, tip load Pt."""
+    shear = Pt * L / (G * As) if As > 0 else 0.0
+    return Pt * L**3 / (3 * E * I) + shear, Pt * L**2 / (2 * E * I)
+
+
+exp_t = []
+for jn, L, sec in [("S", 1.0, STIM), ("L", 10.0, STIM), ("E", 1.0, SEB)]:
+    dz, rz = tip(L, sec["i33"], sec["as2"])   # -Z load: local 2, I33, As2
+    dy, ry = tip(L, sec["i22"], sec["as3"])   # +Y load: local -3, I22, As3
+    exp_t += [
+        exp("joint_displacement", "VERT", jn + "1", "UZ", -dz, "m"),
+        exp("joint_displacement", "VERT", jn + "1", "RY", rz, "rad"),
+        exp("joint_displacement", "HORZ", jn + "1", "UY", dy, "m"),
+        exp("joint_displacement", "HORZ", jn + "1", "RZ", ry, "rad"),
+    ]
+tim_joints, tim_frames, tim_jl = [], [], []
+for k, (jn, L, sec) in enumerate([("S", 1.0, STIM), ("L", 10.0, STIM), ("E", 1.0, SEB)]):
+    y0 = 3.0 * k
+    tim_joints += [J(jn + "0", 0, y0, 0, FIX), J(jn + "1", L, y0, 0)]
+    tim_frames.append({"name": "F" + jn, "i": jn + "0", "j": jn + "1", "section": sec["name"]})
+    tim_jl += [{"pattern": "VERT", "joint": jn + "1", "values": [0, 0, -Pt, 0, 0, 0]},
+               {"pattern": "HORZ", "joint": jn + "1", "values": [0, Pt, 0, 0, 0, 0]}]
+write("V-TIM-001", "Timoshenko cantilevers: short, long, and As = 0", ["F02-003", "F08"], model(
+    "V-TIM-001 Timoshenko cantilevers",
+    tim_joints, tim_frames, [STIM, SEB], [{"name": "VERT"}, {"name": "HORZ"}],
+    joint_loads=tim_jl,
+    cases=[{"type": "LinearStatic", "name": "VERT", "loads": [{"pattern": "VERT", "scale": 1.0}]},
+           {"type": "LinearStatic", "name": "HORZ", "loads": [{"pattern": "HORZ", "scale": 1.0}]}],
+    schema=2,
+), {"kind": "analytical", "source": "Timoshenko cantilever with tip load; G = E/(2(1+nu))",
+    "derivation": ["delta = P L^3/(3 E I) + P L/(G As)", "theta = P L^2/(2 E I) (shear does not rotate the section)",
+                   "As = 0: shear deformation neglected (Euler-Bernoulli)"]}, exp_t)
+
+
+def fixed_fixed_timoshenko(L, EI, GAs, P, a, q, n=4000):
+    """Clamped-clamped beam, downward point load P at a and downward uniform q.
+    Virtual work with composite Simpson integration (independent of the Rust
+    flexibility formulas). Returns reactions and the deflection at a (down +).
+    Sign rule: sagging moment positive; an upward force F at s > x gives
+    M(x) = F (s - x), V(x) = -F; a ccw couple C at the right end gives M = C."""
+    def M0(x):
+        m = -q * (L - x) ** 2 / 2
+        if x < a:
+            m += -P * (a - x)
+        return m
+
+    def V0(x):
+        v = q * (L - x)
+        if x < a:
+            v += P
+        return v
+    m1, v1 = (lambda x: L - x), (lambda x: -1.0)      # unit upward force at B
+    m2, v2 = (lambda x: 1.0), (lambda x: 0.0)          # unit ccw couple at B
+    ma, va = (lambda x: (a - x) if x < a else 0.0), (lambda x: -1.0 if x < a else 0.0)  # unit upward at a
+
+    def integ(f):
+        tot = 0.0
+        for lo, hi in [(0.0, a), (a, L)]:
+            h = (hi - lo) / n
+            s_ = f(lo + 1e-15) + f(hi - 1e-15)
+            for i in range(1, n):
+                s_ += (4 if i % 2 else 2) * f(lo + i * h)
+            tot += s_ * h / 3
+        return tot
+
+    def w(Ma, Va, Mb, Vb):
+        return integ(lambda x: Ma(x) * Mb(x) / EI + Va(x) * Vb(x) / GAs)
+    d11, d12, d22 = w(m1, v1, m1, v1), w(m1, v1, m2, v2), w(m2, v2, m2, v2)
+    d10, d20 = w(M0, V0, m1, v1), w(M0, V0, m2, v2)
+    det = d11 * d22 - d12 * d12
+    X1 = -(d22 * d10 - d12 * d20) / det
+    X2 = -(-d12 * d10 + d11 * d20) / det
+    M = lambda x: M0(x) + X1 * m1(x) + X2 * m2(x)
+    V = lambda x: V0(x) + X1 * v1(x) + X2 * v2(x)
+    up_at_a = w(M, V, ma, va)                          # upward deflection at a
+    RA = P + q * L - X1
+    MA = P * a + q * L * L / 2 - X1 * L - X2           # ccw support moment at A
+    return {"RA": RA, "MA": MA, "RB": X1, "MB": X2, "down_a": -up_at_a}
+
+
+Lf, af, Pf, qf = 2.0, 0.6, 50_000.0, 20_000.0
+SFF = {"name": "D", "material": "STEEL", "area": 0.02, "i33": 2e-4, "i22": 1e-4, "j": 1e-4, "as2": 0.01, "as3": 0.01}
+ref = fixed_fixed_timoshenko(Lf, E * SFF["i33"], G * SFF["as2"], Pf, af, qf)
+ref_eb = fixed_fixed_timoshenko(Lf, E * SFF["i33"], 1e30, Pf, af, qf)
+# Beam 1: one element with the point load in the span (tests fixed-end forces).
+# Beam 2: two elements with a joint under the load (tests deflection).
+ff_joints = [J("A1", 0, 0, 0, FIX), J("B1", Lf, 0, 0, FIX),
+             J("A2", 0, 4, 0, FIX), J("C2", af, 4, 0), J("B2", Lf, 4, 0, FIX)]
+ff_frames = [{"name": "G1", "i": "A1", "j": "B1", "section": "D"},
+             {"name": "G2a", "i": "A2", "j": "C2", "section": "D"},
+             {"name": "G2b", "i": "C2", "j": "B2", "section": "D"}]
+ff_fl = [{"pattern": "L", "frame": "G1", "load": {"kind": "Point", "direction": "Gravity", "rel": af / Lf, "value": Pf}},
+         {"pattern": "L", "frame": "G1", "load": {"kind": "Uniform", "direction": "Gravity", "value": qf}},
+         {"pattern": "L", "frame": "G2a", "load": {"kind": "Uniform", "direction": "Gravity", "value": qf}},
+         {"pattern": "L", "frame": "G2b", "load": {"kind": "Uniform", "direction": "Gravity", "value": qf}}]
+exp_ff = []
+for a_, b_ in [("A1", "B1"), ("A2", "B2")]:
+    exp_ff += [exp("joint_reaction", "LC1", a_, "FZ", ref["RA"], "N"),
+               exp("joint_reaction", "LC1", a_, "MY", -ref["MA"], "N*m"),
+               exp("joint_reaction", "LC1", b_, "FZ", ref["RB"], "N"),
+               exp("joint_reaction", "LC1", b_, "MY", -ref["MB"], "N*m")]
+exp_ff.append(exp("joint_displacement", "LC1", "C2", "UZ", -ref["down_a"], "m"))
+write("V-TIM-002", "Clamped-clamped deep beam (Phi ~ 0.16): point + uniform load", ["F02-003", "F06-003", "F06-004", "F08"], model(
+    "V-TIM-002 clamped deep beam",
+    ff_joints, ff_frames, [SFF], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "C2", "values": [0, 0, -Pf, 0, 0, 0]}],
+    frame_loads=ff_fl, schema=2,
+), {"kind": "analytical", "source": "Force method with virtual work (bending + shear), Simpson integration in tools/gen_cases.py",
+    "derivation": ["redundants V_B, M_B from compatibility", "deflection at the load by the unit-load method",
+                   f"Euler-Bernoulli would give R_A = {ref_eb['RA']:.3f} N, M_A = {ref_eb['MA']:.3f} N m, deflection {ref_eb['down_a']:.6e} m",
+                   f"Timoshenko: R_A = {ref['RA']:.3f} N, M_A = {ref['MA']:.3f} N m, deflection {ref['down_a']:.6e} m"]}, exp_ff)
 
 print("cases written to", ROOT)

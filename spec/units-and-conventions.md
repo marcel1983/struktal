@@ -21,7 +21,8 @@ Estado: convenciones de rust-fem definidas y verificadas analíticamente. La cor
 - Barra vertical (sen del ángulo con Z < 1e-3): eje 2 = +X global.
 - Eje 3 = 1 × 2. `angle_deg` gira 2 y 3 alrededor de 1 (mano derecha).
 - Fuente: ayuda SAP2000 de ejes locales [S06]. **Umbral de verticalidad y signo del ángulo: oracle_pending.**
-- Propiedades: I33 es la inercia respecto al eje 3 (flexión en el plano 1-2), I22 respecto al eje 2.
+- Propiedades: I33 es la inercia respecto al eje 3 (flexión en el plano 1-2), I22 respecto al eje 2. As2 es el área de cortante para V2 (plano 1-2, junto con I33) y As3 para V3 (plano 1-3, junto con I22); 0 desprecia la deformación por cortante en ese plano (decisión 0007, equivalencia con SAP2000 oracle_pending).
+- Los giros nodales son giros de la sección; con deformación por cortante no coinciden con la pendiente de la elástica.
 
 ## Fuerzas de extremo y acciones de sección
 
@@ -34,4 +35,4 @@ Estado: convenciones de rust-fem definidas y verificadas analíticamente. La cor
 
 - Uniforme: por unidad de longitud real del miembro, en toda la longitud. La opción proyectada es F06-009.
 - Las cargas en ejes globales se proyectan a ejes locales con la matriz de ejes de la barra.
-- Cargas nodales equivalentes consistentes (funciones de Hermite), por lo que los desplazamientos nodales de Euler–Bernoulli son exactos.
+- Cargas nodales equivalentes = −(reacciones de empotramiento exactas), con o sin deformación por cortante; los desplazamientos nodales son exactos para cargas uniformes y puntuales.

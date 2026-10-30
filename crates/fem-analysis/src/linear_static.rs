@@ -34,6 +34,7 @@ struct FrameData {
     t: Mat12,
     dofs: [usize; 12],
     xi: Vec3,
+    props: SectionProps,
 }
 
 pub fn engine_version() -> String {
@@ -157,7 +158,7 @@ fn build_case_loads(s: &Snapshot, frames: &[FrameData], loads: &[(usize, f64)]) 
     }
     let mut f_full = joint_loads.clone();
     for (f, fd) in frames.iter().enumerate() {
-        let feq = frame3d::equivalent_nodal_loads(fd.length, &span[f]);
+        let feq = frame3d::equivalent_nodal_loads(fd.length, &fd.props, &span[f]);
         let fg = frame3d::mat_t_vec(&fd.t, &feq);
         for (k, &d) in fd.dofs.iter().enumerate() {
             f_full[d] += fg[k];
@@ -406,6 +407,8 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                 i33: sc.i33,
                 i22: sc.i22,
                 j: sc.j,
+                as2: sc.as2,
+                as3: sc.as3,
             };
             let k_local = frame3d::local_stiffness(length, &props);
             let t = frame3d::transformation(&axes);
@@ -414,7 +417,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                 dofs[d] = 6 * i + d;
                 dofs[6 + d] = 6 * j + d;
             }
-            FrameData { length, axes, k_local, t, dofs, xi }
+            FrameData { length, axes, k_local, t, dofs, xi, props }
         })
         .collect();
 
@@ -527,7 +530,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         let mut frame_results = Vec::with_capacity(frames.len());
         for (f, fd) in frames.iter().enumerate() {
             let ue: [f64; 12] = fd.dofs.map(|d| u[d]);
-            let feq = frame3d::equivalent_nodal_loads(fd.length, &cl.span[f]);
+            let feq = frame3d::equivalent_nodal_loads(fd.length, &fd.props, &cl.span[f]);
             let fl = frame3d::end_forces_local(&fd.k_local, &fd.t, &ue, &feq);
             let fg = frame3d::mat_t_vec(&fd.t, &fl);
             for (kk, &d) in fd.dofs.iter().enumerate() {

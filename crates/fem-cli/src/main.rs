@@ -200,9 +200,9 @@ fn main() -> ExitCode {
                 "results_schema_version": fem_analysis::results::RESULTS_SCHEMA_VERSION,
                 "analysis": ["linear_static"],
                 "combinations": ["linear_add"],
-                "elements": ["frame3d_euler_bernoulli"],
+                "elements": ["frame3d_timoshenko (euler_bernoulli when shear area = 0)"],
                 "loads": ["joint_force_moment", "frame_uniform_full_length", "frame_point_force", "self_weight"],
-                "not_supported": ["releases", "offsets", "springs", "constraints", "shear_deformation", "areas", "solids", "modal", "response_spectrum", "time_history", "nonlinear", "staged_construction", "moving_loads", "design", "s2k_import", "s2k_export", "oapi"],
+                "not_supported": ["releases", "offsets", "springs", "constraints", "areas", "solids", "modal", "response_spectrum", "time_history", "nonlinear", "staged_construction", "moving_loads", "design", "s2k_import", "s2k_export", "oapi"],
                 "solver_backends": Backend::all().into_iter().map(Backend::capabilities).collect::<Vec<_>>(),
                 "compatibility": "specified_not_verified (see spec/sap_profile.yaml)"
             });

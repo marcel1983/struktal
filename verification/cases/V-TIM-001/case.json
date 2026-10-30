@@ -1,0 +1,124 @@
+{
+  "case_id": "V-TIM-001",
+  "title": "Timoshenko cantilevers: short, long, and As = 0",
+  "feature_ids": [
+    "F02-003",
+    "F08"
+  ],
+  "model": "model.json",
+  "model_sha256": "9952687aa2b71c0ee1ed17757ee0d96942086a4b1df79f3aa67b831631a8ed11",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Timoshenko cantilever with tip load; G = E/(2(1+nu))",
+    "derivation": [
+      "delta = P L^3/(3 E I) + P L/(G As)",
+      "theta = P L^2/(2 E I) (shear does not rotate the section)",
+      "As = 0: shear deformation neglected (Euler-Bernoulli)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "VERT",
+      "entity": "S1",
+      "component": "UZ",
+      "value": -0.00039833333333333333,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "VERT",
+      "entity": "S1",
+      "component": "RY",
+      "value": 0.0005,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "HORZ",
+      "entity": "S1",
+      "component": "UY",
+      "value": 0.00021,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "HORZ",
+      "entity": "S1",
+      "component": "RZ",
+      "value": 0.00025,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "VERT",
+      "entity": "L1",
+      "component": "UZ",
+      "value": -0.3339833333333333,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "VERT",
+      "entity": "L1",
+      "component": "RY",
+      "value": 0.05,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "HORZ",
+      "entity": "L1",
+      "component": "UY",
+      "value": 0.1671,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "HORZ",
+      "entity": "L1",
+      "component": "RZ",
+      "value": 0.025,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "VERT",
+      "entity": "E1",
+      "component": "UZ",
+      "value": -0.0003333333333333333,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "VERT",
+      "entity": "E1",
+      "component": "RY",
+      "value": 0.0005,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "HORZ",
+      "entity": "E1",
+      "component": "UY",
+      "value": 0.00016666666666666666,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "HORZ",
+      "entity": "E1",
+      "component": "RZ",
+      "value": 0.00025,
+      "unit": "rad"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

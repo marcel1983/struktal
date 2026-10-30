@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::units::{Dim, UnitSystem};
 
-pub const SCHEMA_VERSION: u32 = 1;
+/// v2 (2026-10-30): shear areas `as2`, `as3` on frame sections. v1 files are
+/// migrated with both set to 0, which keeps their v1 meaning.
+pub const SCHEMA_VERSION: u32 = 2;
 
 pub type Name = String;
 
@@ -65,6 +67,13 @@ pub struct FrameSection {
     pub i22: f64,
     /// Torsional constant, independent from the inertias.
     pub j: f64,
+    /// Shear area for shear force V2 (bending in the 1-2 plane, with I33).
+    /// 0 neglects shear deformation in that plane (decision 0007).
+    #[serde(default)]
+    pub as2: f64,
+    /// Shear area for V3 (bending in the 1-3 plane, with I22); 0 neglects it.
+    #[serde(default)]
+    pub as3: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -200,6 +209,8 @@ impl Model {
             s.i33 *= u.factor(Dim::INERTIA);
             s.i22 *= u.factor(Dim::INERTIA);
             s.j *= u.factor(Dim::INERTIA);
+            s.as2 *= u.factor(Dim::AREA);
+            s.as3 *= u.factor(Dim::AREA);
         }
         for j in &mut m.joints {
             j.x *= l;

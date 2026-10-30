@@ -4,7 +4,7 @@ Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 ## Repositorio
 
-- Ruta: `rust-fem/`. Git local inicializado, sin remoto. SHA: ver `git log -1`.
+- Ruta: `rust-fem/`. Esquema de modelo v2 (v1 se migra). Git local inicializado, sin remoto. SHA: ver `git log -1`.
 - Toolchain: rustc/cargo 1.97.0. Plataforma probada: Linux x86_64. Windows: no probado.
 
 ## Entregas
@@ -15,22 +15,21 @@ Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 | P01 | Hecho para el subconjunto: modelo v1 serializable, validación todo-o-nada, rechazo de esquema futuro, CLI (`validate`, `solve`, `capabilities`, `verify`, `compare`), manifiesto y estados por caso. Migración: solo gancho. | `fem-core`, `fem-cli`, tests |
 | P02 | Parcial. Tripletas→CSC determinista; backends `faer-sparse-ldlt` (por defecto, AMD, supernodal) y `skyline-ldlt` (referencia) tras el mismo contrato; residuo; presupuesto de memoria antes de reservar; espacio nulo verificado con cotas y hueco espectral (F08-007). Falta: backend para indefinidas (MUMPS u otro), ensamblaje simbólico reutilizable. | `fem-math`, decisiones 0002, 0005 y 0006 |
 | P03 | No iniciado (no hay mallado ni subdivisión). | — |
-| P04 | Parcial. Barra Euler–Bernoulli 3D, sección general, cargas nodales/uniformes/puntuales/peso propio, suma lineal. Falta: Timoshenko, secciones paramétricas y variables, cargas trapezoidales/térmicas, envolventes, importación S2K mínima. | `fem-elements`, `fem-analysis`, V-LIN-001..005 |
+| P04 | Parcial. Barra 3D Timoshenko/Euler–Bernoulli (As2, As3; decisión 0007), sección general, cargas nodales/uniformes/puntuales/peso propio con fuerzas de empotramiento exactas, suma lineal. Falta: secciones paramétricas (y As automático) y variables, cargas trapezoidales/térmicas, envolventes, importación S2K mínima. | `fem-elements`, `fem-analysis`, V-LIN-001..005 |
 | P05–P16 | No iniciados. | `spec/features.csv` |
 
 ## Último resultado de pruebas (ejecutado)
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
-- `cargo test --workspace`: 58 pruebas, 0 fallos. `cargo test -p fem-math --no-default-features` (solo skyline): 20, 0 fallos.
-- `rust-fem verify --backend {faer,skyline} verification/cases/*/case.json`: 13/13 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `cargo test --workspace`: 65 pruebas, 0 fallos. `cargo test -p fem-math --no-default-features` (solo skyline): 20, 0 fallos.
+- `rust-fem verify --backend {faer,skyline} verification/cases/*/case.json`: 15/15 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - Benchmarks: docs/benchmarks.md.
 
 ## Decisiones pendientes
 
 1. Backend para matrices indefinidas (P-Delta, pandeo, multiplicadores): MUMPS por FFI u otra opción; faer LBLᵀ intranodal descartado.
 2. Convención de signos de salida compatible con SAP2000: requiere oráculo.
-3. Si la deformación por cortante debe estar activa por defecto (como SAP2000) cuando exista Timoshenko.
 
 ## Siguiente paso concreto
 

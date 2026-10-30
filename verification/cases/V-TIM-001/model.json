@@ -1,0 +1,250 @@
+{
+  "schema_version": 2,
+  "title": "V-TIM-001 Timoshenko cantilevers",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "T",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0002,
+      "j": 0.0002,
+      "as2": 0.004,
+      "as3": 0.006
+    },
+    {
+      "name": "TEB",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0002,
+      "j": 0.0002,
+      "as2": 0.0,
+      "as3": 0.0
+    }
+  ],
+  "joints": [
+    {
+      "name": "S0",
+      "x": 0,
+      "y": 0.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "S1",
+      "x": 1.0,
+      "y": 0.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "L0",
+      "x": 0,
+      "y": 3.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "L1",
+      "x": 10.0,
+      "y": 3.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "E0",
+      "x": 0,
+      "y": 6.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "E1",
+      "x": 1.0,
+      "y": 6.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "FS",
+      "i": "S0",
+      "j": "S1",
+      "section": "T"
+    },
+    {
+      "name": "FL",
+      "i": "L0",
+      "j": "L1",
+      "section": "T"
+    },
+    {
+      "name": "FE",
+      "i": "E0",
+      "j": "E1",
+      "section": "TEB"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "VERT"
+    },
+    {
+      "name": "HORZ"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "VERT",
+      "joint": "S1",
+      "values": [
+        0,
+        0,
+        -20000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "HORZ",
+      "joint": "S1",
+      "values": [
+        0,
+        20000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "VERT",
+      "joint": "L1",
+      "values": [
+        0,
+        0,
+        -20000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "HORZ",
+      "joint": "L1",
+      "values": [
+        0,
+        20000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "VERT",
+      "joint": "E1",
+      "values": [
+        0,
+        0,
+        -20000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "HORZ",
+      "joint": "E1",
+      "values": [
+        0,
+        20000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "VERT",
+      "loads": [
+        {
+          "pattern": "VERT",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "HORZ",
+      "loads": [
+        {
+          "pattern": "HORZ",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

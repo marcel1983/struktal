@@ -53,7 +53,9 @@ impl fmt::Display for LoadError {
 impl std::error::Error for LoadError {}
 
 /// Reads a model from JSON, checking the schema version before the body.
-/// Migration hook: older versions would be upgraded here; v1 is the first.
+/// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
+/// behavior); missing fields already default to that, so only the version
+/// number changes.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
     let ver = raw.get("schema_version").and_then(|v| v.as_u64()).ok_or(LoadError::MissingSchemaVersion)?;
@@ -64,7 +66,20 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     if ver < 1 {
         return Err(LoadError::UnsupportedSchema { found: ver });
     }
-    serde_json::from_value(raw).map_err(LoadError::Parse)
+    if ver == 1 {
+        // Shear areas did not exist in v1; reject them instead of silently
+        // giving a v1 file v2 semantics.
+        let has_shear = raw
+            .get("sections")
+            .and_then(|v| v.as_array())
+            .is_some_and(|secs| secs.iter().any(|s| s.get("as2").is_some() || s.get("as3").is_some()));
+        if has_shear {
+            return Err(LoadError::UnsupportedSchema { found: ver });
+        }
+    }
+    let mut model: Model = serde_json::from_value(raw).map_err(LoadError::Parse)?;
+    model.schema_version = SCHEMA_VERSION;
+    Ok(model)
 }
 
 pub fn model_to_json(model: &Model) -> String {
@@ -164,6 +179,11 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
         check_positive(s.i33, &e, "i33", &mut issues);
         check_positive(s.i22, &e, "i22", &mut issues);
         check_positive(s.j, &e, "j", &mut issues);
+        for (v, f) in [(s.as2, "as2"), (s.as3, "as3")] {
+            if !v.is_finite() || v < 0.0 {
+                issues.push(issue(&e, f, format!("must be finite and >= 0 (0 = no shear deformation), got {v}")));
+            }
+        }
         match mat_idx.get(&s.material) {
             Some(&k) => section_material.push(k),
             None => {
@@ -344,7 +364,7 @@ mod tests {
 
     fn cantilever() -> Model {
         Model {
-            schema_version: 1,
+            schema_version: SCHEMA_VERSION,
             title: "t".into(),
             units: UnitSystem::default(),
             materials: vec![Material { name: "S".into(), e: 200e9, nu: 0.3, g: None, unit_weight: 0.0 }],
@@ -355,6 +375,8 @@ mod tests {
                 i33: 1e-4,
                 i22: 1e-4,
                 j: 2e-4,
+                as2: 0.0,
+                as3: 0.0,
             }],
             joints: vec![
                 Joint { name: "1".into(), x: 0.0, y: 0.0, z: 0.0, restraint: [true; 6] },
@@ -392,8 +414,49 @@ mod tests {
     }
 
     #[test]
+    fn v1_file_migrates_without_shear_deformation() {
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
+        v["schema_version"] = 1.into();
+        for s in v["sections"].as_array_mut().expect("sections") {
+            let o = s.as_object_mut().expect("obj");
+            o.remove("as2");
+            o.remove("as3");
+        }
+        let m = model_from_json(&v.to_string()).expect("migrates");
+        assert_eq!(m.schema_version, SCHEMA_VERSION);
+        assert_eq!((m.sections[0].as2, m.sections[0].as3), (0.0, 0.0));
+        assert!(validate(&m).is_ok());
+    }
+
+    #[test]
+    fn v1_file_with_shear_areas_rejected() {
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
+        v["schema_version"] = 1.into();
+        v["sections"][0]["as2"] = 0.005.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 1 })));
+    }
+
+    #[test]
+    fn negative_shear_area_rejected_and_units_converted() {
+        let mut m = cantilever();
+        m.sections[0].as3 = -1.0;
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "as3"));
+        let mut m = cantilever();
+        m.units = UnitSystem { force: ForceUnit::N, length: LengthUnit::Mm };
+        m.sections[0].area = 1e4;
+        m.sections[0].i33 = 1e8;
+        m.sections[0].i22 = 1e8;
+        m.sections[0].j = 2e8;
+        m.sections[0].as2 = 5e3;
+        m.joints[1].x = 3000.0;
+        m.materials[0].e = 200e3;
+        let s = validate(&m).expect("ok");
+        assert!((s.model.sections[0].as2 - 5e-3).abs() < 1e-18);
+    }
+
+    #[test]
     fn future_schema_rejected() {
-        let text = model_to_json(&cantilever()).replacen("\"schema_version\": 1", "\"schema_version\": 99", 1);
+        let text = model_to_json(&cantilever()).replacen("\"schema_version\": 2", "\"schema_version\": 99", 1);
         assert!(matches!(model_from_json(&text), Err(LoadError::FutureSchema { found: 99, .. })));
     }
 
@@ -438,7 +501,16 @@ mod tests {
         let mut mm = cantilever();
         mm.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
         mm.materials[0].e = 200.0;
-        mm.sections[0] = FrameSection { name: "B".into(), material: "S".into(), area: 1e4, i33: 1e8, i22: 1e8, j: 2e8 };
+        mm.sections[0] = FrameSection {
+            name: "B".into(),
+            material: "S".into(),
+            area: 1e4,
+            i33: 1e8,
+            i22: 1e8,
+            j: 2e8,
+            as2: 0.0,
+            as3: 0.0,
+        };
         mm.joints[1].x = 3000.0;
         mm.joint_loads[0].values[2] = -10.0;
         let b = validate(&mm).expect("ok");

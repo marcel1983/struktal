@@ -111,7 +111,7 @@ fn future_schema_rejected() {
     let dir = copy_case("V-LIN-001", "future");
     let model = dir.join("model.json");
     let text = std::fs::read_to_string(&model).expect("read");
-    std::fs::write(&model, text.replacen("\"schema_version\": 1", "\"schema_version\": 2", 1)).expect("write");
+    std::fs::write(&model, text.replacen("\"schema_version\": 1", "\"schema_version\": 99", 1)).expect("write");
     let out = bin().arg("solve").arg(&model).output().expect("run");
     assert_eq!(out.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&out.stderr).contains("newer than the supported"));

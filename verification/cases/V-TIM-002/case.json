@@ -1,0 +1,103 @@
+{
+  "case_id": "V-TIM-002",
+  "title": "Clamped-clamped deep beam (Phi ~ 0.16): point + uniform load",
+  "feature_ids": [
+    "F02-003",
+    "F06-003",
+    "F06-004",
+    "F08"
+  ],
+  "model": "model.json",
+  "model_sha256": "0537b54c7af85310153d14b0328f9722172e3ad5744e5d5b64cb9dd0dcb22093",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Force method with virtual work (bending + shear), Simpson integration in tools/gen_cases.py",
+    "derivation": [
+      "redundants V_B, M_B from compatibility",
+      "deflection at the load by the unit-load method",
+      "Euler-Bernoulli would give R_A = 59200.000 N, M_A = 21366.667 N m, deflection 4.557000e-05 m",
+      "Timoshenko: R_A = 58633.218 N, M_A = 20799.885 N m, deflection 8.458349e-05 m"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "FZ",
+      "value": 58633.21799307909,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "MY",
+      "value": -20799.884659745905,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "FZ",
+      "value": 31366.782006920916,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "MY",
+      "value": 13533.448673587736,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A2",
+      "component": "FZ",
+      "value": 58633.21799307909,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A2",
+      "component": "MY",
+      "value": -20799.884659745905,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B2",
+      "component": "FZ",
+      "value": 31366.782006920916,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B2",
+      "component": "MY",
+      "value": 13533.448673587736,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C2",
+      "component": "UZ",
+      "value": -8.458349480968703e-05,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}
