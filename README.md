@@ -34,3 +34,7 @@ Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 en
 ## Marcas y afiliación
 
 SAP2000, ETABS, SAFE y CSiBridge son marcas de Computers and Structures, Inc. (CSI). SAP es marca de SAP SE. Struktal es un proyecto independiente: no está afiliado a esas empresas, ni respaldado o patrocinado por ellas. Esos nombres se usan solo para describir formatos de archivo y objetivos de compatibilidad. Ver `NOTICE`.
+
+## Licencia
+
+GPL-3.0 (ver `LICENSE`). Las dependencias usadas (faer, serde, sha2, clap) tienen licencias MIT/Apache-2.0, compatibles con GPL-3.0.
