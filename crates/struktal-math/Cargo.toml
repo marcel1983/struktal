@@ -1,5 +1,5 @@
 [package]
-name = "fem-math"
+name = "struktal-math"
 description = "Sparse assembly, ordering and solver contract"
 version.workspace = true
 edition.workspace = true

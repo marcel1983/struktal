@@ -1,4 +1,4 @@
-//! Canonical model, units and validation for rust-fem.
+//! Canonical model, units and validation for struktal.
 
 pub mod model;
 pub mod units;

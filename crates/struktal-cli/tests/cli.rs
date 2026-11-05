@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_rust-fem"))
+    Command::new(env!("CARGO_BIN_EXE_struktal"))
 }
 
 fn repo() -> PathBuf {
@@ -25,7 +25,7 @@ fn case_files() -> Vec<PathBuf> {
 /// Copies a case to a temp dir laid out like verification/, so relative
 /// paths (model, tolerances) keep working.
 fn copy_case(id: &str, tag: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("rust-fem-test-{tag}-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("struktal-test-{tag}-{}", std::process::id()));
     let dir = root.join("cases").join(id);
     std::fs::create_dir_all(&dir).expect("mkdir");
     let src = repo().join("verification/cases").join(id);

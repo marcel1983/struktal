@@ -1,10 +1,10 @@
 # Unidades y convenciones (perfil v1)
 
-Estado: convenciones de rust-fem definidas y verificadas analíticamente. La correspondencia con SAP2000 está marcada como `oracle_pending` mientras no haya instalación de referencia.
+Estado: convenciones de struktal definidas y verificadas analíticamente. La correspondencia con SAP2000 está marcada como `oracle_pending` mientras no haya instalación de referencia.
 
 ## Unidades
 
-- Internas: N, m, s, rad. Toda conversión ocurre una sola vez en `Model::to_si` (crate `fem-core`), usando exponentes de fuerza y longitud (`Dim`).
+- Internas: N, m, s, rad. Toda conversión ocurre una sola vez en `Model::to_si` (crate `struktal-core`), usando exponentes de fuerza y longitud (`Dim`).
 - Entrada (esquema v1): fuerza `N, kN, MN, kgf, tonf, lbf, kip`; longitud `m, cm, mm, ft, in`. kgf/tonf usan g₀ = 9,80665 m/s².
 - La unidad original se registra en el manifiesto (`input_units`); los resultados se emiten siempre en SI (`result_units`).
 - Pendiente: masa, tiempo y temperatura (absoluta, incremento y gradiente por separado) — F01-011.

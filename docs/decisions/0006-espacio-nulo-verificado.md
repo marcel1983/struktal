@@ -6,7 +6,7 @@ Fecha: 2026-10-29. Estado: aceptada. Completa la decisión 0005: el análisis ya
 
 Los recuentos de pivotes nulos o negativos no revelan el rango. En pórticos 3D sin apoyos (nulidad 6), ambos backends daban entre 1 y 6 pivotes marcados según el tamaño (decisión 0005).
 
-## Método (`fem-math/src/nullspace.rs`)
+## Método (`struktal-math/src/nullspace.rs`)
 
 Todo en coordenadas escaladas (diagonal unidad, K_s = S K S), para que traslaciones y giros sean comparables.
 

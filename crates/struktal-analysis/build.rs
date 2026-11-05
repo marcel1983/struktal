@@ -2,10 +2,10 @@
 use std::process::Command;
 
 fn main() {
-    println!("cargo:rerun-if-env-changed=RUST_FEM_GIT_SHA");
+    println!("cargo:rerun-if-env-changed=STRUKTAL_GIT_SHA");
     println!("cargo:rerun-if-changed=../../.git/HEAD");
     println!("cargo:rerun-if-changed=../../.git/refs/heads");
-    if std::env::var("RUST_FEM_GIT_SHA").is_ok() {
+    if std::env::var("STRUKTAL_GIT_SHA").is_ok() {
         return;
     }
     let sha = Command::new("git")
@@ -23,6 +23,6 @@ fn main() {
         .unwrap_or(false);
     if let Some(s) = sha {
         let s = if dirty { format!("{s}-dirty") } else { s };
-        println!("cargo:rustc-env=RUST_FEM_GIT_SHA={s}");
+        println!("cargo:rustc-env=STRUKTAL_GIT_SHA={s}");
     }
 }

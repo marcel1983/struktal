@@ -1,5 +1,5 @@
 # Capacidades reales de cada backend (guía §6). Generado a mano; la fuente de
-# verdad ejecutable es `rust-fem capabilities`.
+# verdad ejecutable es `struktal capabilities`.
 default_backend: faer-sparse-ldlt   # decisión 0005
 backends:
   - name: faer-sparse-ldlt
@@ -11,7 +11,7 @@ backends:
     ordering: AMD (faer)
     scaling: symmetric diagonal 1/sqrt(a_ii)
     singularity: regularización dinámica de faer (eps 1e-10, delta centinela 1e30); pivotes nulos y negativos leídos de D
-    nullity_count: pivotes NO revelan el rango (0005); nulidad vía fem_math::nullspace con cotas verificadas (0006)
+    nullity_count: pivotes NO revelan el rango (0005); nulidad vía struktal_math::nullspace con cotas verificadas (0006)
     psd_regularized_mode: true (signs=+1, eps 1e-8, delta 1e30)
     inertia: signos de D; exacta solo sin pivotes nulos
     multiple_rhs: true
@@ -30,7 +30,7 @@ backends:
     ordering: reverse_cuthill_mckee
     scaling: symmetric diagonal 1/sqrt(a_ii)
     singularity: pivotes escalados |d| <= 1e-10; DOF identificados
-    nullity_count: pivotes NO revelan el rango (0005); nulidad vía fem_math::nullspace (0006)
+    nullity_count: pivotes NO revelan el rango (0005); nulidad vía struktal_math::nullspace (0006)
     psd_regularized_mode: true
     inertia: exacta solo sin pivotes nulos (Sylvester)
     multiple_rhs: true (una factorización por modelo)

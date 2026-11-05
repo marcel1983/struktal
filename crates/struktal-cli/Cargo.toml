@@ -1,5 +1,5 @@
 [package]
-name = "fem-cli"
+name = "struktal-cli"
 description = "Command-line runner: validate, solve, capabilities, verify"
 version.workspace = true
 edition.workspace = true
@@ -7,13 +7,13 @@ rust-version.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "rust-fem"
+name = "struktal"
 path = "src/main.rs"
 
 [dependencies]
-fem-core.workspace = true
-fem-math.workspace = true
-fem-analysis.workspace = true
+struktal-core.workspace = true
+struktal-math.workspace = true
+struktal-analysis.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

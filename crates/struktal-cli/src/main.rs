@@ -1,4 +1,4 @@
-//! rust-fem command-line runner.
+//! struktal command-line runner.
 //!
 //! Exit codes: 0 success; 1 verification failed or a case did not complete;
 //! 2 invalid input (parse/validation); 3 I/O error.
@@ -9,14 +9,14 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use fem_analysis::{Completion, Options, RunResult};
-use fem_math::Backend;
+use struktal_analysis::{Completion, Options, RunResult};
+use struktal_math::Backend;
 
 #[derive(Parser)]
 #[command(
-    name = "rust-fem",
+    name = "struktal",
     version,
-    about = "Linear 3D frame FEM engine (subset of the rust-fem SAP2000 compatibility profile)"
+    about = "Linear 3D frame FEM engine (subset of the struktal SAP2000 compatibility profile)"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -65,10 +65,10 @@ enum Fail {
     Io(String),
 }
 
-fn load_snapshot(path: &Path) -> Result<fem_core::Snapshot, Fail> {
+fn load_snapshot(path: &Path) -> Result<struktal_core::Snapshot, Fail> {
     let text = std::fs::read_to_string(path).map_err(|e| Fail::Io(format!("{}: {e}", path.display())))?;
-    let model = fem_core::model_from_json(&text).map_err(|e| Fail::Input(format!("{}: {e}", path.display())))?;
-    fem_core::validate(&model).map_err(|issues| {
+    let model = struktal_core::model_from_json(&text).map_err(|e| Fail::Input(format!("{}: {e}", path.display())))?;
+    struktal_core::validate(&model).map_err(|issues| {
         Fail::Input(format!(
             "{}: {} validation issue(s):\n{}",
             path.display(),
@@ -89,7 +89,7 @@ fn backend(name: &str) -> Result<Backend, Fail> {
 fn solve(path: &Path, stations: usize, budget_mib: usize, backend: Backend) -> Result<RunResult, Fail> {
     let snap = load_snapshot(path)?;
     let opts = Options { stations: stations_ok(stations)?, memory_budget: budget_mib.saturating_mul(1 << 20), backend };
-    Ok(fem_analysis::run(&snap, &opts))
+    Ok(struktal_analysis::run(&snap, &opts))
 }
 
 fn json<T: serde::Serialize>(v: &T) -> String {
@@ -194,10 +194,10 @@ fn main() -> ExitCode {
         }
         Cmd::Capabilities => {
             let caps = serde_json::json!({
-                "engine": "rust-fem",
+                "engine": "struktal",
                 "engine_version": env!("CARGO_PKG_VERSION"),
-                "model_schema_version": fem_core::model::SCHEMA_VERSION,
-                "results_schema_version": fem_analysis::results::RESULTS_SCHEMA_VERSION,
+                "model_schema_version": struktal_core::model::SCHEMA_VERSION,
+                "results_schema_version": struktal_analysis::results::RESULTS_SCHEMA_VERSION,
                 "analysis": ["linear_static"],
                 "combinations": ["linear_add"],
                 "elements": ["frame3d_timoshenko (euler_bernoulli when shear area = 0)", "frame_end_releases_and_partial_fixity"],

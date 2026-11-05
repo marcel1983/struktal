@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runs rust-fem solve on generated grids with each backend and prints a table.
+"""Runs struktal solve on generated grids with each backend and prints a table.
 
 usage: python3 tools/bench.py OUTDIR [backend ...]   (needs `cargo build --release`)
 BENCH_MAX_SIZES=n limits the run to the first n sizes.
@@ -18,7 +18,7 @@ backends = sys.argv[2:] or ["skyline", "faer"]
 sizes = [(4, 4, 5), (8, 8, 10), (12, 12, 20), (16, 16, 30), (20, 20, 40), (24, 24, 60)]
 sizes = sizes[: int(os.environ.get("BENCH_MAX_SIZES", len(sizes)))]
 out.mkdir(parents=True, exist_ok=True)
-exe = Path(__file__).resolve().parent.parent / "target" / "release" / "rust-fem"
+exe = Path(__file__).resolve().parent.parent / "target" / "release" / "struktal"
 print("| backend | modelo | ecuaciones | entradas del factor | factor MB | ensamblaje s | factorización s | 2 soluciones s | total s | RSS pico MiB | residuo | estado |")
 print("|---|---|---|---|---|---|---|---|---|---|---|---|")
 for nx, ny, nl in sizes:

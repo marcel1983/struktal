@@ -287,7 +287,7 @@ pub fn end_forces_local(k_local: &Mat12, t: &Mat12, u_global: &[f64; 12], f_eq: 
 
 /// Section actions at distance x from end I: [P, V2, V3, T, M2, M3].
 ///
-/// rust-fem convention (decision 0003): components of the force and moment
+/// struktal convention (decision 0003): components of the force and moment
 /// vectors exerted on the positive cut face (outward normal +1), i.e. by the
 /// part beyond x on the part [0, x]. P > 0 is tension. Point loads located
 /// exactly at x are excluded (value just before the load). The mapping to

@@ -294,54 +294,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fem-analysis"
-version = "0.1.0"
-dependencies = [
- "fem-core",
- "fem-elements",
- "fem-math",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "fem-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "fem-analysis",
- "fem-core",
- "fem-math",
- "serde",
- "serde_json",
- "sha2",
-]
-
-[[package]]
-name = "fem-core"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "sha2",
-]
-
-[[package]]
-name = "fem-elements"
-version = "0.1.0"
-dependencies = [
- "fem-core",
-]
-
-[[package]]
-name = "fem-math"
-version = "0.1.0"
-dependencies = [
- "faer",
- "serde",
-]
-
-[[package]]
 name = "gemm"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -812,6 +764,54 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "struktal-analysis"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "struktal-core",
+ "struktal-elements",
+ "struktal-math",
+]
+
+[[package]]
+name = "struktal-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+ "sha2",
+ "struktal-analysis",
+ "struktal-core",
+ "struktal-math",
+]
+
+[[package]]
+name = "struktal-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "struktal-elements"
+version = "0.1.0"
+dependencies = [
+ "struktal-core",
+]
+
+[[package]]
+name = "struktal-math"
+version = "0.1.0"
+dependencies = [
+ "faer",
+ "serde",
+]
 
 [[package]]
 name = "syn"

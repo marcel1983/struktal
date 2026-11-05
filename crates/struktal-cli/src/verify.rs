@@ -3,12 +3,12 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use fem_analysis::{
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use struktal_analysis::{
     CaseResult, Completion, PhysicalStatus, RunResult, results::COMPONENTS, results::REACTION_COMPONENTS,
     results::STATION_COMPONENTS,
 };
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -98,7 +98,7 @@ pub struct CaseReport {
 
 pub fn file_sha256(path: &Path) -> std::io::Result<String> {
     let bytes = std::fs::read(path)?;
-    Ok(fem_core::validate::hex(&Sha256::digest(&bytes)))
+    Ok(struktal_core::validate::hex(&Sha256::digest(&bytes)))
 }
 
 pub fn load_case(path: &Path) -> Result<(CaseFile, PathBuf), String> {

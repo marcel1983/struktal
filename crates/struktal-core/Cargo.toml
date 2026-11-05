@@ -1,17 +1,15 @@
 [package]
-name = "fem-analysis"
-description = "Load cases, linear static analysis, results and run manifest"
+name = "struktal-core"
+description = "IDs, units, canonical model and validation"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-fem-core.workspace = true
-fem-math.workspace = true
-fem-elements.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 
 [lints]
 workspace = true

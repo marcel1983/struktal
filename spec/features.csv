@@ -1,7 +1,7 @@
 id,family,requirement,profile_version,parameters,dependencies,doc_evidence,import,export,compute,results,design,tests,status,limitation
 F01-001,F01,Nudos con coordenadas cartesianas globales,sap2000-ultimate-27.1.0-target,"x,y,z",,,specified,specified,verified_independent,verified_independent,n/a,V-LIN-*,verified_independent,Sin sistemas de coordenadas alternativos
 F01-002,F01,Barras de dos nudos referenciadas por nombre,sap2000-ultimate-27.1.0-target,"i,j,section,angle_deg",F01-001,,specified,specified,verified_independent,verified_independent,n/a,V-LIN-*,verified_independent,
-F01-003,F01,Nombres de entidad como texto arbitrario,sap2000-ultimate-27.1.0-target,,,,specified,specified,implemented,implemented,n/a,fem-core unit tests,implemented,Sin normalización de mayúsculas; política SAP pendiente
+F01-003,F01,Nombres de entidad como texto arbitrario,sap2000-ultimate-27.1.0-target,,,,specified,specified,implemented,implemented,n/a,struktal-core unit tests,implemented,Sin normalización de mayúsculas; política SAP pendiente
 F01-004,F01,Sistemas de coordenadas adicionales y rejillas,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F01-005,F01,Grupos y selecciones,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F01-006,F01,Objeto físico frente a malla analítica (subdivisión automática de barras con procedencia),sap2000-ultimate-27.1.0-target,,F01-002,pending P00,specified,specified,specified,specified,n/a,,specified,
@@ -101,7 +101,7 @@ F17-006,F17,Selección automática de secciones con reanálisis,sap2000-ultimate
 F17-007,F17,Longitudes de pandeo y arriostramientos de diseño,sap2000-ultimate-27.1.0-target,,,S01/S02 / pending P00,specified,specified,specified,specified,specified,,specified,
 F18-001,F18,Desplazamientos de nudo en ejes globales (SI),sap2000-ultimate-27.1.0-target,,F08-001,,n/a,n/a,verified_independent,verified_independent,n/a,V-LIN-*,verified_independent,
 F18-002,F18,Reacciones de apoyo,sap2000-ultimate-27.1.0-target,,F08-001,,n/a,n/a,verified_independent,verified_independent,n/a,V-LIN-*,verified_independent,
-F18-003,F18,"Acciones de sección en estaciones P,V2,V3,T,M2,M3",sap2000-ultimate-27.1.0-target,stations,F08-001,,n/a,n/a,verified_independent,verified_independent,n/a,V-LIN-001/003/005,partial,Convención rust-fem (decisión 0003); mapeo de signos SAP oracle_pending
+F18-003,F18,"Acciones de sección en estaciones P,V2,V3,T,M2,M3",sap2000-ultimate-27.1.0-target,stations,F08-001,,n/a,n/a,verified_independent,verified_independent,n/a,V-LIN-001/003/005,partial,Convención struktal (decisión 0003); mapeo de signos SAP oracle_pending
 F18-004,F18,Fuerzas de extremo de elemento en ejes locales,sap2000-ultimate-27.1.0-target,,F08-001,,n/a,n/a,implemented,implemented,n/a,indirecto,implemented,
 F18-005,F18,Trabajo externo / energía,sap2000-ultimate-27.1.0-target,,F08-001,,n/a,n/a,verified_independent,verified_independent,n/a,V-LIN-001/002,verified_independent,
 F18-006,F18,Manifiesto de ejecución y estados completion/physical/compatibility,sap2000-ultimate-27.1.0-target,,,,n/a,n/a,implemented,implemented,n/a,status tests,verified_independent,
@@ -118,7 +118,7 @@ F19-006,F19,Capa compatible con scripts OAPI existentes,sap2000-ultimate-27.1.0-
 F19-007,F19,IFC,sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,specified,specified,specified,specified,n/a,,specified,
 F19-008,F19,DXF,sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,specified,specified,specified,specified,n/a,,specified,
 F19-009,F19,Lectura directa de .sdb,sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,specified,specified,specified,specified,n/a,,blocked,Sin ruta independiente documentada
-F20-001,F20,"CLI: validate, solve, capabilities, verify, compare",sap2000-ultimate-27.1.0-target,,,,n/a,n/a,implemented,implemented,n/a,crates/fem-cli/tests/cli.rs,partial,No es interfaz de escritorio
+F20-001,F20,"CLI: validate, solve, capabilities, verify, compare",sap2000-ultimate-27.1.0-target,,,,n/a,n/a,implemented,implemented,n/a,crates/struktal-cli/tests/cli.rs,partial,No es interfaz de escritorio
 F20-002,F20,Edición gráfica/tabular con deshacer,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F20-003,F20,Proceso de cálculo aislado con cancelación,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F20-004,F20,Visor de resultados e informes,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,

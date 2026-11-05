@@ -95,7 +95,7 @@ base = model(
     [SEC], [{"name": "TIP"}],
     joint_loads=[{"pattern": "TIP", "joint": "2", "values": [0, 0, -P, 0, 0, 0]}],
 )
-# Station actions in the rust-fem convention (decision 0003): for this member
+# Station actions in the struktal convention (decision 0003): for this member
 # local 1 = +X, 2 = +Z, 3 = -Y. Free body [x, L]: M3(x) = -P (L - x).
 write("V-LIN-001", "Cantilever along X, tip load -Z", ["F01", "F02", "F06", "F08", "F18"], base, ref_cant, [
     exp("joint_displacement", "LC1", "2", "UZ", uz, "m"),

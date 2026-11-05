@@ -8,7 +8,7 @@ Fecha: 2026-10-30. Estado: aceptada.
 
 Se añadió al esquema v2 sin subir la versión: v2 se creó en esta misma serie de cambios y no se ha publicado. Un lector v2 anterior rechaza el campo, por `deny_unknown_fields`; no lo ignora.
 
-## Formulación (`fem-elements/src/release.rs`)
+## Formulación (`struktal-elements/src/release.rs`)
 
 Cada componente liberada es un DOF interno del extremo del elemento, unido al DOF del nudo por un resorte k. Se forma el sistema aumentado [u (12), e (m)] y se condensa:
 

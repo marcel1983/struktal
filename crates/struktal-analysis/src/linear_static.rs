@@ -2,13 +2,13 @@
 
 use std::collections::HashMap;
 
-use fem_core::{Combination, FrameLoadKind, LoadCase, LoadDirection, Snapshot};
-use fem_elements::frame3d::{self, LocalSpanLoads, Mat12, SectionProps, Vec3};
-use fem_elements::release::Condensation;
 use std::time::Instant;
+use struktal_core::{Combination, FrameLoadKind, LoadCase, LoadDirection, Snapshot};
+use struktal_elements::frame3d::{self, LocalSpanLoads, Mat12, SectionProps, Vec3};
+use struktal_elements::release::Condensation;
 
-use fem_math::nullspace::{self, NullSpaceOptions, NullVector};
-use fem_math::{Backend, MatrixClass, SolverError, TripletBuilder, relative_residual};
+use struktal_math::nullspace::{self, NullSpaceOptions, NullVector};
+use struktal_math::{Backend, MatrixClass, SolverError, TripletBuilder, relative_residual};
 
 use crate::results::*;
 use crate::status::{CaseStatus, Completion, PhysicalStatus};
@@ -47,7 +47,7 @@ pub fn engine_version() -> String {
 }
 
 fn git_commit() -> String {
-    option_env!("RUST_FEM_GIT_SHA").unwrap_or("unknown").to_string()
+    option_env!("STRUKTAL_GIT_SHA").unwrap_or("unknown").to_string()
 }
 
 fn global_dir(dir: LoadDirection, axes: &[Vec3; 3]) -> Vec3 {
@@ -176,7 +176,7 @@ fn build_case_loads(s: &Snapshot, frames: &[FrameData], loads: &[(usize, f64)]) 
 /// Null-space analysis after a failed SPD factorization (decision 0006).
 fn mechanism_report(
     s: &Snapshot,
-    k: &fem_math::Csc,
+    k: &struktal_math::Csc,
     free_to_global: &[usize],
     opts: &Options,
 ) -> (String, Option<StabilityReport>) {
@@ -261,7 +261,7 @@ const MAX_REPORTED_MODES: usize = 24;
 
 /// Orthonormal basis (scaled coordinates, free DOFs) of the six global
 /// rigid-body motions about the centroid, used only to describe modes.
-fn rigid_body_basis(s: &Snapshot, free_to_global: &[usize], k: &fem_math::Csc) -> Vec<Vec<f64>> {
+fn rigid_body_basis(s: &Snapshot, free_to_global: &[usize], k: &struktal_math::Csc) -> Vec<Vec<f64>> {
     let n = free_to_global.len();
     let sc: Vec<f64> = k.diagonal().iter().map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 1.0 }).collect();
     let nj = s.model.joints.len().max(1) as f64;
@@ -366,7 +366,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     let nj = m.joints.len();
     let mut manifest = Manifest {
         results_schema_version: RESULTS_SCHEMA_VERSION,
-        engine: "rust-fem".into(),
+        engine: "struktal".into(),
         engine_version: engine_version(),
         git_commit: git_commit(),
         model_schema_version: m.schema_version,
@@ -498,7 +498,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         None
     } else {
         let t_fact = Instant::now();
-        let fres = fem_math::factorize(opts.backend, &k, MatrixClass::Spd, opts.memory_budget);
+        let fres = struktal_math::factorize(opts.backend, &k, MatrixClass::Spd, opts.memory_budget);
         manifest.timings.factorization_s = t_fact.elapsed().as_secs_f64();
         match fres {
             Ok(f) => {

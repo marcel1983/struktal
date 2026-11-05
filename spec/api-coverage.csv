@@ -4,5 +4,5 @@ PointObj,AddCartesian / SetRestraint / SetLoadForce,yes,puente OAPI,specified,
 FrameObj,AddByCoord / SetSection / SetLoadDistributed / SetLoadPoint,yes,puente OAPI,specified,
 Analyze,RunAnalysis,yes,ejecución de oráculo,specified,
 Results,JointDispl / JointReact / FrameForce,yes,captura de oráculo,specified,
-rust-fem CLI,validate / solve / capabilities / verify / compare,no,API propia v0.1,implemented,No es reemplazo COM/.NET
-rust-fem Python,(PyO3),no,API propia,specified,
+struktal CLI,validate / solve / capabilities / verify / compare,no,API propia v0.1,implemented,No es reemplazo COM/.NET
+struktal Python,(PyO3),no,API propia,specified,

@@ -1,5 +1,5 @@
 [package]
-name = "fem-elements"
+name = "struktal-elements"
 description = "Element formulations and result recovery"
 version.workspace = true
 edition.workspace = true
@@ -7,7 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-fem-core.workspace = true
+struktal-core.workspace = true
 
 [lints]
 workspace = true

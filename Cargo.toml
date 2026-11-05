@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/fem-core", "crates/fem-math", "crates/fem-elements", "crates/fem-analysis", "crates/fem-cli"]
+members = ["crates/struktal-core", "crates/struktal-math", "crates/struktal-elements", "crates/struktal-analysis", "crates/struktal-cli"]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,10 +13,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 clap = { version = "4", features = ["derive"] }
-fem-core = { path = "crates/fem-core" }
-fem-math = { path = "crates/fem-math" }
-fem-elements = { path = "crates/fem-elements" }
-fem-analysis = { path = "crates/fem-analysis" }
+struktal-core = { path = "crates/struktal-core" }
+struktal-math = { path = "crates/struktal-math" }
+struktal-elements = { path = "crates/struktal-elements" }
+struktal-analysis = { path = "crates/struktal-analysis" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

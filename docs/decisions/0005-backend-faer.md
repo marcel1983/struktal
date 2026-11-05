@@ -31,7 +31,7 @@ Con estructuras de varias barras sin apoyos (6 modos rígidos), los pivotes nulo
 - clasificar un mecanismo como «no definida positiva / indeterminado»;
 - dar un número de modos nulos incorrecto.
 
-Corrección aplicada en `fem-analysis`: la K del análisis lineal de barras es semidefinida positiva por construcción (E, G, A, I, J > 0 validados), así que **todo pivote no positivo se clasifica como mecanismo** y el mensaje dice «nullity >= 1, exact count not determined». Los DOF señalados son indicativos y dependen del orden de eliminación. Se añadió V-MECH-003 (pórtico 3D libre de 54 barras) como regresión.
+Corrección aplicada en `struktal-analysis`: la K del análisis lineal de barras es semidefinida positiva por construcción (E, G, A, I, J > 0 validados), así que **todo pivote no positivo se clasifica como mecanismo** y el mensaje dice «nullity >= 1, exact count not determined». Los DOF señalados son indicativos y dependen del orden de eliminación. Se añadió V-MECH-003 (pórtico 3D libre de 54 barras) como regresión.
 
 Riesgo residual: un modelo muy mal condicionado pero estable (p. ej. un elemento 1e10 veces más flexible que el resto) podría marcarse como mecanismo. Pendiente: búsqueda de vectores del espacio nulo con verificación ‖K z‖ (guía P02 paso 5) para dar una cota inferior verificada.
 
