@@ -99,7 +99,11 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .get("frames")
             .and_then(|v| v.as_array())
             .is_some_and(|frames| frames.iter().any(|f| f.get("auto_mesh").is_some()));
-        if has_auto_mesh {
+        let has_envelope = raw
+            .get("combinations")
+            .and_then(|v| v.as_array())
+            .is_some_and(|combos| combos.iter().any(|c| c.get("type").and_then(|t| t.as_str()) == Some("Envelope")));
+        if has_auto_mesh || has_envelope {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
     }
@@ -489,10 +493,17 @@ fn check_combination_graph(m: &Model, issues: &mut Vec<Issue>) {
     let cases: HashSet<&str> = m.load_cases.iter().map(|c| c.name()).collect();
     let combos: HashMap<&str, &Combination> = m.combinations.iter().map(|c| (c.name(), c)).collect();
     for c in &m.combinations {
-        let Combination::LinearAdd { name, cases: terms } = c;
-        for t in terms {
+        let name = c.name();
+        for t in c.terms() {
             if !cases.contains(t.case.as_str()) && !combos.contains_key(t.case.as_str()) {
                 issues.push(issue(format!("combination {name}"), "cases", format!("unknown case '{}'", t.case)));
+            }
+            if matches!(combos.get(t.case.as_str()), Some(Combination::Envelope { .. })) {
+                issues.push(issue(
+                    format!("combination {name}"),
+                    "cases",
+                    format!("'{}' is an envelope and cannot be a term", t.case),
+                ));
             }
             check_finite(t.scale, &format!("combination {name}"), "scale", issues);
         }
@@ -505,8 +516,8 @@ fn check_combination_graph(m: &Model, issues: &mut Vec<Issue>) {
             _ => {}
         }
         state.insert(n, 1);
-        if let Some(Combination::LinearAdd { cases, .. }) = combos.get(n) {
-            for t in cases {
+        if let Some(c) = combos.get(n) {
+            for t in c.terms() {
                 if combos.contains_key(t.case.as_str()) && visit(t.case.as_str(), combos, state) {
                     return true;
                 }
@@ -982,6 +993,26 @@ mod tests {
         ];
         let errs = validate(&m).expect_err("must fail");
         assert!(errs.iter().any(|i| i.cause.contains("cyclic")));
+    }
+
+    #[test]
+    fn envelope_cannot_be_a_term() {
+        let term = |case: &str| vec![ScaledCase { case: case.into(), scale: 1.0 }];
+        let mut m = cantilever();
+        m.combinations = vec![Combination::Envelope { name: "E".into(), cases: term("LC") }];
+        assert!(validate(&m).is_ok());
+        for outer in [
+            Combination::LinearAdd { name: "A".into(), cases: term("E") },
+            Combination::Envelope { name: "A".into(), cases: term("E") },
+        ] {
+            let mut n = m.clone();
+            n.combinations.push(outer);
+            let errs = validate(&n).expect_err("fail");
+            assert!(errs.iter().any(|i| i.cause.contains("cannot be a term")), "{errs:?}");
+        }
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 4.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 4 })));
     }
 
     #[test]

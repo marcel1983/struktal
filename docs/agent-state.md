@@ -38,7 +38,7 @@ Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 Objetivo del usuario: herramienta open source para su propio trabajo, con modelos que suelen tener losas o muros. Orden acordado el 2026-11-05: 1) resto de pórticos, 2) lo que pide un modelo real (secciones paramétricas, cargas, subdivisión, envolventes), 3) S2K, 4) láminas, 5) masas, modos y espectro.
 
-1. Lo que pide un modelo real: envolventes (F16-002) y secciones paramétricas (F02-002).
+1. Lo que pide un modelo real: secciones paramétricas (F02-002).
 2. P13 mínimo: parser S2K con AST para las tablas de `spec/s2k-table-coverage.csv`, en modo estricto.
 
 ## Comandos de reproducción

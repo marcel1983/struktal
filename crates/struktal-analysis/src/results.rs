@@ -125,6 +125,47 @@ pub struct CaseResult {
     pub joints: Vec<JointResult>,
     pub frames: Vec<FrameResult>,
     pub checks: Option<Checks>,
+    /// Present in envelopes, which have no `joints` or `frames` of their own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub envelope: Option<Envelope>,
+}
+
+/// Maximum and minimum per component, with the term that governs each one.
+/// In a tie the first term in the combination governs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Bounds {
+    pub max: [f64; 6],
+    pub max_case: [String; 6],
+    pub min: [f64; 6],
+    pub min_case: [String; 6],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Envelope {
+    pub joints: Vec<JointBounds>,
+    pub frames: Vec<FrameBounds>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JointBounds {
+    pub joint: String,
+    pub displacement: Bounds,
+    pub reaction: Option<Bounds>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub generated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FrameBounds {
+    pub frame: String,
+    pub stations: Vec<StationBounds>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StationBounds {
+    pub x: f64,
+    pub rel: f64,
+    pub actions: Bounds,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

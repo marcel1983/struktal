@@ -396,18 +396,33 @@ pub struct ScaledCase {
     pub scale: f64,
 }
 
-/// Only linear addition is supported in v1; envelopes, SRSS, absolute and
-/// range combinations are pending (features F16-*).
+/// SRSS, absolute and range combinations are pending (features F16-*).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 pub enum Combination {
-    LinearAdd { name: Name, cases: Vec<ScaledCase> },
+    LinearAdd {
+        name: Name,
+        cases: Vec<ScaledCase>,
+    },
+    /// Maximum and minimum of each result among its scaled terms, with the
+    /// term that governs each one (decision 0016). Not a state of the structure,
+    /// so it cannot be a term of another combination.
+    Envelope {
+        name: Name,
+        cases: Vec<ScaledCase>,
+    },
 }
 
 impl Combination {
     pub fn name(&self) -> &str {
         match self {
-            Combination::LinearAdd { name, .. } => name,
+            Combination::LinearAdd { name, .. } | Combination::Envelope { name, .. } => name,
+        }
+    }
+
+    pub fn terms(&self) -> &[ScaledCase] {
+        match self {
+            Combination::LinearAdd { cases, .. } | Combination::Envelope { cases, .. } => cases,
         }
     }
 }

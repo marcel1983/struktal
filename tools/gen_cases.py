@@ -1365,4 +1365,49 @@ write("V-MESH-002", "Crossing bars connected by subdivision at a joint", ["F01-0
     exp("frame_station", "LC1", "F1", "M3", k1g * dg * Lg / 4, "N*m", 0.5),
 ])
 
+# ---------------------------------------------------------------- envelopes
+
+
+def env(result, case, entity, component, bound, value, governing, unit, rel=None):
+    d = exp(result, case, entity, component, value, unit, rel)
+    d["bound"], d["governing"] = bound, governing
+    return d
+
+
+# Simply supported beam under down, heavier and upward uniform loads, and a
+# combination of them. Linear in the load, so each extreme has a known source.
+Le3, qD, qL3, qW = 6.0, 4_000.0, 6_000.0, -5_000.0
+qU = 1.2 * qD + 1.6 * qL3
+scale_w = 1.1
+
+
+def per_load(q):
+    return {"R": q * Le3 / 2, "M": q * Le3**2 / 8, "d": -5 * q * Le3**4 / (384 * E * I)}
+
+
+vals = {"DEAD": per_load(qD), "LIVE": per_load(qL3), "ULS": per_load(qU), "WIND": per_load(scale_w * qW)}
+write("V-ENV-001", "Envelope of cases and a combination, with the governing term", ["F16-002", "F16-001"], model(
+    "V-ENV-001 envelope",
+    [J("A", 0, 0, 0, PIN), J("M", Le3 / 2, 0, 0), J("B", Le3, 0, 0, ROL)],
+    [{"name": "F1", "i": "A", "j": "M", "section": "B"}, {"name": "F2", "i": "M", "j": "B", "section": "B"}],
+    [SEC], [{"name": "D"}, {"name": "L3"}, {"name": "W"}],
+    frame_loads=[{"pattern": p_, "frame": f_, "load": {"kind": "Uniform", "direction": "Gravity", "value": v_}}
+                 for p_, v_ in [("D", qD), ("L3", qL3), ("W", qW)] for f_ in ["F1", "F2"]],
+    cases=[{"type": "LinearStatic", "name": n_, "loads": [{"pattern": p_, "scale": 1.0}]}
+           for n_, p_ in [("DEAD", "D"), ("LIVE", "L3"), ("WIND", "W")]],
+    combos=[{"type": "LinearAdd", "name": "ULS", "cases": [{"case": "DEAD", "scale": 1.2}, {"case": "LIVE", "scale": 1.6}]},
+            {"type": "Envelope", "name": "ENV", "cases": [{"case": "DEAD", "scale": 1.0}, {"case": "ULS", "scale": 1.0},
+                                                          {"case": "WIND", "scale": scale_w}]}],
+    schema=5,
+), {"kind": "analytical", "source": "Simply supported beam under a uniform load, per term of the envelope",
+    "derivation": ["R = q L/2, M_mid = q L^2/8, delta_mid = 5 q L^4/(384 E I)", "the largest down load governs the max reaction; the scaled upward load governs the min"]}, [
+    env("envelope_joint_reaction", "ENV", "A", "FZ", "max", vals["ULS"]["R"], "ULS", "N"),
+    env("envelope_joint_reaction", "ENV", "A", "FZ", "min", vals["WIND"]["R"], "WIND", "N"),
+    env("envelope_joint_displacement", "ENV", "M", "UZ", "min", vals["ULS"]["d"], "ULS", "m"),
+    env("envelope_joint_displacement", "ENV", "M", "UZ", "max", vals["WIND"]["d"], "WIND", "m"),
+    env("envelope_frame_station", "ENV", "F1", "M3", "max", vals["ULS"]["M"], "ULS", "N*m", 1.0),
+    env("envelope_frame_station", "ENV", "F1", "M3", "min", vals["WIND"]["M"], "WIND", "N*m", 1.0),
+    exp("joint_reaction", "ULS", "A", "FZ", vals["ULS"]["R"], "N"),
+])
+
 print("cases written to", ROOT)

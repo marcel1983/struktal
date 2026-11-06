@@ -60,6 +60,12 @@ pub struct Expected {
     pub rel: Option<f64>,
     pub value: f64,
     pub unit: String,
+    /// In envelope results: "max" or "min".
+    #[serde(default)]
+    pub bound: Option<String>,
+    /// In envelope results: the term that must govern.
+    #[serde(default)]
+    pub governing: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -155,6 +161,49 @@ fn lookup(r: &RunResult, e: &Expected) -> Result<f64, String> {
             Ok(st.actions[comp(&STATION_COMPONENTS)?])
         }
         "external_work" => c.checks.as_ref().map(|k| k.external_work).ok_or_else(|| "no checks in case".into()),
+        "envelope_joint_displacement" | "envelope_joint_reaction" | "envelope_frame_station" => {
+            let env = c.envelope.as_ref().ok_or("case has no envelope")?;
+            let (b, k) = match e.result.as_str() {
+                "envelope_frame_station" => {
+                    let f = env
+                        .frames
+                        .iter()
+                        .find(|f| f.frame == e.entity)
+                        .ok_or_else(|| format!("frame '{}' not in envelope", e.entity))?;
+                    let rel = e.rel.ok_or("envelope_frame_station needs 'rel'")?;
+                    let st = f
+                        .stations
+                        .iter()
+                        .find(|s| (s.rel - rel).abs() < 1e-12)
+                        .ok_or_else(|| format!("no station at rel {rel}"))?;
+                    (&st.actions, comp(&STATION_COMPONENTS)?)
+                }
+                _ => {
+                    let j = env
+                        .joints
+                        .iter()
+                        .find(|j| j.joint == e.entity)
+                        .ok_or_else(|| format!("joint '{}' not in envelope", e.entity))?;
+                    if e.result == "envelope_joint_displacement" {
+                        (&j.displacement, comp(&COMPONENTS)?)
+                    } else {
+                        let r = j.reaction.as_ref().ok_or_else(|| format!("joint '{}' has no reaction", e.entity))?;
+                        (r, comp(&REACTION_COMPONENTS)?)
+                    }
+                }
+            };
+            let (value, case) = match e.bound.as_deref() {
+                Some("max") => (b.max[k], &b.max_case[k]),
+                Some("min") => (b.min[k], &b.min_case[k]),
+                other => return Err(format!("envelope result needs bound max or min, got {other:?}")),
+            };
+            if let Some(g) = &e.governing
+                && g != case
+            {
+                return Err(format!("governing term is '{case}', expected '{g}'"));
+            }
+            Ok(value)
+        }
         other => Err(format!("unknown result kind '{other}'")),
     }
 }

@@ -1,0 +1,97 @@
+{
+  "case_id": "V-ENV-001",
+  "title": "Envelope of cases and a combination, with the governing term",
+  "feature_ids": [
+    "F16-002",
+    "F16-001"
+  ],
+  "model": "model.json",
+  "model_sha256": "ed8eded9d4a9e93a5c309a17d602c0b9c3350996621ced19501ef96a0229f0d2",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Simply supported beam under a uniform load, per term of the envelope",
+    "derivation": [
+      "R = q L/2, M_mid = q L^2/8, delta_mid = 5 q L^4/(384 E I)",
+      "the largest down load governs the max reaction; the scaled upward load governs the min"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "envelope_joint_reaction",
+      "case": "ENV",
+      "entity": "A",
+      "component": "FZ",
+      "value": 43200.0,
+      "unit": "N",
+      "bound": "max",
+      "governing": "ULS"
+    },
+    {
+      "result": "envelope_joint_reaction",
+      "case": "ENV",
+      "entity": "A",
+      "component": "FZ",
+      "value": -16500.0,
+      "unit": "N",
+      "bound": "min",
+      "governing": "WIND"
+    },
+    {
+      "result": "envelope_joint_displacement",
+      "case": "ENV",
+      "entity": "M",
+      "component": "UZ",
+      "value": -0.01215,
+      "unit": "m",
+      "bound": "min",
+      "governing": "ULS"
+    },
+    {
+      "result": "envelope_joint_displacement",
+      "case": "ENV",
+      "entity": "M",
+      "component": "UZ",
+      "value": 0.004640625,
+      "unit": "m",
+      "bound": "max",
+      "governing": "WIND"
+    },
+    {
+      "result": "envelope_frame_station",
+      "case": "ENV",
+      "entity": "F1",
+      "component": "M3",
+      "value": 64800.0,
+      "unit": "N*m",
+      "rel": 1.0,
+      "bound": "max",
+      "governing": "ULS"
+    },
+    {
+      "result": "envelope_frame_station",
+      "case": "ENV",
+      "entity": "F1",
+      "component": "M3",
+      "value": -24750.0,
+      "unit": "N*m",
+      "rel": 1.0,
+      "bound": "min",
+      "governing": "WIND"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ULS",
+      "entity": "A",
+      "component": "FZ",
+      "value": 43200.0,
+      "unit": "N"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

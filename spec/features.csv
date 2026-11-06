@@ -88,7 +88,7 @@ F15-001,F15,"Carriles, vehículos y clases",sap2000-ultimate-27.1.0-target,,,S03
 F15-002,F15,Líneas/superficies de influencia y búsqueda de extremos,sap2000-ultimate-27.1.0-target,,,S03 / pending P00,specified,specified,specified,specified,n/a,,specified,
 F15-003,F15,Cargas móviles dinámicas,sap2000-ultimate-27.1.0-target,,,S03 / pending P00,specified,specified,specified,specified,n/a,,specified,
 F16-001,F16,"Combinación suma lineal (casos y combinaciones anidadas, ciclos rechazados)",sap2000-ultimate-27.1.0-target,,F08-001,,specified,specified,verified_independent,verified_independent,n/a,V-LIN-003; combination_cycle_rejected,verified_independent,
-F16-002,F16,Envolvente con caso gobernante,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
+F16-002,F16,Envolvente con caso gobernante,sap2000-ultimate-27.1.0-target,"cases[case,scale]",F16-001,pending P00,specified,specified,verified_independent,verified_independent,n/a,V-ENV-001; envelope_cannot_be_a_term,verified_independent,No admite envolventes anidadas; comportamiento SAP oracle_pending (decisión 0016)
 F16-003,F16,SRSS y suma absoluta,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F16-004,F16,Rango y combinaciones con casos no lineales,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F16-005,F16,Combinaciones normativas automáticas,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,

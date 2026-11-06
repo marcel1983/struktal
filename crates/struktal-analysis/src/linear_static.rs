@@ -443,6 +443,7 @@ fn failed_case(name: &str, kind: &str, c: Completion, p: PhysicalStatus, message
         joints: vec![],
         frames: vec![],
         checks: None,
+        envelope: None,
     }
 }
 
@@ -844,6 +845,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             joints,
             frames: frame_results,
             checks: Some(checks),
+            envelope: None,
         };
         by_name.insert(name.clone(), cr.clone());
         out.push(cr);
@@ -854,12 +856,16 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     while !pending.is_empty() {
         let before = pending.len();
         pending.retain(|c| {
-            let Combination::LinearAdd { name, cases } = c;
+            let cases = c.terms();
             if !cases.iter().all(|t| by_name.contains_key(&t.case)) {
                 return true;
             }
-            let cr = combine(name, cases.iter().map(|t| (&by_name[&t.case], t.scale)).collect());
-            by_name.insert(name.clone(), cr.clone());
+            let terms = cases.iter().map(|t| (&by_name[&t.case], t.scale)).collect();
+            let cr = match c {
+                Combination::LinearAdd { name, .. } => combine(name, terms),
+                Combination::Envelope { name, .. } => envelope(name, terms),
+            };
+            by_name.insert(c.name().to_string(), cr.clone());
             out.push(cr);
             false
         });
@@ -942,5 +948,92 @@ fn combine(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
         joints,
         frames,
         checks: None,
+        envelope: None,
+    }
+}
+
+/// Extremes of one vector per component across the terms, each scaled.
+fn bounds<'a>(values: impl Iterator<Item = (&'a str, f64, [f64; 6])>) -> Bounds {
+    let mut b = Bounds {
+        max: [f64::NEG_INFINITY; 6],
+        max_case: Default::default(),
+        min: [f64::INFINITY; 6],
+        min_case: Default::default(),
+    };
+    for (case, scale, v) in values {
+        for (d, component) in v.into_iter().enumerate() {
+            let x = scale * component;
+            // Strict: in a tie the earlier term stays as the governing one.
+            if x > b.max[d] {
+                b.max[d] = x;
+                b.max_case[d] = case.to_string();
+            }
+            if x < b.min[d] {
+                b.min[d] = x;
+                b.min_case[d] = case.to_string();
+            }
+        }
+    }
+    b
+}
+
+fn envelope(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
+    const KIND: &str = "combination_envelope";
+    if terms.iter().any(|(c, _)| c.status.completion() != Completion::Complete) {
+        let why = vec!["a referenced case is not complete".to_string()];
+        return failed_case(name, KIND, Completion::Error, PhysicalStatus::Indeterminate, why);
+    }
+    let Some((first, _)) = terms.first() else {
+        return failed_case(
+            name,
+            KIND,
+            Completion::Error,
+            PhysicalStatus::Indeterminate,
+            vec!["empty combination".into()],
+        );
+    };
+    let joints = first
+        .joints
+        .iter()
+        .enumerate()
+        .map(|(j, joint)| JointBounds {
+            joint: joint.joint.clone(),
+            displacement: bounds(terms.iter().map(|(c, s)| (c.name.as_str(), *s, c.joints[j].displacement))),
+            reaction: joint.reaction.map(|_| {
+                bounds(terms.iter().map(|(c, s)| (c.name.as_str(), *s, c.joints[j].reaction.unwrap_or([0.0; 6]))))
+            }),
+            generated: joint.generated,
+        })
+        .collect();
+    let frames = first
+        .frames
+        .iter()
+        .enumerate()
+        .map(|(f, frame)| FrameBounds {
+            frame: frame.frame.clone(),
+            stations: frame
+                .stations
+                .iter()
+                .enumerate()
+                .map(|(k, st)| StationBounds {
+                    x: st.x,
+                    rel: st.rel,
+                    actions: bounds(terms.iter().map(|(c, s)| (c.name.as_str(), *s, c.frames[f].stations[k].actions))),
+                })
+                .collect(),
+        })
+        .collect();
+    CaseResult {
+        name: name.to_string(),
+        kind: KIND.into(),
+        status: CaseStatus::engine(Completion::Complete, PhysicalStatus::ResponseComputed),
+        messages: vec![format!(
+            "envelope of: {}",
+            terms.iter().map(|(c, s)| format!("{s} x {}", c.name)).collect::<Vec<_>>().join(", ")
+        )],
+        joints: vec![],
+        frames: vec![],
+        checks: None,
+        envelope: Some(Envelope { joints, frames }),
     }
 }

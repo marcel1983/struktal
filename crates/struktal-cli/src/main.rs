@@ -199,7 +199,7 @@ fn main() -> ExitCode {
                 "model_schema_version": struktal_core::model::SCHEMA_VERSION,
                 "results_schema_version": struktal_analysis::results::RESULTS_SCHEMA_VERSION,
                 "analysis": ["linear_static"],
-                "combinations": ["linear_add"],
+                "combinations": ["linear_add", "envelope"],
                 "elements": ["frame3d_timoshenko (euler_bernoulli when shear area = 0)", "frame_end_releases_and_partial_fixity", "frame_rigid_end_offsets", "frame_auto_mesh"],
                 "constraints": ["diaphragm", "body", "equal"],
                 "supports": ["restraints", "joint_springs_global", "imposed_displacements"],

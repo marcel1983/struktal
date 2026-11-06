@@ -166,6 +166,9 @@ def combine(results, m):
             return
         for c in ready:
             pending.remove(c)
+            if c.get("type") == "Envelope":
+                results[c["name"]] = {"status": "skipped", "reason": "envelopes are not compared"}
+                continue
             if any(results[t["case"]].get("status") != "ok" for t in c["cases"]):
                 results[c["name"]] = {"status": "skipped", "reason": "depends on a case not solved"}
                 continue
