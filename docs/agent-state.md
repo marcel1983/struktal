@@ -25,7 +25,8 @@ Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
 - `cargo test --workspace`: 90 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 20, 0 fallos.
-- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 31/31 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 32/32 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `tools/compare_engines.py`: comparación opcional con OpenSeesPy y Pynite (decisión 0013). CI en `.github/workflows/ci.yml`, aún sin ejecutar en GitHub.
 - Benchmarks: docs/benchmarks.md.
 
 ## Decisiones pendientes

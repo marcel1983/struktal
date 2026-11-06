@@ -26,7 +26,8 @@ Con r el offset, la zona entre nudo y extremo es rígida: u_extremo = u_nudo + �
 ## Verificación
 
 - Elemento: simetría y fuerzas nulas en los seis modos rígidos con offsets oblicuos; offset nulo igual a T.
-- V-OFF-001: brazo rígido en punta, el mismo girado 45° en planta, con deformación por cortante, y carga axial excéntrica. En este último, la barra es paralela a la línea de nudos a una distancia e: N = P, M = eP constante y momento de apoyo nulo.
+- V-OFF-001: brazo rígido en punta, el mismo girado 45° en planta, y carga axial excéntrica. En este último, la barra es paralela a la línea de nudos a una distancia e: N = P, M = eP constante y momento de apoyo nulo.
+- V-OFF-003: brazo rígido con deformación por cortante.
 - V-OFF-002: tramo flexible biempotrado y biarticulado bajo carga uniforme. Los apoyos reciben el momento del elemento más R·a.
 - La referencia se calcula en `tools/gen_cases.py` con el voladizo cerrado y la cinemática del brazo. Pasan con ambos backends.
 

@@ -1,14 +1,13 @@
 {
   "case_id": "V-OFF-001",
-  "title": "Rigid end offsets: tip arm, plan rotation, shear, eccentric axial load",
+  "title": "Rigid end offsets: tip arm, plan rotation, eccentric axial load",
   "feature_ids": [
     "F04-004",
-    "F02-003",
     "F08",
     "F18"
   ],
   "model": "model.json",
-  "model_sha256": "530da814ab0488f0dea4bf2c40c63ea97a2380537ef64f8761b0e9ef38a89e61",
+  "model_sha256": "397bd8d5352050b27d6afc7ec83081cb6edf1e38cbda8e97d76ccf34d7567dc2",
   "tolerances_file": "../../tolerances.json",
   "tolerances_id": "linear-closed-form-v1",
   "reference": {
@@ -138,22 +137,6 @@
       "component": "MY",
       "value": -24748.737341529162,
       "unit": "N*m"
-    },
-    {
-      "result": "joint_displacement",
-      "case": "TIM",
-      "entity": "S1",
-      "component": "UZ",
-      "value": -0.0072225,
-      "unit": "m"
-    },
-    {
-      "result": "joint_displacement",
-      "case": "TIM",
-      "entity": "S1",
-      "component": "RY",
-      "value": 0.003,
-      "unit": "rad"
     },
     {
       "result": "joint_displacement",

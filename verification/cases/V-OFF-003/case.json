@@ -1,0 +1,60 @@
+{
+  "case_id": "V-OFF-003",
+  "title": "Rigid end offset with shear deformation",
+  "feature_ids": [
+    "F04-004",
+    "F02-003"
+  ],
+  "model": "model.json",
+  "model_sha256": "b42b5212114e4abb02add6ac1239daead9780ac480d40f4dd5ff07579b6ebccd",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Same as V-OFF-001 with the shear term of the cantilever",
+    "derivation": [
+      "d_end = P L^3/(3 E I) + P a L^2/(2 E I) + P L/(G As)",
+      "theta = P L^2/(2 E I) + P a L/(E I)",
+      "d_joint = d_end + theta a"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "S1",
+      "component": "UZ",
+      "value": -0.0072225,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "S1",
+      "component": "RY",
+      "value": 0.003,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "S0",
+      "component": "FZ",
+      "value": 10000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "S0",
+      "component": "MY",
+      "value": -35000.0,
+      "unit": "N*m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

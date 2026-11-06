@@ -1,3 +1,4 @@
 target/
 *.tmp
 verification/last-report.json
+__pycache__/

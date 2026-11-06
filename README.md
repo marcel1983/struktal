@@ -29,7 +29,7 @@ Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 en
 | `spec/` | Perfil, inventario de requisitos, convenciones, cobertura S2K/API, capacidades de solver |
 | `verification/` | Casos con referencia analítica independiente, tolerancias, oráculos externos |
 | `docs/` | Decisiones, informe de compatibilidad, benchmarks, estado del agente |
-| `tools/` | Generadores de casos y modelos de rendimiento |
+| `tools/` | Generadores de casos y modelos de rendimiento; comparación opcional con otros motores (decisión 0013) |
 
 ## Marcas y afiliación
 

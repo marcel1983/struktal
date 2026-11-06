@@ -25,7 +25,7 @@ Cobertura verificada independientemente: 27/124 (22 %). Cobertura contrastada co
 - Backend por defecto `faer-sparse-ldlt` (decisión 0005); `skyline-ldlt` como referencia.
 - Diagnóstico de mecanismo con vectores del espacio nulo verificados: nulidad exacta cuando hay hueco espectral, modos con DOF dominantes y nudos afectados (decisión 0006); rechazo explícito de clases de matriz no admitidas.
 - CLI con manifiesto, hash de snapshot y estados por caso.
-- Banco de 31 casos analíticos, todos pasan con ambos backends (rtol 1e-8).
+- Banco de 32 casos analíticos, todos pasan con ambos backends (rtol 1e-8).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 

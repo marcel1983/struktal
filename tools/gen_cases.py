@@ -577,21 +577,18 @@ co = 1 / math.sqrt(2)
 uxE = Po * Lo / (E * A) + eo**2 * Po * Lo / EIo
 uzE = eo * Po * Lo**2 / (2 * EIo)
 ryE = -eo * Po * Lo / EIo
-off_cases = [{"type": "LinearStatic", "name": n, "loads": [{"pattern": n, "scale": 1.0}]} for n in ["TIP", "ROT", "TIM", "ECC"]]
-write("V-OFF-001", "Rigid end offsets: tip arm, plan rotation, shear, eccentric axial load", ["F04-004", "F02-003", "F08", "F18"], model(
+off_cases = [{"type": "LinearStatic", "name": n, "loads": [{"pattern": n, "scale": 1.0}]} for n in ["TIP", "ROT", "ECC"]]
+write("V-OFF-001", "Rigid end offsets: tip arm, plan rotation, eccentric axial load", ["F04-004", "F08", "F18"], model(
     "V-OFF-001 rigid end offsets",
     [J("T0", 0, 0, 0, FIX), J("T1", Lo + ao, 0, 0),
      J("R0", 0, 8, 0, FIX), J("R1", (Lo + ao) * co, 8 + (Lo + ao) * co, 0),
-     J("S0", 0, 16, 0, FIX), J("S1", Lo + ao, 16, 0),
      J("E0", 0, 24, 0, FIX), J("E1", Lo, 24, 0)],
     [{"name": "FT", "i": "T0", "j": "T1", "section": "B", "offsets": {"j": [-ao, 0, 0]}},
      {"name": "FR", "i": "R0", "j": "R1", "section": "B", "offsets": {"j": [-ao * co, -ao * co, 0]}},
-     {"name": "FS", "i": "S0", "j": "S1", "section": "RS", "offsets": {"j": [-ao, 0, 0]}},
      {"name": "FE", "i": "E0", "j": "E1", "section": "B", "offsets": {"i": [0, 0, eo], "j": [0, 0, eo]}}],
-    [SEC, SOS], [{"name": n} for n in ["TIP", "ROT", "TIM", "ECC"]],
+    [SEC], [{"name": n} for n in ["TIP", "ROT", "ECC"]],
     joint_loads=[{"pattern": "TIP", "joint": "T1", "values": [0, 0, -Po, 0, 0, 0]},
                  {"pattern": "ROT", "joint": "R1", "values": [0, 0, -Po, 0, 0, 0]},
-                 {"pattern": "TIM", "joint": "S1", "values": [0, 0, -Po, 0, 0, 0]},
                  {"pattern": "ECC", "joint": "E1", "values": [Po, 0, 0, 0, 0, 0]}],
     cases=off_cases, schema=3,
 ), {"kind": "analytical", "source": "Cantilever under end force and moment, plus rigid-arm kinematics u_joint = u_end + theta x r",
@@ -611,8 +608,6 @@ write("V-OFF-001", "Rigid end offsets: tip arm, plan rotation, shear, eccentric 
     exp("joint_displacement", "ROT", "R1", "RY", thA * co, "rad"),
     exp("joint_reaction", "ROT", "R0", "MX", Po * (Lo + ao) * co, "N*m"),
     exp("joint_reaction", "ROT", "R0", "MY", -Po * (Lo + ao) * co, "N*m"),
-    exp("joint_displacement", "TIM", "S1", "UZ", -dS, "m"),
-    exp("joint_displacement", "TIM", "S1", "RY", thS, "rad"),
     exp("joint_displacement", "ECC", "E1", "UX", uxE, "m"),
     exp("joint_displacement", "ECC", "E1", "UZ", uzE, "m"),
     exp("joint_displacement", "ECC", "E1", "RY", ryE, "rad"),
@@ -624,6 +619,23 @@ write("V-OFF-001", "Rigid end offsets: tip arm, plan rotation, shear, eccentric 
     exp("frame_station", "ECC", "FE", "M3", eo * Po, "N*m", 1.0),
     exp("frame_station", "ECC", "FE", "V2", 0.0, "N", 0.5),
     exp("external_work", "ECC", "", "", Po * uxE / 2, "J"),
+])
+
+# Apart from V-OFF-001 because OpenSees' Timoshenko element ignores the arm of
+# its joint offsets, and one such bar would leave the whole model not comparable.
+write("V-OFF-003", "Rigid end offset with shear deformation", ["F04-004", "F02-003"], model(
+    "V-OFF-003 offset on a shear-deformable bar",
+    [J("S0", 0, 0, 0, FIX), J("S1", Lo + ao, 0, 0)],
+    [{"name": "FS", "i": "S0", "j": "S1", "section": "RS", "offsets": {"j": [-ao, 0, 0]}}],
+    [SOS], [{"name": "TIM"}],
+    joint_loads=[{"pattern": "TIM", "joint": "S1", "values": [0, 0, -Po, 0, 0, 0]}],
+    schema=3,
+), {"kind": "analytical", "source": "Same as V-OFF-001 with the shear term of the cantilever",
+    "derivation": ["d_end = P L^3/(3 E I) + P a L^2/(2 E I) + P L/(G As)", "theta = P L^2/(2 E I) + P a L/(E I)", "d_joint = d_end + theta a"]}, [
+    exp("joint_displacement", "LC1", "S1", "UZ", -dS, "m"),
+    exp("joint_displacement", "LC1", "S1", "RY", thS, "rad"),
+    exp("joint_reaction", "LC1", "S0", "FZ", Po, "N"),
+    exp("joint_reaction", "LC1", "S0", "MY", -Po * (Lo + ao), "N*m"),
 ])
 
 # Span loads act on the flexible length only, and the joints take the arms.

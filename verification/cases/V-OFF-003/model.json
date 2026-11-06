@@ -1,0 +1,106 @@
+{
+  "schema_version": 3,
+  "title": "V-OFF-003 offset on a shear-deformable bar",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "RS",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002,
+      "as2": 0.004,
+      "as3": 0.004
+    }
+  ],
+  "joints": [
+    {
+      "name": "S0",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "S1",
+      "x": 3.5,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "FS",
+      "i": "S0",
+      "j": "S1",
+      "section": "RS",
+      "offsets": {
+        "j": [
+          -0.5,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "TIM"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "TIM",
+      "joint": "S1",
+      "values": [
+        0,
+        0,
+        -10000.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "TIM",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}
