@@ -57,8 +57,8 @@ impl std::error::Error for LoadError {}
 /// Reads a model from JSON, checking the schema version before the body.
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
 /// behavior); v2 → v3 adds no offsets, constraints, springs or imposed
-/// displacements; v3 → v4 only adds load kinds. Missing fields already default
-/// to that, so only the version number changes.
+/// displacements; v3 → v4 only adds load kinds; v4 → v5 adds no subdivision.
+/// Missing fields already default to that, so only the version number changes.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
     let ver = raw.get("schema_version").and_then(|v| v.as_u64()).ok_or(LoadError::MissingSchemaVersion)?;
@@ -91,6 +91,15 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .and_then(|v| v.as_array())
             .is_some_and(|joints| joints.iter().any(|j| j.get("springs").is_some()));
         if has_offsets || has_springs || raw.get("constraints").is_some() || raw.get("joint_displacements").is_some() {
+            return Err(LoadError::UnsupportedSchema { found: ver });
+        }
+    }
+    if ver < 5 {
+        let has_auto_mesh = raw
+            .get("frames")
+            .and_then(|v| v.as_array())
+            .is_some_and(|frames| frames.iter().any(|f| f.get("auto_mesh").is_some()));
+        if has_auto_mesh {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
     }
@@ -282,6 +291,9 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
                 issues.push(issue(&e, "releases", format!("unstable release combination: {why}")));
             }
         }
+        if f.auto_mesh.is_some_and(|a| a.segments == 0) {
+            issues.push(issue(&e, "auto_mesh.segments", "must be at least 1"));
+        }
         let offsets = f.offsets.unwrap_or_default();
         for (end, v) in [("i", offsets.i), ("j", offsets.j)] {
             for c in v {
@@ -338,11 +350,14 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
         }
     }
 
+    // A frame split at joints can connect any joint on its axis. That is known
+    // only once the analysis mesh exists, and its validation applies this rule.
+    let joints_may_connect_later = m.frames.iter().any(|f| f.auto_mesh.is_some_and(|a| a.at_joints));
     for (k, j) in m.joints.iter().enumerate() {
         if j.springs.iter().any(|&s| s > 0.0) {
             connected.insert(k);
         }
-        if !connected.contains(&k) && !j.restraint.iter().all(|&r| r) {
+        if !connected.contains(&k) && !j.restraint.iter().all(|&r| r) && !joints_may_connect_later {
             issues.push(issue(
                 format!("joint {}", j.name),
                 "connectivity",
@@ -546,6 +561,7 @@ mod tests {
                 angle_deg: 0.0,
                 releases: None,
                 offsets: None,
+                auto_mesh: None,
             }],
             constraints: vec![],
             load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0 }],
@@ -686,7 +702,7 @@ mod tests {
 
     #[test]
     fn future_schema_rejected() {
-        let text = model_to_json(&cantilever()).replacen("\"schema_version\": 4", "\"schema_version\": 99", 1);
+        let text = model_to_json(&cantilever()).replacen("\"schema_version\": 5", "\"schema_version\": 99", 1);
         assert!(matches!(model_from_json(&text), Err(LoadError::FutureSchema { found: 99, .. })));
     }
 
@@ -826,6 +842,18 @@ mod tests {
             panic!()
         };
         assert!((value_start - 1.0e3).abs() < 1e-9);
+    }
+
+    #[test]
+    fn auto_mesh_validation_and_schema() {
+        let mut m = cantilever();
+        m.frames[0].auto_mesh = Some(AutoMesh { segments: 0, at_joints: false });
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "auto_mesh.segments"));
+        m.frames[0].auto_mesh = Some(AutoMesh { segments: 3, at_joints: true });
+        assert!(validate(&m).is_ok());
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 4.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 4 })));
     }
 
     #[test]

@@ -37,7 +37,19 @@ pub struct Manifest {
     /// Present when the stiffness is singular: null-space analysis.
     #[serde(default)]
     pub stability: Option<StabilityReport>,
+    /// Frames that the analysis subdivided (decision 0015).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub analysis_mesh: Vec<MeshedFrame>,
     pub messages: Vec<String>,
+}
+
+/// Provenance of a subdivided frame: its pieces, from end I to end J.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeshedFrame {
+    pub frame: String,
+    pub pieces: Vec<String>,
+    /// Joints between the pieces, generated or existing.
+    pub joints: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,6 +133,9 @@ pub struct JointResult {
     pub displacement: [f64; 6],
     /// Present only for joints with at least one restrained component.
     pub reaction: Option<[f64; 6]>,
+    /// Created by the analysis mesh, not in the model.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub generated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

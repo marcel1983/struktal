@@ -1,0 +1,207 @@
+{
+  "case_id": "V-MESH-001",
+  "title": "Frames subdivided: through a support, evenly, with offsets and releases, loads on cuts",
+  "feature_ids": [
+    "F01-006",
+    "F06-003",
+    "F06-006",
+    "F06-007"
+  ],
+  "model": "model.json",
+  "model_sha256": "8ba9cbf15889da9e73e5a41e83977f529eee2ce2f1474d4ad22d9734937037fa",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Classic results: two-span beam, simply supported beam, triangular load, cantilever",
+    "derivation": [
+      "two spans L: R_A = 3 q L/8, R_M = 5 q L/4, M_M = -q L^2/8",
+      "delta(x) = q x (L^3 - 2 L x^2 + x^3)/(24 E I)",
+      "released ends with arms a: M_support = R a",
+      "cantilever: superposition of a force at s and a moment at a"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "FZ",
+      "value": 15000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "M",
+      "component": "FZ",
+      "value": 50000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B",
+      "component": "FZ",
+      "value": 15000.0,
+      "unit": "N"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FA",
+      "component": "M3",
+      "value": -25000.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FA",
+      "component": "M3",
+      "value": 12500.0,
+      "unit": "N*m",
+      "rel": 0.25
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "FB~1",
+      "component": "UZ",
+      "value": -0.0023193359375,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "FB~2",
+      "component": "UZ",
+      "value": -0.0032552083333333335,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "FB~3",
+      "component": "UZ",
+      "value": -0.0023193359375,
+      "unit": "m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FB",
+      "component": "M3",
+      "value": 25000.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FB",
+      "component": "V2",
+      "value": -20000.0,
+      "unit": "N",
+      "rel": 0.0
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "E",
+      "component": "FZ",
+      "value": 7000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "E",
+      "component": "MY",
+      "value": -2800.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "F",
+      "component": "MY",
+      "value": 5600.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FC",
+      "component": "M3",
+      "value": 15750.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FC",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FC",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "H",
+      "component": "UZ",
+      "value": -0.013725,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "H",
+      "component": "RY",
+      "value": 0.003525,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G",
+      "component": "FZ",
+      "value": 9000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G",
+      "component": "MY",
+      "value": -39000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FD",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 1.0
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

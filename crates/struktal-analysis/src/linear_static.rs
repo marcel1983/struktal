@@ -446,15 +446,13 @@ fn failed_case(name: &str, kind: &str, c: Completion, p: PhysicalStatus, message
     }
 }
 
-pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
-    let m = &s.model;
-    let nj = m.joints.len();
-    let mut manifest = Manifest {
+fn base_manifest(s: &Snapshot, opts: &Options) -> Manifest {
+    Manifest {
         results_schema_version: RESULTS_SCHEMA_VERSION,
         engine: "struktal".into(),
         engine_version: engine_version(),
         git_commit: git_commit(),
-        model_schema_version: m.schema_version,
+        model_schema_version: s.model.schema_version,
         model_sha256: s.hash.clone(),
         input_units: format!("{:?}, {:?}", s.original_units.force, s.original_units.length),
         result_units: "N, m, rad".into(),
@@ -465,8 +463,50 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         solver: None,
         timings: Timings::default(),
         stability: None,
+        analysis_mesh: vec![],
         messages: vec![],
+    }
+}
+
+/// The analysis mesh could not be built: every case fails with the reason.
+fn mesh_failure(s: &Snapshot, opts: &Options, msg: String) -> RunResult {
+    let mut manifest = base_manifest(s, opts);
+    manifest.messages.push(msg.clone());
+    let cases = s
+        .model
+        .load_cases
+        .iter()
+        .map(|c| c.name())
+        .chain(s.model.combinations.iter().map(|c| c.name()))
+        .map(|name| {
+            failed_case(name, "linear_static", Completion::Error, PhysicalStatus::Indeterminate, vec![msg.clone()])
+        })
+        .collect();
+    RunResult { manifest, cases }
+}
+
+pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
+    let original = s;
+    let expanded = crate::mesh::expand(original);
+    let (meshed, mesh) = match expanded {
+        Ok(pair) => pair,
+        Err(msg) => return mesh_failure(original, opts, msg),
     };
+    let s = meshed.as_ref().unwrap_or(original);
+    let m = &s.model;
+    let nj = m.joints.len();
+    let mut manifest = base_manifest(s, opts);
+    manifest.messages.extend(mesh.messages.iter().cloned());
+    manifest.analysis_mesh = mesh
+        .parents
+        .iter()
+        .filter(|p| p.pieces.len() > 1)
+        .map(|p| MeshedFrame {
+            frame: p.name.clone(),
+            pieces: p.pieces.iter().map(|&k| m.frames[k].name.clone()).collect(),
+            joints: p.pieces[1..].iter().map(|&k| m.frames[k].i.clone()).collect(),
+        })
+        .collect();
 
     // Equation numbering: independent DOFs in joint order.
     let map = DofMap::build(s);
@@ -686,7 +726,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
 
         // Internal nodal forces from element end forces.
         let mut internal = vec![0.0; 6 * nj];
-        let mut frame_results = Vec::with_capacity(frames.len());
+        let mut piece_ends = Vec::with_capacity(frames.len());
         for (f, fd) in frames.iter().enumerate() {
             let ue: [f64; 12] = fd.dofs.map(|d| u[d]);
             let feq = frame3d::equivalent_nodal_loads(fd.length, &fd.props, &cl.span[f]);
@@ -708,21 +748,34 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             for (kk, &d) in fd.dofs.iter().enumerate() {
                 internal[d] += fg[kk];
             }
-            let ns = opts.stations.max(2);
-            let stations = (0..ns)
-                .map(|i| {
-                    let rel = i as f64 / (ns - 1) as f64;
-                    let x = rel * fd.length;
-                    Station { x, rel, actions: frame3d::station_actions(&fl, &cl.span[f], x) }
-                })
-                .collect();
-            frame_results.push(FrameResult {
-                frame: m.frames[f].name.clone(),
-                length: fd.length,
-                end_forces_local: fl,
-                stations,
-            });
+            piece_ends.push(fl);
         }
+
+        // Results per frame of the model: its end I and J pieces give the end
+        // forces, and each station comes from the piece that holds it.
+        let frame_results: Vec<FrameResult> = mesh
+            .parents
+            .iter()
+            .map(|p| {
+                let first: &[f64; 12] = &piece_ends[p.pieces[0]];
+                let last: &[f64; 12] = &piece_ends[p.pieces[p.pieces.len() - 1]];
+                let end_forces_local = std::array::from_fn(|k| if k < 6 { first[k] } else { last[k] });
+                let ns = opts.stations.max(2);
+                let stations = (0..ns)
+                    .map(|i| {
+                        let rel = i as f64 / (ns - 1) as f64;
+                        let x = rel * p.length;
+                        let (piece, local) = p.locate(x);
+                        Station {
+                            x,
+                            rel,
+                            actions: frame3d::station_actions(&piece_ends[piece], &cl.span[piece], local),
+                        }
+                    })
+                    .collect();
+                FrameResult { frame: p.name.clone(), length: p.length, end_forces_local, stations }
+            })
+            .collect();
 
         let mut reaction_res = [0.0; 6];
         // Work of the reactions on the imposed displacements.
@@ -754,7 +807,12 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                 });
                 let mut disp = [0.0; 6];
                 disp.copy_from_slice(&u[6 * j..6 * j + 6]);
-                JointResult { joint: m.joints[j].name.clone(), displacement: disp, reaction }
+                JointResult {
+                    joint: m.joints[j].name.clone(),
+                    displacement: disp,
+                    reaction,
+                    generated: j >= mesh.user_joints,
+                }
             })
             .collect();
 

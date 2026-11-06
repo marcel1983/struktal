@@ -159,6 +159,82 @@ fn constraint_results_do_not_depend_on_the_reference_joint() {
 }
 
 #[test]
+fn subdivision_changes_nothing_but_the_output_points() {
+    // Exact fixed-end forces in each piece: the same answer, cut or not.
+    for (id, stations) in [("V-TRAP-002", "9"), ("V-MOM-001", "9"), ("V-OFF-002", "9"), ("V-REL-001", "9")] {
+        let dir = copy_case(id, "subdivide");
+        let model = dir.join("model.json");
+        let solve = |m: &Path| -> serde_json::Value {
+            let out = bin().arg("solve").arg(m).args(["--stations", stations]).output().expect("run");
+            assert!(out.status.success(), "{id}: {}", String::from_utf8_lossy(&out.stderr));
+            serde_json::from_slice(&out.stdout).expect("json")
+        };
+        let base = solve(&model);
+        let mut v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&model).expect("read")).expect("json");
+        v["schema_version"] = 5.into();
+        for f in v["frames"].as_array_mut().expect("frames") {
+            f["auto_mesh"] = serde_json::json!({"segments": 3});
+        }
+        std::fs::write(&model, serde_json::to_string_pretty(&v).expect("ser")).expect("write");
+        let cut = solve(&model);
+        let close = |a: f64, b: f64, what: String, scale: f64| {
+            assert!((a - b).abs() <= 1e-9 * scale, "{id} {what}: {a} vs {b}");
+        };
+        for (ca, cb) in base["cases"].as_array().expect("cases").iter().zip(cut["cases"].as_array().expect("cases")) {
+            for ja in ca["joints"].as_array().expect("joints") {
+                let name = &ja["joint"];
+                let jb = cb["joints"].as_array().expect("joints").iter().find(|j| j["joint"] == *name).expect("joint");
+                for d in 0..6 {
+                    let (a, b) =
+                        (ja["displacement"][d].as_f64().expect("u"), jb["displacement"][d].as_f64().expect("u"));
+                    close(a, b, format!("{name} displacement {d}"), a.abs().max(1e-3));
+                    if let Some(ra) = ja["reaction"][d].as_f64() {
+                        let rb = jb["reaction"][d].as_f64().expect("r");
+                        close(ra, rb, format!("{name} reaction {d}"), ra.abs().max(1.0));
+                    }
+                }
+            }
+            let (fa, fb) = (ca["frames"].as_array().expect("frames"), cb["frames"].as_array().expect("frames"));
+            assert_eq!(fa.len(), fb.len(), "{id}: frames of the model, not pieces");
+            for (a, b) in fa.iter().zip(fb) {
+                assert_eq!(a["frame"], b["frame"]);
+                for (sa, sb) in a["stations"].as_array().expect("st").iter().zip(b["stations"].as_array().expect("st"))
+                {
+                    for k in 0..6 {
+                        let (x, y) = (sa["actions"][k].as_f64().expect("a"), sb["actions"][k].as_f64().expect("a"));
+                        close(x, y, format!("{} station {} action {k}", a["frame"], sa["rel"]), x.abs().max(1.0));
+                    }
+                }
+            }
+        }
+        assert!(!cut["manifest"]["analysis_mesh"].as_array().expect("mesh").is_empty());
+    }
+}
+
+#[test]
+fn joint_off_the_axis_of_a_split_frame_fails_with_the_reason() {
+    let dir = copy_case("V-MESH-002", "offaxis");
+    let model = dir.join("model.json");
+    let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&model).expect("read")).expect("json");
+    // C is the joint F1 runs through. Move it off the axis, and remove the bar
+    // that also reaches it, so that nothing connects it any more.
+    for j in v["joints"].as_array_mut().expect("joints") {
+        if j["name"] == "C" {
+            j["y"] = 0.002.into();
+        }
+    }
+    v["frames"].as_array_mut().expect("frames").retain(|f| f["name"] != "F2");
+    v["joints"].as_array_mut().expect("joints").retain(|j| j["name"] != "R");
+    std::fs::write(&model, serde_json::to_string_pretty(&v).expect("ser")).expect("write");
+    let out = bin().arg("solve").arg(&model).output().expect("run");
+    assert_eq!(out.status.code(), Some(1));
+    let r: serde_json::Value = serde_json::from_slice(&out.stdout).expect("json");
+    let messages = r["manifest"]["messages"].to_string();
+    assert!(messages.contains("joint C is not connected") || messages.contains("joint C / connectivity"), "{messages}");
+}
+
+#[test]
 fn restraint_on_a_tied_component_is_input_error() {
     let dir = copy_case("V-DIA-001", "restrained");
     let model = dir.join("model.json");

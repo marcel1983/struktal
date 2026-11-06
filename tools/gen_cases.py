@@ -1275,4 +1275,94 @@ write("V-MOM-002", "Distributed span moments: uniform bending and linear torque"
     exp("frame_station", "LC1", "FE", "T", 3 * t0 * Lm3 / 8, "N*m", 0.5),
 ])
 
+# ---------------------------------------------------------------- subdivision
+Lz, qz = 5.0, 8_000.0
+
+
+def udl(frame, q=qz):
+    return {"pattern": "L", "frame": frame, "load": {"kind": "Uniform", "direction": "Gravity", "value": q}}
+
+
+def ss_defl(q, L_, x):
+    return q * x * (L_**3 - 2 * L_ * x**2 + x**3) / (24 * E * I)
+
+
+# FA runs through joint M, a support: two-span continuous beam from one frame.
+# FB in 4 pieces: generated joints report the deflection inside the frame.
+# FC: 3 pieces, with offsets and end releases only at the outer ends.
+# FD: 5 pieces, a concentrated force exactly on a cut and a moment inside a piece.
+ac3, Lc3, qc3 = 0.4, 6.0, 7_000.0
+Ld3, Mz3, Pz3 = 5.0, 12_000.0, 9_000.0
+sP = 0.6 * Ld3
+aM = 0.5 * Ld3
+thD = Pz3 * sP**2 / (2 * E * I) + Mz3 * aM / (E * I)
+uD = Pz3 * sP**2 * (3 * Ld3 - sP) / (6 * E * I) + Mz3 * aM**2 / (2 * E * I) + Mz3 * aM * (Ld3 - aM) / (E * I)
+RMb = Pz3 * sP + Mz3
+write("V-MESH-001", "Frames subdivided: through a support, evenly, with offsets and releases, loads on cuts", ["F01-006", "F06-003", "F06-006", "F06-007"], model(
+    "V-MESH-001 automatic subdivision",
+    [J("A", 0, 0, 0, PIN), J("M", Lz, 0, 0, [False, False, True, False, False, False]), J("B", 2 * Lz, 0, 0, ROL),
+     J("C", 0, 3, 0, PIN), J("D", Lz, 3, 0, ROL),
+     J("E", 0, 6, 0, FIX), J("F", Lc3 + 2 * ac3, 6, 0, FIX),
+     J("G", 0, 9, 0, FIX), J("H", Ld3, 9, 0)],
+    [{"name": "FA", "i": "A", "j": "B", "section": "B", "auto_mesh": {"at_joints": True}},
+     {"name": "FB", "i": "C", "j": "D", "section": "B", "auto_mesh": {"segments": 4}},
+     {"name": "FC", "i": "E", "j": "F", "section": "B", "auto_mesh": {"segments": 3},
+      "offsets": {"i": [ac3, 0, 0], "j": [-ac3, 0, 0]},
+      "releases": {"i": [False, False, False, False, False, True], "j": [False, False, False, False, False, True]}},
+     {"name": "FD", "i": "G", "j": "H", "section": "B", "auto_mesh": {"segments": 5}}],
+    [SEC], [{"name": "L"}],
+    frame_loads=[udl("FA"), udl("FB"), trap("FC", 0.0, qc3),
+                 {"pattern": "L", "frame": "FD", "load": {"kind": "Point", "direction": "Gravity", "rel": 0.6, "value": Pz3}},
+                 moment_load("FD", "GlobalY", Mz3, 0.5)],
+    schema=5,
+), {"kind": "analytical", "source": "Classic results: two-span beam, simply supported beam, triangular load, cantilever",
+    "derivation": ["two spans L: R_A = 3 q L/8, R_M = 5 q L/4, M_M = -q L^2/8", "delta(x) = q x (L^3 - 2 L x^2 + x^3)/(24 E I)",
+                   "released ends with arms a: M_support = R a", "cantilever: superposition of a force at s and a moment at a"]}, [
+    exp("joint_reaction", "LC1", "A", "FZ", 3 * qz * Lz / 8, "N"),
+    exp("joint_reaction", "LC1", "M", "FZ", 5 * qz * Lz / 4, "N"),
+    exp("joint_reaction", "LC1", "B", "FZ", 3 * qz * Lz / 8, "N"),
+    exp("frame_station", "LC1", "FA", "M3", -qz * Lz**2 / 8, "N*m", 0.5),
+    exp("frame_station", "LC1", "FA", "M3", qz * Lz**2 / 16, "N*m", 0.25),
+    exp("joint_displacement", "LC1", "FB~1", "UZ", -ss_defl(qz, Lz, Lz / 4), "m"),
+    exp("joint_displacement", "LC1", "FB~2", "UZ", -ss_defl(qz, Lz, Lz / 2), "m"),
+    exp("joint_displacement", "LC1", "FB~3", "UZ", -ss_defl(qz, Lz, 3 * Lz / 4), "m"),
+    exp("frame_station", "LC1", "FB", "M3", qz * Lz**2 / 8, "N*m", 0.5),
+    exp("frame_station", "LC1", "FB", "V2", qz * Lz / 2 * -1, "N", 0.0),
+    exp("joint_reaction", "LC1", "E", "FZ", qc3 * Lc3 / 6, "N"),
+    exp("joint_reaction", "LC1", "E", "MY", -qc3 * Lc3 / 6 * ac3, "N*m"),
+    exp("joint_reaction", "LC1", "F", "MY", qc3 * Lc3 / 3 * ac3, "N*m"),
+    exp("frame_station", "LC1", "FC", "M3", qc3 * Lc3 * (Lc3 / 2) / 6 - qc3 * (Lc3 / 2)**3 / (6 * Lc3), "N*m", 0.5),
+    exp("frame_station", "LC1", "FC", "M3", 0.0, "N*m", 0.0),
+    exp("frame_station", "LC1", "FC", "M3", 0.0, "N*m", 1.0),
+    exp("joint_displacement", "LC1", "H", "UZ", -uD, "m"),
+    exp("joint_displacement", "LC1", "H", "RY", thD, "rad"),
+    exp("joint_reaction", "LC1", "G", "FZ", Pz3, "N"),
+    exp("joint_reaction", "LC1", "G", "MY", -RMb, "N*m"),
+    exp("frame_station", "LC1", "FD", "M3", 0.0, "N*m", 1.0),
+])
+
+# Two bars crossing at C: one runs through C and is cut there; the other arrives
+# at C, pinned so it only gives a transverse spring. Two springs in parallel.
+Lg, Pg = 6.0, 30_000.0
+k1g, k2g = 48 * E * I / Lg**3, 3 * E * I / (Lg / 2)**3
+dg = Pg / (k1g + k2g)
+write("V-MESH-002", "Crossing bars connected by subdivision at a joint", ["F01-006", "F04-003"], model(
+    "V-MESH-002 crossing bars",
+    [J("P", 0, 0, 0, PIN), J("Q", Lg, 0, 0, ROL), J("C", Lg / 2, 0, 0), J("R", Lg / 2, Lg / 2, 0, FIX)],
+    [{"name": "F1", "i": "P", "j": "Q", "section": "B", "auto_mesh": {"at_joints": True}},
+     {"name": "F2", "i": "R", "j": "C", "section": "B", "releases": {"j": [False, False, False, True, True, True]}}],
+    [SEC], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "C", "values": [0, 0, -Pg, 0, 0, 0]}],
+    schema=5,
+), {"kind": "analytical", "source": "Simply supported beam with a central load and a cantilever, as springs in parallel",
+    "derivation": ["k1 = 48 E I/L^3, k2 = 3 E I/(L/2)^3", "delta = P/(k1 + k2)", "V_R = k2 delta, M_R = V_R L/2"]}, [
+    exp("joint_displacement", "LC1", "C", "UZ", -dg, "m"),
+    exp("joint_reaction", "LC1", "P", "FZ", k1g * dg / 2, "N"),
+    exp("joint_reaction", "LC1", "R", "FZ", k2g * dg, "N"),
+    # The bar is pushed down at C, at r = (0, -L/2, 0) from R: r x F = +V L/2 about
+    # X, which the support balances.
+    exp("joint_reaction", "LC1", "R", "MX", -k2g * dg * Lg / 2, "N*m"),
+    exp("frame_station", "LC1", "F1", "M3", k1g * dg * Lg / 4, "N*m", 0.5),
+])
+
 print("cases written to", ROOT)

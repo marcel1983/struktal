@@ -200,7 +200,7 @@ fn main() -> ExitCode {
                 "results_schema_version": struktal_analysis::results::RESULTS_SCHEMA_VERSION,
                 "analysis": ["linear_static"],
                 "combinations": ["linear_add"],
-                "elements": ["frame3d_timoshenko (euler_bernoulli when shear area = 0)", "frame_end_releases_and_partial_fixity", "frame_rigid_end_offsets"],
+                "elements": ["frame3d_timoshenko (euler_bernoulli when shear area = 0)", "frame_end_releases_and_partial_fixity", "frame_rigid_end_offsets", "frame_auto_mesh"],
                 "constraints": ["diaphragm", "body", "equal"],
                 "supports": ["restraints", "joint_springs_global", "imposed_displacements"],
                 "loads": ["joint_force_moment", "frame_uniform_full_length", "frame_point_force", "frame_trapezoidal", "frame_point_moment", "frame_trapezoidal_moment", "self_weight"],

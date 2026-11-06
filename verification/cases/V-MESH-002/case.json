@@ -1,0 +1,69 @@
+{
+  "case_id": "V-MESH-002",
+  "title": "Crossing bars connected by subdivision at a joint",
+  "feature_ids": [
+    "F01-006",
+    "F04-003"
+  ],
+  "model": "model.json",
+  "model_sha256": "89f76eb4b42c26636e86dae1a45ffecf6556e3010c1438a246eb150f39e5836d",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Simply supported beam with a central load and a cantilever, as springs in parallel",
+    "derivation": [
+      "k1 = 48 E I/L^3, k2 = 3 E I/(L/2)^3",
+      "delta = P/(k1 + k2)",
+      "V_R = k2 delta, M_R = V_R L/2"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C",
+      "component": "UZ",
+      "value": -0.0045000000000000005,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "P",
+      "component": "FZ",
+      "value": 10000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "R",
+      "component": "FZ",
+      "value": 10000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "R",
+      "component": "MX",
+      "value": -30000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F1",
+      "component": "M3",
+      "value": 30000.0,
+      "unit": "N*m",
+      "rel": 0.5
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

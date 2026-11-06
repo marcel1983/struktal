@@ -68,6 +68,8 @@ def compare_case(st, ref, joints_model):
 
     for j in st["joints"]:
         name = j["joint"]
+        if j.get("generated"):
+            continue  # only Struktal's analysis mesh has these points
         r = ref["joints"].get(name)
         if r is None:
             diffs.append(f"joint {name} missing in the engine")

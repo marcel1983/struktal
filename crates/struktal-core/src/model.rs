@@ -15,7 +15,9 @@ use crate::units::{Dim, UnitSystem};
 /// none of them (decisions 0010, 0011 and 0012).
 /// v4 (2026-11-05): linearly varying and partial span loads, span moments.
 /// Older files have no such loads, so they migrate unchanged (decision 0014).
-pub const SCHEMA_VERSION: u32 = 4;
+/// v5 (2026-11-05): automatic subdivision of frames. Older files have none
+/// (decision 0015).
+pub const SCHEMA_VERSION: u32 = 5;
 
 pub type Name = String;
 
@@ -117,6 +119,28 @@ pub struct Frame {
     /// Rigid end offsets (decision 0010).
     #[serde(default)]
     pub offsets: Option<EndOffsets>,
+    /// Automatic subdivision for analysis (decision 0015).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_mesh: Option<AutoMesh>,
+}
+
+/// The frame stays one object in the model and in its results; the analysis
+/// uses its pieces.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutoMesh {
+    /// Equal divisions of the flexible length.
+    #[serde(default = "AutoMesh::one")]
+    pub segments: u32,
+    /// Also split at every joint on the flexible axis, connecting the frame there.
+    #[serde(default)]
+    pub at_joints: bool,
+}
+
+impl AutoMesh {
+    fn one() -> u32 {
+        1
+    }
 }
 
 /// Vectors in global axes [length] from joints I and J to the corresponding

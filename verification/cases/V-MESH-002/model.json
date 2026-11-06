@@ -1,0 +1,144 @@
+{
+  "schema_version": 5,
+  "title": "V-MESH-002 crossing bars",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "P",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "Q",
+      "x": 6.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        true,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "C",
+      "x": 3.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "R",
+      "x": 3.0,
+      "y": 3.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "F1",
+      "i": "P",
+      "j": "Q",
+      "section": "B",
+      "auto_mesh": {
+        "at_joints": true
+      }
+    },
+    {
+      "name": "F2",
+      "i": "R",
+      "j": "C",
+      "section": "B",
+      "releases": {
+        "j": [
+          false,
+          false,
+          false,
+          true,
+          true,
+          true
+        ]
+      }
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "L"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "L",
+      "joint": "C",
+      "values": [
+        0,
+        0,
+        -30000.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "L",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

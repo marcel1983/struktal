@@ -13,6 +13,8 @@ from common import Unsupported, dot, main  # noqa: E402
 
 def check_supported(m):
     for fr in m["frames"]:
+        if (fr.get("auto_mesh") or {}).get("at_joints"):
+            raise Unsupported(f"frame {fr['name']}: this translator does not split frames at joints")
         moment_only = not any(fr["rel_i"][:4]) and not any(fr["rel_j"][:4])
         if fr["rel_has_springs"] or not moment_only:
             raise Unsupported(f"frame {fr['name']}: only full M2/M3 releases map to elasticBeamColumn")
