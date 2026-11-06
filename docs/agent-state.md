@@ -18,14 +18,15 @@ Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 | P03 | Parcial: subdivisión de barras con procedencia (decisión 0015). Falta: mallado de áreas. | `struktal-analysis/src/mesh.rs`, V-MESH-* |
 | P04 | Parcial. Barra 3D Timoshenko/Euler–Bernoulli (As2, As3; decisión 0007), sección general, cargas nodales/uniformes/trapezoidales/puntuales/momentos en vano/peso propio con fuerzas de empotramiento exactas (decisión 0014), suma lineal. Falta: secciones paramétricas (y As automático) y variables, cargas térmicas, envolventes, importación S2K mínima. | `struktal-elements`, `struktal-analysis`, V-LIN-001..005, V-TRAP-*, V-MOM-* |
 | P05 | Parcial: liberaciones y fijación parcial (decisión 0008); offsets rígidos vectoriales (decisión 0010); diafragma, body y equal por eliminación exacta (decisión 0011); resortes de nudo y asientos (decisión 0012). Falta: puntos cardinales y zonas rígidas por factor, restricciones locales y weld, ejes locales de nudo, masas. | `release.rs`, `frame3d::offset_transformation`, `struktal-analysis/src/constraints.rs`, V-REL-*, V-OFF-*, V-DIA-*, V-BODY-*, V-EQ-*, V-SPR-*, V-SET-*, V-MECH-006..008 |
-| P06–P16 | No iniciados. | `spec/features.csv` |
+| P06 (láminas) | Parcial: lámina de 4 nudos, membrana QM6, placa MITC4 y taladro Hughes-Brezzi (decisión 0019), cargas uniformes y esfuerzos. Falta: triángulos, mallado. | `shell4.rs`, `areas.rs`, V-SHELL-*, V-MECH-009 |
+| P07–P16 | No iniciados, salvo lector S2K de P13 (decisión 0018). La numeración exacta depende de la guía, que no está en el repo. | `spec/features.csv` |
 
 ## Último resultado de pruebas (ejecutado)
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
 - `cargo test --workspace`: más de 110 pruebas, 0 fallos (ver CI). `cargo test -p struktal-math --no-default-features` (solo skyline): 20, 0 fallos.
-- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 41/41 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 47/47 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - `tools/compare_engines.py`: comparación opcional con OpenSeesPy y Pynite (decisión 0013). CI en `.github/workflows/ci.yml`: en verde en GitHub hasta el commit 34ef550.
 - Benchmarks: docs/benchmarks.md.
 
@@ -38,7 +39,7 @@ Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 Objetivo del usuario: herramienta open source para su propio trabajo, con modelos que suelen tener losas o muros. Orden acordado el 2026-11-05: 1) resto de pórticos, 2) lo que pide un modelo real (secciones paramétricas, cargas, subdivisión, envolventes), 3) S2K, 4) láminas, 5) masas, modos y espectro.
 
-1. Hito 2: decidir el giro de taladro y portar láminas MITC4/MITC3, con su lectura desde S2K.
+1. Hito 3: masas, modos, espectro. Después, triángulos (MITC3) y mallado de áreas para completar el hito 2.
 2. Contraste con SAP2000: `tools/gen_sap_lot.py` genera el lote; pendiente de que el usuario revise la licencia y lo ejecute en su otro equipo.
 3. Probar el importador con un pórtico real del usuario.
 

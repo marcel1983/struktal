@@ -1,0 +1,35 @@
+{
+  "case_id": "V-SHELL-003",
+  "title": "Wall in plane: tip shear against Timoshenko beam theory, mesh 24 x 4",
+  "feature_ids": [
+    "F03-003",
+    "F06-011"
+  ],
+  "model": "model.json",
+  "model_sha256": "0e76af548148a36d998255a985adf086e11de8d6e07df2fa20f5ee455d13ffc1",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "mesh-convergence-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Timoshenko cantilever with k = 5/6; not exact for the wall, whose free-end and support effects decay locally",
+    "derivation": [
+      "delta = V L^3/(3 E I) + 1.2 V L/(G A)",
+      "1 % against this formula at this mesh: the tolerance is of the mesh"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "S24_2",
+      "component": "UY",
+      "value": 0.0008827199999999999,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -34,6 +34,10 @@ pub struct Model {
     pub joints: Vec<Joint>,
     #[serde(default)]
     pub frames: Vec<Frame>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub area_sections: Vec<AreaSection>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub areas: Vec<Area>,
     #[serde(default)]
     pub constraints: Vec<Constraint>,
     #[serde(default)]
@@ -44,6 +48,8 @@ pub struct Model {
     pub joint_displacements: Vec<JointDisplacement>,
     #[serde(default)]
     pub frame_loads: Vec<FrameLoad>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub area_loads: Vec<AreaLoad>,
     #[serde(default)]
     pub load_cases: Vec<LoadCase>,
     #[serde(default)]
@@ -165,6 +171,48 @@ pub struct Frame {
     /// Automatic subdivision for analysis (decision 0015).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_mesh: Option<AutoMesh>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AreaBehavior {
+    /// Membrane and plate.
+    #[default]
+    Shell,
+    Membrane,
+    Plate,
+}
+
+/// Homogeneous isotropic area section (decision 0019).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AreaSection {
+    pub name: Name,
+    pub material: Name,
+    pub thickness: f64,
+    /// Thickness for bending and transverse shear, if different.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bending_thickness: Option<f64>,
+    #[serde(default)]
+    pub behavior: AreaBehavior,
+}
+
+/// Flat four-node area, its joints counterclockwise seen from local axis 3.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Area {
+    pub name: Name,
+    pub joints: [Name; 4],
+    pub section: Name,
+}
+
+/// Uniform force per unit area. Local 3 is the normal; Gravity is global −Z.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AreaLoad {
+    pub pattern: Name,
+    pub area: Name,
+    pub direction: LoadDirection,
+    pub value: f64,
 }
 
 /// The frame stays one object in the model and in its results; the analysis
@@ -493,6 +541,13 @@ impl Model {
             if let Some(shape) = &mut s.shape {
                 shape.scale(l);
             }
+        }
+        for s in &mut m.area_sections {
+            s.thickness *= l;
+            s.bending_thickness = s.bending_thickness.map(|t| t * l);
+        }
+        for a in &mut m.area_loads {
+            a.value *= u.factor(Dim::STRESS);
         }
         for j in &mut m.joints {
             j.x *= l;

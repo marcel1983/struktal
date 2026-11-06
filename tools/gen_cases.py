@@ -21,12 +21,15 @@ E, NU = 200e9, 0.3
 
 
 def model(title, joints, frames, sections, patterns, joint_loads=(), frame_loads=(), cases=None,
-          combos=(), units=None, materials=None, schema=1, constraints=(), imposed=()):
+          combos=(), units=None, materials=None, schema=1, constraints=(), imposed=(),
+          area_sections=(), areas=(), area_loads=()):
     # Cases created before schema v2 stay at v1 on purpose: they exercise the
     # v1 -> v2 migration end to end (decision 0007).
     extra = {"constraints": list(constraints)} if constraints else {}
     if imposed:
         extra["joint_displacements"] = list(imposed)
+    if areas:
+        extra.update(area_sections=list(area_sections), areas=list(areas), area_loads=list(area_loads))
     return {
         **extra,
         "schema_version": schema,
@@ -1488,5 +1491,214 @@ write("V-SEC-001", "Parametric sections: axial, both bending planes with shear, 
 ), {"kind": "analytical", "source": "Cantilever formulas, with properties computed in tools/gen_cases.py: rectangles by parallel axes, discs by quadrature",
     "derivation": ["u = P L/(E A)", "delta = P L^3/(3 E I) + P L/(G As)", "theta_x = T L/(G J)",
                    "As and thin-wall J follow the rules of decision 0017, which this case fixes but does not prove against SAP2000"]}, exp_s)
+
+# ---------------------------------------------------------------- areas
+CLOSED_AREA = "linear-closed-form-area-v1"
+MESH_TOL = "mesh-convergence-v1"
+
+
+def grid(prefix, nx, ny, x_of, y_of, z_of=lambda i, j: 0.0, restraint=lambda i, j: None):
+    joints = [J(f"{prefix}{i}_{j}", x_of(i, j), y_of(i, j), z_of(i, j), restraint(i, j)) for j in range(ny + 1) for i in range(nx + 1)]
+    areas = [{"name": f"{prefix}A{i}_{j}", "section": "SH", "joints": [f"{prefix}{i}_{j}", f"{prefix}{i + 1}_{j}",
+                                                                       f"{prefix}{i + 1}_{j + 1}", f"{prefix}{i}_{j + 1}"]}
+             for j in range(ny) for i in range(nx)]
+    return joints, areas
+
+
+# Exact states on a distorted mesh: uniaxial tension and pure bending of a strip,
+# held at one end. The inner joints are moved on purpose.
+Ls_, bs_, ts_ = 4.0, 1.0, 0.1
+Fs_, Ms_ = 300_000.0, 12_000.0
+Ess_ = dict(name="SH", material="STEEL", thickness=ts_)
+Is_ = bs_ * ts_**3 / 12
+As_ = bs_ * ts_
+EAs, EIs = E * As_, E * Is_
+xd = [0.0, 1.3, 2.4, Ls_]
+yd = lambda i, j: bs_ * j / 2 + (0.13 if j == 1 and 0 < i < 3 else 0.0) * (1 if i == 1 else -1)
+HOLD = [True, False, True, True, False, True]  # x and rotations that would make a uniaxial state impossible
+
+
+def held_end(i, j):
+    # Statically determinate hold of the strip's end: UX and rotations for
+    # bending; UY only at one corner, so Poisson contraction stays free.
+    if i != 0:
+        return None
+    r = [True, j == 0, True, True, True, True]
+    return r
+
+
+jt, at = grid("T", 3, 2, lambda i, j: xd[i], yd, restraint=held_end)
+
+
+
+def held_bending(i, j):
+    # Only what a free strip in pure bending allows: all sections keep RY = 0 at
+    # x = 0, and one point fixes the rest, so the anticlastic curvature is free.
+    # A clamped edge would forbid it, and then M22 is not zero.
+    return [True, True, j == 1, j == 1, True, True] if i == 0 else None
+
+
+jb, ab = grid("B", 3, 2, lambda i, j: xd[i], lambda i, j: yd(i, j) + 3.0, restraint=held_bending)
+# Consistent edge loads: tension in equal shares by tributary length; end moment
+# about Y per unit width, on the free edge.
+edge = [0.25, 0.5, 0.25]
+loads_t = [{"pattern": "TEN", "joint": f"T3_{j}", "values": [Fs_ * edge[j], 0, 0, 0, 0, 0]} for j in range(3)]
+loads_b = [{"pattern": "BEN", "joint": f"B3_{j}", "values": [0, 0, 0, 0, Ms_ * edge[j], 0]} for j in range(3)]
+sig_t = Fs_ / bs_
+write("V-SHELL-001", "Exact states on a distorted mesh: tension and pure bending", ["F03-001", "F03-002", "F18-009"], model(
+    "V-SHELL-001 exact shell states",
+    jt + jb, [], [SEC], [{"name": "TEN"}, {"name": "BEN"}],
+    joint_loads=loads_t + loads_b,
+    cases=[{"type": "LinearStatic", "name": n_, "loads": [{"pattern": n_, "scale": 1.0}]} for n_ in ["TEN", "BEN"]],
+    schema=5, area_sections=[Ess_], areas=at + ab,
+), {"kind": "analytical", "source": "Uniaxial tension and pure bending of a strip: constant strain and constant curvature, which the element must reproduce exactly",
+    "derivation": ["u = F L/(E t b), lateral contraction -nu u b/L", "F11 = F/b, F22 = F12 = 0",
+                   "theta = M L/(E I), w = -M L^2/(2 E I) for a moment about +Y", "M11 = -M/b on the local axes of the strip, with +3 = +Z"]}, [
+    exp("joint_displacement", "TEN", "T3_1", "UX", Fs_ * Ls_ / EAs, "m"),
+    exp("joint_displacement", "TEN", "T1_0", "UX", Fs_ * xd[1] / EAs, "m"),
+    exp("joint_displacement", "TEN", "T3_2", "UY", -NU * Fs_ / (E * ts_) * bs_ * 1 / bs_, "m"),
+    exp("joint_reaction", "TEN", "T0_1", "FX", -Fs_ * 0.5, "N"),
+    exp("area_center", "TEN", "TA1_0", "F11", sig_t, "N/m"),
+    exp("area_center", "TEN", "TA1_0", "F22", 0.0, "N/m"),
+    exp("area_center", "TEN", "TA1_0", "F12", 0.0, "N/m"),
+    exp("joint_displacement", "BEN", "B3_1", "RY", Ms_ * Ls_ / EIs, "rad"),
+    exp("joint_displacement", "BEN", "B3_1", "UZ", -Ms_ * Ls_**2 / (2 * EIs), "m"),
+    # Anticlastic: w = -k x^2/2 + nu k (y - y0)^2/2, with y0 at the mid joint held.
+    exp("joint_displacement", "BEN", "B1_0", "UZ", -Ms_ * xd[1]**2 / (2 * EIs) + NU * (Ms_ / EIs) * (bs_ / 2)**2 / 2, "m"),
+    exp("area_center", "BEN", "BA1_0", "M11", Ms_ / bs_, "N*m/m"),
+    exp("area_center", "BEN", "BA1_0", "M22", 0.0, "N*m/m"),
+    exp("area_center", "BEN", "BA1_0", "V13", 0.0, "N/m"),
+], tol=CLOSED_AREA)
+
+# Wall bending in its plane: one row of elements, exact with the incompatible
+# modes (a plain bilinear membrane locks here). Then a tip shear at a fine mesh.
+Lw, Hw, tw3, Mw = 6.0, 1.0, 0.2, 60_000.0
+Iw = tw3 * Hw**3 / 12
+Aw = tw3 * Hw
+wall = dict(name="SH", material="STEEL", thickness=tw3, behavior="Membrane")
+MEM = [False, False, True, True, True, False]
+
+
+def wall_grid(prefix, nx, ny, y0):
+    def rest(i, j):
+        if i == 0:
+            return [True, j == 0, True, True, True, False]
+        return MEM
+    return grid(prefix, nx, ny, lambda i, j: Lw * i / nx, lambda i, j: y0 + Hw * j / ny, restraint=rest)
+
+
+jwm, awm = wall_grid("M", 6, 1, 0.0)
+jws, aws = wall_grid("S", 24, 4, 3.0)
+loads_w = [{"pattern": "BM", "joint": "M6_0", "values": [Mw / Hw, 0, 0, 0, 0, 0]},
+           {"pattern": "BM", "joint": "M6_1", "values": [-Mw / Hw, 0, 0, 0, 0, 0]}]
+Vw = 40_000.0
+loads_w += [{"pattern": "TIP", "joint": f"S24_{j}", "values": [0, Vw * w_, 0, 0, 0, 0]}
+            for j, w_ in enumerate([0.125, 0.25, 0.25, 0.25, 0.125])]
+d_tim = Vw * Lw**3 / (3 * E * Iw) + 1.2 * Vw * Lw / (G * Aw)
+write("V-SHELL-002", "Wall in plane: pure bending, exact in one row of elements", ["F03-003"], model(
+    "V-SHELL-002 wall in pure bending",
+    jwm, [], [SEC], [{"name": "BM"}],
+    joint_loads=[l_ for l_ in loads_w if l_["pattern"] == "BM"], schema=5, area_sections=[wall], areas=awm,
+), {"kind": "analytical", "source": "Beam in pure bending: the incompatible modes reproduce it exactly on rectangles",
+    "derivation": ["M = +F H about +Z: forces +F at y = 0 and -F at y = H", "delta = M L^2/(2 E I), I = t H^3/12",
+                   "the bottom fiber stretches: u = M L/(E I) H/2", "within the small stiffening of the drilling term"]}, [
+    exp("joint_displacement", "LC1", "M6_0", "UY", Mw * Lw**2 / (2 * E * Iw), "m"),
+    exp("joint_displacement", "LC1", "M6_1", "UY", Mw * Lw**2 / (2 * E * Iw), "m"),
+    exp("joint_displacement", "LC1", "M6_0", "UX", Mw * Lw / (E * Iw) * (Hw / 2), "m"),
+], tol="drilling-penalty-v1")
+write("V-SHELL-003", "Wall in plane: tip shear against Timoshenko beam theory, mesh 24 x 4", ["F03-003", "F06-011"], model(
+    "V-SHELL-003 wall under tip shear",
+    jws, [], [SEC], [{"name": "TIP"}],
+    joint_loads=[l_ for l_ in loads_w if l_["pattern"] == "TIP"], schema=5, area_sections=[wall], areas=aws,
+), {"kind": "analytical", "source": "Timoshenko cantilever with k = 5/6; not exact for the wall, whose free-end and support effects decay locally",
+    "derivation": ["delta = V L^3/(3 E I) + 1.2 V L/(G A)", "1 % against this formula at this mesh: the tolerance is of the mesh"]}, [
+    exp("joint_displacement", "LC1", "S24_2", "UY", d_tim, "m"),
+], tol=MESH_TOL)
+
+
+def navier(a_, D_, q_, terms=99):
+    """Simply supported square plate, uniform load, center: Navier series."""
+    s_ = 0.0
+    for m_ in range(1, terms + 1, 2):
+        for n_ in range(1, terms + 1, 2):
+            sign = (-1) ** ((m_ + n_) // 2 - 1)
+            s_ += sign / (m_ * n_ * (m_**2 + n_**2)**2)
+    return 16 * q_ * a_**4 / (math.pi**6 * D_) * s_
+
+
+ap, tp_, qp = 4.0, 0.02, 3_000.0
+Dp_ = E * tp_**3 / (12 * (1 - NU**2))
+Np = 16
+
+
+def ss_rest(i, j):
+    edge_x, edge_y = i in (0, Np), j in (0, Np)
+    # Simple supports: UZ on every edge, in-plane held by the plate behavior.
+    return [True, True, edge_x or edge_y, not edge_y, not edge_x, True] if edge_x or edge_y else [True, True, False, False, False, True]
+
+
+def clamp_rest(i, j):
+    edge = i in (0, Np) or j in (0, Np)
+    return [True, True, edge, edge, edge, True]
+
+
+plate_sec = dict(name="SH", material="STEEL", thickness=tp_, behavior="Plate")
+jps, aps = grid("P", Np, Np, lambda i, j: ap * i / Np, lambda i, j: ap * j / Np, restraint=ss_rest)
+jpc, apc = grid("C", Np, Np, lambda i, j: 10 + ap * i / Np, lambda i, j: ap * j / Np, restraint=clamp_rest)
+Wss = navier(ap, Dp_, qp)
+write("V-SHELL-004", "Thin square plates under uniform load: simply supported and clamped, mesh 16 x 16", ["F03-002", "F06-011"], model(
+    "V-SHELL-004 square plates",
+    jps + jpc, [], [SEC], [{"name": "Q"}], schema=5, area_sections=[plate_sec], areas=aps + apc,
+    area_loads=[{"pattern": "Q", "area": a_["name"], "direction": "Gravity", "value": qp} for a_ in aps + apc],
+), {"kind": "analytical", "source": "Navier series for the simply supported plate; 0.00126 q a^4/D for the clamped one (Timoshenko and Woinowsky-Krieger)",
+    "derivation": ["D = E t^3/(12 (1 - nu^2)), a/t = 200", "tolerance of the mesh: 1 %"]}, [
+    exp("joint_displacement", "LC1", f"P{Np // 2}_{Np // 2}", "UZ", -Wss, "m"),
+    exp("joint_displacement", "LC1", f"C{Np // 2}_{Np // 2}", "UZ", -0.00126 * qp * ap**4 / Dp_, "m"),
+], tol=MESH_TOL)
+
+# A free shell element has its six rigid-body modes and no more: drilling included.
+write("V-MECH-009", "One shell element with no supports", ["F03-001", "F08", "stability"], model(
+    "V-MECH-009 free shell",
+    [J("A", 0, 0, 0), J("B", 2, 0, 0), J("C", 2, 2, 0), J("D", 0, 2, 0)], [], [SEC], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "C", "values": [0, 0, -P, 0, 0, 0]}], schema=5,
+    area_sections=[dict(name="SH", material="STEEL", thickness=0.2)],
+    areas=[{"name": "Q", "section": "SH", "joints": ["A", "B", "C", "D"]}],
+), {"kind": "analytical", "source": "A free body has six rigid-body modes; a spurious drilling mode would add more", "derivation": ["nullity(K) = 6"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"}])
+
+# Scordelis-Lo roof: a classic shell benchmark that mixes membrane and bending.
+Rr, Lr_, tr, phi, qr_ = 25.0, 50.0, 0.25, math.radians(40.0), 90.0
+Er, nur = 4.32e8, 0.0
+Nr = 16
+sec_r = dict(name="SH", material="ROOF", thickness=tr)
+mat_r = [{"name": "ROOF", "e": Er, "nu": nur, "unit_weight": 0.0}]
+x_r = lambda i, j: Lr_ / 2 * i / Nr
+ang = lambda j: phi * j / Nr
+
+
+def roof_rest(i, j):
+    # Quarter model: diaphragm at x = 0; symmetry at x = L/2 and at the crown.
+    r = [False] * 6
+    if i == 0:
+        r[1] = r[2] = True
+        r[3] = True
+    if i == Nr:
+        r[0] = True
+        r[4] = r[5] = True
+    if j == 0:
+        r[1] = True
+        r[3] = r[5] = True
+    return r
+
+
+jr, ar = grid("R", Nr, Nr, x_r, lambda i, j: Rr * math.sin(ang(j)), lambda i, j: Rr * math.cos(ang(j)) - Rr, roof_rest)
+write("V-SHELL-005", "Scordelis-Lo roof, quarter model, mesh 16 x 16", ["F03-001", "F03-002", "F06-011"], model(
+    "V-SHELL-005 Scordelis-Lo roof",
+    jr, [], [], [{"name": "G"}], materials=mat_r, schema=5, area_sections=[sec_r], areas=ar,
+    area_loads=[{"pattern": "G", "area": a_["name"], "direction": "Gravity", "value": qr_} for a_ in ar],
+), {"kind": "analytical", "source": "MacNeal and Harder (1985): vertical displacement at the midside of the free edge, 0.3024 in the model's units",
+    "derivation": ["reference from a converged solution, not a closed form", "tolerance of the mesh: 1 %"]}, [
+    exp("joint_displacement", "LC1", f"R{Nr}_{Nr}", "UZ", -0.3024, "m"),
+], tol=MESH_TOL)
 
 print("cases written to", ROOT)

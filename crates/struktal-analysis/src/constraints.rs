@@ -132,7 +132,7 @@ impl DofMap {
     /// rounding level of the element matrix are therefore set to zero. This
     /// removes noise, it adds nothing, and elements with no tied DOF never
     /// come here.
-    pub fn reduced_element(&self, dofs: &[usize; 12], kg: &[[f64; 12]; 12]) -> ReducedElement {
+    pub fn reduced_element<const N: usize>(&self, dofs: &[usize; N], kg: &[[f64; N]; N]) -> ReducedElement {
         let mut eqs: Vec<usize> = dofs.iter().flat_map(|&g| self.terms(g).iter().map(|&(e, _)| e)).collect();
         eqs.sort_unstable();
         eqs.dedup();
@@ -161,7 +161,7 @@ impl DofMap {
         ReducedElement { eqs, k }
     }
 
-    pub fn has_tied_dof(&self, dofs: &[usize; 12]) -> bool {
+    pub fn has_tied_dof(&self, dofs: &[usize]) -> bool {
         dofs.iter().any(|&g| self.eq[g] == usize::MAX && !self.terms(g).is_empty())
     }
 

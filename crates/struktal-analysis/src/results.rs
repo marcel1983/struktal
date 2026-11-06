@@ -125,9 +125,22 @@ pub struct CaseResult {
     pub joints: Vec<JointResult>,
     pub frames: Vec<FrameResult>,
     pub checks: Option<Checks>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub areas: Vec<AreaResult>,
     /// Present in envelopes, which have no `joints` or `frames` of their own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub envelope: Option<Envelope>,
+}
+
+pub const AREA_COMPONENTS: [&str; 8] = ["F11", "F22", "F12", "M11", "M22", "M12", "V13", "V23"];
+
+/// Section forces per unit length in the area's local axes, at its center and
+/// at its corners, in the order of its joints (decision 0019).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AreaResult {
+    pub area: String,
+    pub center: [f64; 8],
+    pub corners: [[f64; 8]; 4],
 }
 
 /// Maximum and minimum per component, with the term that governs each one.

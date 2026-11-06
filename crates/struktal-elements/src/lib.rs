@@ -2,3 +2,4 @@
 
 pub mod frame3d;
 pub mod release;
+pub mod shell4;

@@ -5,5 +5,26 @@
     "atol": { "m": 1e-12, "rad": 1e-12, "N": 1e-6, "N*m": 1e-6, "J": 1e-9 },
     "residual_max": 1e-10,
     "equilibrium_max": 1e-9
+  },
+  "mesh-convergence-v1": {
+    "description": "A discretized result against the exact solution at a stated mesh: not rounding, but the error of that mesh. Fixed before evaluation. Equilibrium stays exact.",
+    "rtol": 0.01,
+    "atol": { "m": 1e-12, "rad": 1e-12, "N": 1e-6, "N*m": 1e-6, "J": 1e-9, "N/m": 1e-3, "N*m/m": 1e-3 },
+    "residual_max": 1e-9,
+    "equilibrium_max": 1e-9
+  },
+  "drilling-penalty-v1": {
+    "description": "Exact for the element except for the small stiffening of its drilling term, decision 0019. A locked membrane misses this by tens of percent.",
+    "rtol": 5e-4,
+    "atol": { "m": 1e-11, "rad": 1e-11, "N": 1e-5, "N*m": 1e-5, "J": 1e-8, "N/m": 1e-3, "N*m/m": 1e-3 },
+    "residual_max": 1e-9,
+    "equilibrium_max": 1e-9
+  },
+  "linear-closed-form-area-v1": {
+    "description": "As linear-closed-form-v1, for results an area element reproduces exactly, including its section forces. Its matrices lose some digits in scaling, hence the wider tolerance.",
+    "rtol": 1e-7,
+    "atol": { "m": 1e-11, "rad": 1e-11, "N": 1e-5, "N*m": 1e-5, "J": 1e-8, "N/m": 1e-3, "N*m/m": 1e-3 },
+    "residual_max": 1e-9,
+    "equilibrium_max": 1e-9
   }
 }

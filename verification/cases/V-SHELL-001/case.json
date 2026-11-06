@@ -1,0 +1,134 @@
+{
+  "case_id": "V-SHELL-001",
+  "title": "Exact states on a distorted mesh: tension and pure bending",
+  "feature_ids": [
+    "F03-001",
+    "F03-002",
+    "F18-009"
+  ],
+  "model": "model.json",
+  "model_sha256": "ac8e1fdb51eeb4eeb5bca49c510e69771a8b5f7ac2593785c7343c60bd0bd107",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-area-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Uniaxial tension and pure bending of a strip: constant strain and constant curvature, which the element must reproduce exactly",
+    "derivation": [
+      "u = F L/(E t b), lateral contraction -nu u b/L",
+      "F11 = F/b, F22 = F12 = 0",
+      "theta = M L/(E I), w = -M L^2/(2 E I) for a moment about +Y",
+      "M11 = -M/b on the local axes of the strip, with +3 = +Z"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "TEN",
+      "entity": "T3_1",
+      "component": "UX",
+      "value": 6e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "TEN",
+      "entity": "T1_0",
+      "component": "UX",
+      "value": 1.95e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "TEN",
+      "entity": "T3_2",
+      "component": "UY",
+      "value": -4.5e-06,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "TEN",
+      "entity": "T0_1",
+      "component": "FX",
+      "value": -150000.0,
+      "unit": "N"
+    },
+    {
+      "result": "area_center",
+      "case": "TEN",
+      "entity": "TA1_0",
+      "component": "F11",
+      "value": 300000.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "area_center",
+      "case": "TEN",
+      "entity": "TA1_0",
+      "component": "F22",
+      "value": 0.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "area_center",
+      "case": "TEN",
+      "entity": "TA1_0",
+      "component": "F12",
+      "value": 0.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "BEN",
+      "entity": "B3_1",
+      "component": "RY",
+      "value": 0.0028799999999999993,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "BEN",
+      "entity": "B3_1",
+      "component": "UZ",
+      "value": -0.005759999999999999,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "BEN",
+      "entity": "B1_0",
+      "component": "UZ",
+      "value": -0.0005813999999999999,
+      "unit": "m"
+    },
+    {
+      "result": "area_center",
+      "case": "BEN",
+      "entity": "BA1_0",
+      "component": "M11",
+      "value": 12000.0,
+      "unit": "N*m/m"
+    },
+    {
+      "result": "area_center",
+      "case": "BEN",
+      "entity": "BA1_0",
+      "component": "M22",
+      "value": 0.0,
+      "unit": "N*m/m"
+    },
+    {
+      "result": "area_center",
+      "case": "BEN",
+      "entity": "BA1_0",
+      "component": "V13",
+      "value": 0.0,
+      "unit": "N/m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

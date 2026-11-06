@@ -100,6 +100,15 @@ def solve_case(m, loads):
         ele_of[fr["name"]] = next_ele
         next_ele += 1
 
+    for k, s in enumerate(m.get("area_sections", [])):
+        if s.get("bending_thickness") is not None:
+            raise Unsupported(f"area section {s['name']}: a separate bending thickness")
+        s["tag"] = 1000 + k
+        ops.section("ElasticMembranePlateSection", s["tag"], s["mat"]["e"], s["mat"]["nu"], s["thickness"], 0.0)
+    for a in m.get("areas", []):
+        ops.element("ShellMITC4", next_ele, *[tags[n] for n in a["joints"]], a["sec"]["tag"])
+        next_ele += 1
+
     for c in m.get("constraints", []):
         names = c["joints"]
         master, slaves = tags[names[0]], [tags[n] for n in names[1:]]

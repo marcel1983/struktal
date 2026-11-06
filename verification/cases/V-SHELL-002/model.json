@@ -1,0 +1,341 @@
+{
+  "area_sections": [
+    {
+      "name": "SH",
+      "material": "STEEL",
+      "thickness": 0.2,
+      "behavior": "Membrane"
+    }
+  ],
+  "areas": [
+    {
+      "name": "MA0_0",
+      "section": "SH",
+      "joints": [
+        "M0_0",
+        "M1_0",
+        "M1_1",
+        "M0_1"
+      ]
+    },
+    {
+      "name": "MA1_0",
+      "section": "SH",
+      "joints": [
+        "M1_0",
+        "M2_0",
+        "M2_1",
+        "M1_1"
+      ]
+    },
+    {
+      "name": "MA2_0",
+      "section": "SH",
+      "joints": [
+        "M2_0",
+        "M3_0",
+        "M3_1",
+        "M2_1"
+      ]
+    },
+    {
+      "name": "MA3_0",
+      "section": "SH",
+      "joints": [
+        "M3_0",
+        "M4_0",
+        "M4_1",
+        "M3_1"
+      ]
+    },
+    {
+      "name": "MA4_0",
+      "section": "SH",
+      "joints": [
+        "M4_0",
+        "M5_0",
+        "M5_1",
+        "M4_1"
+      ]
+    },
+    {
+      "name": "MA5_0",
+      "section": "SH",
+      "joints": [
+        "M5_0",
+        "M6_0",
+        "M6_1",
+        "M5_1"
+      ]
+    }
+  ],
+  "area_loads": [],
+  "schema_version": 5,
+  "title": "V-SHELL-002 wall in pure bending",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "M0_0",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M1_0",
+      "x": 1.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M2_0",
+      "x": 2.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M3_0",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M4_0",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M5_0",
+      "x": 5.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M6_0",
+      "x": 6.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M0_1",
+      "x": 0.0,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M1_1",
+      "x": 1.0,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M2_1",
+      "x": 2.0,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M3_1",
+      "x": 3.0,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M4_1",
+      "x": 4.0,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M5_1",
+      "x": 5.0,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "M6_1",
+      "x": 6.0,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    }
+  ],
+  "frames": [],
+  "load_patterns": [
+    {
+      "name": "BM"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "BM",
+      "joint": "M6_0",
+      "values": [
+        60000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "BM",
+      "joint": "M6_1",
+      "values": [
+        -60000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "BM",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

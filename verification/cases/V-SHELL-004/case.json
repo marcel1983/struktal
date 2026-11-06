@@ -1,0 +1,43 @@
+{
+  "case_id": "V-SHELL-004",
+  "title": "Thin square plates under uniform load: simply supported and clamped, mesh 16 x 16",
+  "feature_ids": [
+    "F03-002",
+    "F06-011"
+  ],
+  "model": "model.json",
+  "model_sha256": "46e74f8c142045732d3301d9d394340bb8b32b4c87820872f67b2835cd17fa20",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "mesh-convergence-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Navier series for the simply supported plate; 0.00126 q a^4/D for the clamped one (Timoshenko and Woinowsky-Krieger)",
+    "derivation": [
+      "D = E t^3/(12 (1 - nu^2)), a/t = 200",
+      "tolerance of the mesh: 1 %"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "P8_8",
+      "component": "UZ",
+      "value": -0.02129322769935869,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C8_8",
+      "component": "UZ",
+      "value": -0.006604415999999999,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

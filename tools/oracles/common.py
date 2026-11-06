@@ -46,6 +46,24 @@ def local_axes(xi, xj, angle_deg):
     return e1, [c * p + s * q for p, q in zip(e2, e3)], [-s * p + c * q for p, q in zip(e2, e3)]
 
 
+def nodal_shares(corners, axes):
+    """Share of the area of each corner, by integrating the bilinear shape
+    functions; they carry a uniform load as consistent nodal forces."""
+    xy = [(dot(c, axes[0]), dot(c, axes[1])) for c in corners]
+    g = 1 / math.sqrt(3)
+    signs = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+    shares = [0.0] * 4
+    for r in (-g, g):
+        for s in (-g, g):
+            dr = [0.25 * a * (1 + s * b) for a, b in signs]
+            ds = [0.25 * b * (1 + r * a) for a, b in signs]
+            j = (sum(d * p[0] for d, p in zip(dr, xy)) * sum(d * p[1] for d, p in zip(ds, xy))
+                 - sum(d * p[1] for d, p in zip(dr, xy)) * sum(d * p[0] for d, p in zip(ds, xy)))
+            for k, (a, b) in enumerate(signs):
+                shares[k] += 0.25 * (1 + r * a) * (1 + s * b) * j
+    return shares
+
+
 def load_model(path):
     m = json.loads(Path(path).read_text(encoding="utf-8"))
     u = m.get("units") or {"force": "N", "length": "m"}
@@ -88,6 +106,23 @@ def load_model(path):
         fr["rel_j"] = rel.get("j", [False] * 6)
         springs = [*rel.get("i_springs", []), *rel.get("j_springs", [])]
         fr["rel_has_springs"] = any(v != 0 for v in springs)
+    by_area_section = {s["name"]: s for s in m.get("area_sections", [])}
+    for s in m.get("area_sections", []):
+        s["thickness"] *= l
+        if s.get("bending_thickness") is not None:
+            s["bending_thickness"] *= l
+        s["mat"] = by_material[s["material"]]
+    for a in m.get("areas", []):
+        a["corners"] = [by_joint[n]["xyz"] for n in a["joints"]]
+        a["sec"] = by_area_section[a["section"]]
+        e3 = unit(cross([q - p for p, q in zip(a["corners"][0], a["corners"][2])],
+                        [q - p for p, q in zip(a["corners"][1], a["corners"][3])]))
+        h = cross([0.0, 0.0, 1.0], e3)
+        e1 = unit(cross([0.0, 1.0, 0.0], e3)) if math.sqrt(dot(h, h)) < 1e-3 else unit(h)
+        a["axes"] = [e1, cross(e3, e1), e3]
+        a["shares"] = nodal_shares(a["corners"], a["axes"])
+    for al in m.get("area_loads", []):
+        al["value"] *= f / l**2
     for jl in m.get("joint_loads", []):
         jl["values"] = [v * f for v in jl["values"][:3]] + [v * f * l for v in jl["values"][3:]]
     for jd in m.get("joint_displacements", []):
@@ -154,6 +189,25 @@ def case_loads(m, case):
             segment = (load["rel_start"], load["rel_end"], [c * load["value_start"] * sc for c in d],
                        [c * load["value_end"] * sc for c in d])
             slot["segments" if kind == "Trapezoidal" else "moment_segments"].append(segment)
+    # Area loads and self-weight reach every engine as the same nodal forces.
+    intensity = {a["name"]: [0.0] * 3 for a in m.get("areas", [])}
+    for p in m.get("load_patterns", []):
+        sc = scale.get(p["name"], 0.0) * p.get("self_weight_multiplier", 0.0)
+        if sc != 0.0:
+            for a in m.get("areas", []):
+                intensity[a["name"]][2] -= a["sec"]["mat"]["unit_weight"] * a["sec"]["thickness"] * sc
+    by_area = {a["name"]: a for a in m.get("areas", [])}
+    for al in m.get("area_loads", []):
+        sc = scale.get(al["pattern"], 0.0)
+        if sc != 0.0:
+            d = direction(al["direction"], by_area[al["area"]]["axes"])
+            intensity[al["area"]] = [p + c * al["value"] * sc for p, c in zip(intensity[al["area"]], d)]
+    for a in m.get("areas", []):
+        w = intensity[a["name"]]
+        if any(v != 0.0 for v in w):
+            for name, share in zip(a["joints"], a["shares"]):
+                t = joints.setdefault(name, [0.0] * 6)
+                joints[name] = [t[k] + (w[k] * share if k < 3 else 0.0) for k in range(6)]
     return {"joints": joints, "imposed": imposed, "frames": frames}
 
 

@@ -1,0 +1,2831 @@
+{
+  "area_sections": [
+    {
+      "name": "SH",
+      "material": "STEEL",
+      "thickness": 0.2,
+      "behavior": "Membrane"
+    }
+  ],
+  "areas": [
+    {
+      "name": "SA0_0",
+      "section": "SH",
+      "joints": [
+        "S0_0",
+        "S1_0",
+        "S1_1",
+        "S0_1"
+      ]
+    },
+    {
+      "name": "SA1_0",
+      "section": "SH",
+      "joints": [
+        "S1_0",
+        "S2_0",
+        "S2_1",
+        "S1_1"
+      ]
+    },
+    {
+      "name": "SA2_0",
+      "section": "SH",
+      "joints": [
+        "S2_0",
+        "S3_0",
+        "S3_1",
+        "S2_1"
+      ]
+    },
+    {
+      "name": "SA3_0",
+      "section": "SH",
+      "joints": [
+        "S3_0",
+        "S4_0",
+        "S4_1",
+        "S3_1"
+      ]
+    },
+    {
+      "name": "SA4_0",
+      "section": "SH",
+      "joints": [
+        "S4_0",
+        "S5_0",
+        "S5_1",
+        "S4_1"
+      ]
+    },
+    {
+      "name": "SA5_0",
+      "section": "SH",
+      "joints": [
+        "S5_0",
+        "S6_0",
+        "S6_1",
+        "S5_1"
+      ]
+    },
+    {
+      "name": "SA6_0",
+      "section": "SH",
+      "joints": [
+        "S6_0",
+        "S7_0",
+        "S7_1",
+        "S6_1"
+      ]
+    },
+    {
+      "name": "SA7_0",
+      "section": "SH",
+      "joints": [
+        "S7_0",
+        "S8_0",
+        "S8_1",
+        "S7_1"
+      ]
+    },
+    {
+      "name": "SA8_0",
+      "section": "SH",
+      "joints": [
+        "S8_0",
+        "S9_0",
+        "S9_1",
+        "S8_1"
+      ]
+    },
+    {
+      "name": "SA9_0",
+      "section": "SH",
+      "joints": [
+        "S9_0",
+        "S10_0",
+        "S10_1",
+        "S9_1"
+      ]
+    },
+    {
+      "name": "SA10_0",
+      "section": "SH",
+      "joints": [
+        "S10_0",
+        "S11_0",
+        "S11_1",
+        "S10_1"
+      ]
+    },
+    {
+      "name": "SA11_0",
+      "section": "SH",
+      "joints": [
+        "S11_0",
+        "S12_0",
+        "S12_1",
+        "S11_1"
+      ]
+    },
+    {
+      "name": "SA12_0",
+      "section": "SH",
+      "joints": [
+        "S12_0",
+        "S13_0",
+        "S13_1",
+        "S12_1"
+      ]
+    },
+    {
+      "name": "SA13_0",
+      "section": "SH",
+      "joints": [
+        "S13_0",
+        "S14_0",
+        "S14_1",
+        "S13_1"
+      ]
+    },
+    {
+      "name": "SA14_0",
+      "section": "SH",
+      "joints": [
+        "S14_0",
+        "S15_0",
+        "S15_1",
+        "S14_1"
+      ]
+    },
+    {
+      "name": "SA15_0",
+      "section": "SH",
+      "joints": [
+        "S15_0",
+        "S16_0",
+        "S16_1",
+        "S15_1"
+      ]
+    },
+    {
+      "name": "SA16_0",
+      "section": "SH",
+      "joints": [
+        "S16_0",
+        "S17_0",
+        "S17_1",
+        "S16_1"
+      ]
+    },
+    {
+      "name": "SA17_0",
+      "section": "SH",
+      "joints": [
+        "S17_0",
+        "S18_0",
+        "S18_1",
+        "S17_1"
+      ]
+    },
+    {
+      "name": "SA18_0",
+      "section": "SH",
+      "joints": [
+        "S18_0",
+        "S19_0",
+        "S19_1",
+        "S18_1"
+      ]
+    },
+    {
+      "name": "SA19_0",
+      "section": "SH",
+      "joints": [
+        "S19_0",
+        "S20_0",
+        "S20_1",
+        "S19_1"
+      ]
+    },
+    {
+      "name": "SA20_0",
+      "section": "SH",
+      "joints": [
+        "S20_0",
+        "S21_0",
+        "S21_1",
+        "S20_1"
+      ]
+    },
+    {
+      "name": "SA21_0",
+      "section": "SH",
+      "joints": [
+        "S21_0",
+        "S22_0",
+        "S22_1",
+        "S21_1"
+      ]
+    },
+    {
+      "name": "SA22_0",
+      "section": "SH",
+      "joints": [
+        "S22_0",
+        "S23_0",
+        "S23_1",
+        "S22_1"
+      ]
+    },
+    {
+      "name": "SA23_0",
+      "section": "SH",
+      "joints": [
+        "S23_0",
+        "S24_0",
+        "S24_1",
+        "S23_1"
+      ]
+    },
+    {
+      "name": "SA0_1",
+      "section": "SH",
+      "joints": [
+        "S0_1",
+        "S1_1",
+        "S1_2",
+        "S0_2"
+      ]
+    },
+    {
+      "name": "SA1_1",
+      "section": "SH",
+      "joints": [
+        "S1_1",
+        "S2_1",
+        "S2_2",
+        "S1_2"
+      ]
+    },
+    {
+      "name": "SA2_1",
+      "section": "SH",
+      "joints": [
+        "S2_1",
+        "S3_1",
+        "S3_2",
+        "S2_2"
+      ]
+    },
+    {
+      "name": "SA3_1",
+      "section": "SH",
+      "joints": [
+        "S3_1",
+        "S4_1",
+        "S4_2",
+        "S3_2"
+      ]
+    },
+    {
+      "name": "SA4_1",
+      "section": "SH",
+      "joints": [
+        "S4_1",
+        "S5_1",
+        "S5_2",
+        "S4_2"
+      ]
+    },
+    {
+      "name": "SA5_1",
+      "section": "SH",
+      "joints": [
+        "S5_1",
+        "S6_1",
+        "S6_2",
+        "S5_2"
+      ]
+    },
+    {
+      "name": "SA6_1",
+      "section": "SH",
+      "joints": [
+        "S6_1",
+        "S7_1",
+        "S7_2",
+        "S6_2"
+      ]
+    },
+    {
+      "name": "SA7_1",
+      "section": "SH",
+      "joints": [
+        "S7_1",
+        "S8_1",
+        "S8_2",
+        "S7_2"
+      ]
+    },
+    {
+      "name": "SA8_1",
+      "section": "SH",
+      "joints": [
+        "S8_1",
+        "S9_1",
+        "S9_2",
+        "S8_2"
+      ]
+    },
+    {
+      "name": "SA9_1",
+      "section": "SH",
+      "joints": [
+        "S9_1",
+        "S10_1",
+        "S10_2",
+        "S9_2"
+      ]
+    },
+    {
+      "name": "SA10_1",
+      "section": "SH",
+      "joints": [
+        "S10_1",
+        "S11_1",
+        "S11_2",
+        "S10_2"
+      ]
+    },
+    {
+      "name": "SA11_1",
+      "section": "SH",
+      "joints": [
+        "S11_1",
+        "S12_1",
+        "S12_2",
+        "S11_2"
+      ]
+    },
+    {
+      "name": "SA12_1",
+      "section": "SH",
+      "joints": [
+        "S12_1",
+        "S13_1",
+        "S13_2",
+        "S12_2"
+      ]
+    },
+    {
+      "name": "SA13_1",
+      "section": "SH",
+      "joints": [
+        "S13_1",
+        "S14_1",
+        "S14_2",
+        "S13_2"
+      ]
+    },
+    {
+      "name": "SA14_1",
+      "section": "SH",
+      "joints": [
+        "S14_1",
+        "S15_1",
+        "S15_2",
+        "S14_2"
+      ]
+    },
+    {
+      "name": "SA15_1",
+      "section": "SH",
+      "joints": [
+        "S15_1",
+        "S16_1",
+        "S16_2",
+        "S15_2"
+      ]
+    },
+    {
+      "name": "SA16_1",
+      "section": "SH",
+      "joints": [
+        "S16_1",
+        "S17_1",
+        "S17_2",
+        "S16_2"
+      ]
+    },
+    {
+      "name": "SA17_1",
+      "section": "SH",
+      "joints": [
+        "S17_1",
+        "S18_1",
+        "S18_2",
+        "S17_2"
+      ]
+    },
+    {
+      "name": "SA18_1",
+      "section": "SH",
+      "joints": [
+        "S18_1",
+        "S19_1",
+        "S19_2",
+        "S18_2"
+      ]
+    },
+    {
+      "name": "SA19_1",
+      "section": "SH",
+      "joints": [
+        "S19_1",
+        "S20_1",
+        "S20_2",
+        "S19_2"
+      ]
+    },
+    {
+      "name": "SA20_1",
+      "section": "SH",
+      "joints": [
+        "S20_1",
+        "S21_1",
+        "S21_2",
+        "S20_2"
+      ]
+    },
+    {
+      "name": "SA21_1",
+      "section": "SH",
+      "joints": [
+        "S21_1",
+        "S22_1",
+        "S22_2",
+        "S21_2"
+      ]
+    },
+    {
+      "name": "SA22_1",
+      "section": "SH",
+      "joints": [
+        "S22_1",
+        "S23_1",
+        "S23_2",
+        "S22_2"
+      ]
+    },
+    {
+      "name": "SA23_1",
+      "section": "SH",
+      "joints": [
+        "S23_1",
+        "S24_1",
+        "S24_2",
+        "S23_2"
+      ]
+    },
+    {
+      "name": "SA0_2",
+      "section": "SH",
+      "joints": [
+        "S0_2",
+        "S1_2",
+        "S1_3",
+        "S0_3"
+      ]
+    },
+    {
+      "name": "SA1_2",
+      "section": "SH",
+      "joints": [
+        "S1_2",
+        "S2_2",
+        "S2_3",
+        "S1_3"
+      ]
+    },
+    {
+      "name": "SA2_2",
+      "section": "SH",
+      "joints": [
+        "S2_2",
+        "S3_2",
+        "S3_3",
+        "S2_3"
+      ]
+    },
+    {
+      "name": "SA3_2",
+      "section": "SH",
+      "joints": [
+        "S3_2",
+        "S4_2",
+        "S4_3",
+        "S3_3"
+      ]
+    },
+    {
+      "name": "SA4_2",
+      "section": "SH",
+      "joints": [
+        "S4_2",
+        "S5_2",
+        "S5_3",
+        "S4_3"
+      ]
+    },
+    {
+      "name": "SA5_2",
+      "section": "SH",
+      "joints": [
+        "S5_2",
+        "S6_2",
+        "S6_3",
+        "S5_3"
+      ]
+    },
+    {
+      "name": "SA6_2",
+      "section": "SH",
+      "joints": [
+        "S6_2",
+        "S7_2",
+        "S7_3",
+        "S6_3"
+      ]
+    },
+    {
+      "name": "SA7_2",
+      "section": "SH",
+      "joints": [
+        "S7_2",
+        "S8_2",
+        "S8_3",
+        "S7_3"
+      ]
+    },
+    {
+      "name": "SA8_2",
+      "section": "SH",
+      "joints": [
+        "S8_2",
+        "S9_2",
+        "S9_3",
+        "S8_3"
+      ]
+    },
+    {
+      "name": "SA9_2",
+      "section": "SH",
+      "joints": [
+        "S9_2",
+        "S10_2",
+        "S10_3",
+        "S9_3"
+      ]
+    },
+    {
+      "name": "SA10_2",
+      "section": "SH",
+      "joints": [
+        "S10_2",
+        "S11_2",
+        "S11_3",
+        "S10_3"
+      ]
+    },
+    {
+      "name": "SA11_2",
+      "section": "SH",
+      "joints": [
+        "S11_2",
+        "S12_2",
+        "S12_3",
+        "S11_3"
+      ]
+    },
+    {
+      "name": "SA12_2",
+      "section": "SH",
+      "joints": [
+        "S12_2",
+        "S13_2",
+        "S13_3",
+        "S12_3"
+      ]
+    },
+    {
+      "name": "SA13_2",
+      "section": "SH",
+      "joints": [
+        "S13_2",
+        "S14_2",
+        "S14_3",
+        "S13_3"
+      ]
+    },
+    {
+      "name": "SA14_2",
+      "section": "SH",
+      "joints": [
+        "S14_2",
+        "S15_2",
+        "S15_3",
+        "S14_3"
+      ]
+    },
+    {
+      "name": "SA15_2",
+      "section": "SH",
+      "joints": [
+        "S15_2",
+        "S16_2",
+        "S16_3",
+        "S15_3"
+      ]
+    },
+    {
+      "name": "SA16_2",
+      "section": "SH",
+      "joints": [
+        "S16_2",
+        "S17_2",
+        "S17_3",
+        "S16_3"
+      ]
+    },
+    {
+      "name": "SA17_2",
+      "section": "SH",
+      "joints": [
+        "S17_2",
+        "S18_2",
+        "S18_3",
+        "S17_3"
+      ]
+    },
+    {
+      "name": "SA18_2",
+      "section": "SH",
+      "joints": [
+        "S18_2",
+        "S19_2",
+        "S19_3",
+        "S18_3"
+      ]
+    },
+    {
+      "name": "SA19_2",
+      "section": "SH",
+      "joints": [
+        "S19_2",
+        "S20_2",
+        "S20_3",
+        "S19_3"
+      ]
+    },
+    {
+      "name": "SA20_2",
+      "section": "SH",
+      "joints": [
+        "S20_2",
+        "S21_2",
+        "S21_3",
+        "S20_3"
+      ]
+    },
+    {
+      "name": "SA21_2",
+      "section": "SH",
+      "joints": [
+        "S21_2",
+        "S22_2",
+        "S22_3",
+        "S21_3"
+      ]
+    },
+    {
+      "name": "SA22_2",
+      "section": "SH",
+      "joints": [
+        "S22_2",
+        "S23_2",
+        "S23_3",
+        "S22_3"
+      ]
+    },
+    {
+      "name": "SA23_2",
+      "section": "SH",
+      "joints": [
+        "S23_2",
+        "S24_2",
+        "S24_3",
+        "S23_3"
+      ]
+    },
+    {
+      "name": "SA0_3",
+      "section": "SH",
+      "joints": [
+        "S0_3",
+        "S1_3",
+        "S1_4",
+        "S0_4"
+      ]
+    },
+    {
+      "name": "SA1_3",
+      "section": "SH",
+      "joints": [
+        "S1_3",
+        "S2_3",
+        "S2_4",
+        "S1_4"
+      ]
+    },
+    {
+      "name": "SA2_3",
+      "section": "SH",
+      "joints": [
+        "S2_3",
+        "S3_3",
+        "S3_4",
+        "S2_4"
+      ]
+    },
+    {
+      "name": "SA3_3",
+      "section": "SH",
+      "joints": [
+        "S3_3",
+        "S4_3",
+        "S4_4",
+        "S3_4"
+      ]
+    },
+    {
+      "name": "SA4_3",
+      "section": "SH",
+      "joints": [
+        "S4_3",
+        "S5_3",
+        "S5_4",
+        "S4_4"
+      ]
+    },
+    {
+      "name": "SA5_3",
+      "section": "SH",
+      "joints": [
+        "S5_3",
+        "S6_3",
+        "S6_4",
+        "S5_4"
+      ]
+    },
+    {
+      "name": "SA6_3",
+      "section": "SH",
+      "joints": [
+        "S6_3",
+        "S7_3",
+        "S7_4",
+        "S6_4"
+      ]
+    },
+    {
+      "name": "SA7_3",
+      "section": "SH",
+      "joints": [
+        "S7_3",
+        "S8_3",
+        "S8_4",
+        "S7_4"
+      ]
+    },
+    {
+      "name": "SA8_3",
+      "section": "SH",
+      "joints": [
+        "S8_3",
+        "S9_3",
+        "S9_4",
+        "S8_4"
+      ]
+    },
+    {
+      "name": "SA9_3",
+      "section": "SH",
+      "joints": [
+        "S9_3",
+        "S10_3",
+        "S10_4",
+        "S9_4"
+      ]
+    },
+    {
+      "name": "SA10_3",
+      "section": "SH",
+      "joints": [
+        "S10_3",
+        "S11_3",
+        "S11_4",
+        "S10_4"
+      ]
+    },
+    {
+      "name": "SA11_3",
+      "section": "SH",
+      "joints": [
+        "S11_3",
+        "S12_3",
+        "S12_4",
+        "S11_4"
+      ]
+    },
+    {
+      "name": "SA12_3",
+      "section": "SH",
+      "joints": [
+        "S12_3",
+        "S13_3",
+        "S13_4",
+        "S12_4"
+      ]
+    },
+    {
+      "name": "SA13_3",
+      "section": "SH",
+      "joints": [
+        "S13_3",
+        "S14_3",
+        "S14_4",
+        "S13_4"
+      ]
+    },
+    {
+      "name": "SA14_3",
+      "section": "SH",
+      "joints": [
+        "S14_3",
+        "S15_3",
+        "S15_4",
+        "S14_4"
+      ]
+    },
+    {
+      "name": "SA15_3",
+      "section": "SH",
+      "joints": [
+        "S15_3",
+        "S16_3",
+        "S16_4",
+        "S15_4"
+      ]
+    },
+    {
+      "name": "SA16_3",
+      "section": "SH",
+      "joints": [
+        "S16_3",
+        "S17_3",
+        "S17_4",
+        "S16_4"
+      ]
+    },
+    {
+      "name": "SA17_3",
+      "section": "SH",
+      "joints": [
+        "S17_3",
+        "S18_3",
+        "S18_4",
+        "S17_4"
+      ]
+    },
+    {
+      "name": "SA18_3",
+      "section": "SH",
+      "joints": [
+        "S18_3",
+        "S19_3",
+        "S19_4",
+        "S18_4"
+      ]
+    },
+    {
+      "name": "SA19_3",
+      "section": "SH",
+      "joints": [
+        "S19_3",
+        "S20_3",
+        "S20_4",
+        "S19_4"
+      ]
+    },
+    {
+      "name": "SA20_3",
+      "section": "SH",
+      "joints": [
+        "S20_3",
+        "S21_3",
+        "S21_4",
+        "S20_4"
+      ]
+    },
+    {
+      "name": "SA21_3",
+      "section": "SH",
+      "joints": [
+        "S21_3",
+        "S22_3",
+        "S22_4",
+        "S21_4"
+      ]
+    },
+    {
+      "name": "SA22_3",
+      "section": "SH",
+      "joints": [
+        "S22_3",
+        "S23_3",
+        "S23_4",
+        "S22_4"
+      ]
+    },
+    {
+      "name": "SA23_3",
+      "section": "SH",
+      "joints": [
+        "S23_3",
+        "S24_3",
+        "S24_4",
+        "S23_4"
+      ]
+    }
+  ],
+  "area_loads": [],
+  "schema_version": 5,
+  "title": "V-SHELL-003 wall under tip shear",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "S0_0",
+      "x": 0.0,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S1_0",
+      "x": 0.25,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S2_0",
+      "x": 0.5,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S3_0",
+      "x": 0.75,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S4_0",
+      "x": 1.0,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S5_0",
+      "x": 1.25,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S6_0",
+      "x": 1.5,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S7_0",
+      "x": 1.75,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S8_0",
+      "x": 2.0,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S9_0",
+      "x": 2.25,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S10_0",
+      "x": 2.5,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S11_0",
+      "x": 2.75,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S12_0",
+      "x": 3.0,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S13_0",
+      "x": 3.25,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S14_0",
+      "x": 3.5,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S15_0",
+      "x": 3.75,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S16_0",
+      "x": 4.0,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S17_0",
+      "x": 4.25,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S18_0",
+      "x": 4.5,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S19_0",
+      "x": 4.75,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S20_0",
+      "x": 5.0,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S21_0",
+      "x": 5.25,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S22_0",
+      "x": 5.5,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S23_0",
+      "x": 5.75,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S24_0",
+      "x": 6.0,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S0_1",
+      "x": 0.0,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S1_1",
+      "x": 0.25,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S2_1",
+      "x": 0.5,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S3_1",
+      "x": 0.75,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S4_1",
+      "x": 1.0,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S5_1",
+      "x": 1.25,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S6_1",
+      "x": 1.5,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S7_1",
+      "x": 1.75,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S8_1",
+      "x": 2.0,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S9_1",
+      "x": 2.25,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S10_1",
+      "x": 2.5,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S11_1",
+      "x": 2.75,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S12_1",
+      "x": 3.0,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S13_1",
+      "x": 3.25,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S14_1",
+      "x": 3.5,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S15_1",
+      "x": 3.75,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S16_1",
+      "x": 4.0,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S17_1",
+      "x": 4.25,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S18_1",
+      "x": 4.5,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S19_1",
+      "x": 4.75,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S20_1",
+      "x": 5.0,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S21_1",
+      "x": 5.25,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S22_1",
+      "x": 5.5,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S23_1",
+      "x": 5.75,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S24_1",
+      "x": 6.0,
+      "y": 3.25,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S0_2",
+      "x": 0.0,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S1_2",
+      "x": 0.25,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S2_2",
+      "x": 0.5,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S3_2",
+      "x": 0.75,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S4_2",
+      "x": 1.0,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S5_2",
+      "x": 1.25,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S6_2",
+      "x": 1.5,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S7_2",
+      "x": 1.75,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S8_2",
+      "x": 2.0,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S9_2",
+      "x": 2.25,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S10_2",
+      "x": 2.5,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S11_2",
+      "x": 2.75,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S12_2",
+      "x": 3.0,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S13_2",
+      "x": 3.25,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S14_2",
+      "x": 3.5,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S15_2",
+      "x": 3.75,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S16_2",
+      "x": 4.0,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S17_2",
+      "x": 4.25,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S18_2",
+      "x": 4.5,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S19_2",
+      "x": 4.75,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S20_2",
+      "x": 5.0,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S21_2",
+      "x": 5.25,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S22_2",
+      "x": 5.5,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S23_2",
+      "x": 5.75,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S24_2",
+      "x": 6.0,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S0_3",
+      "x": 0.0,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S1_3",
+      "x": 0.25,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S2_3",
+      "x": 0.5,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S3_3",
+      "x": 0.75,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S4_3",
+      "x": 1.0,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S5_3",
+      "x": 1.25,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S6_3",
+      "x": 1.5,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S7_3",
+      "x": 1.75,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S8_3",
+      "x": 2.0,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S9_3",
+      "x": 2.25,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S10_3",
+      "x": 2.5,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S11_3",
+      "x": 2.75,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S12_3",
+      "x": 3.0,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S13_3",
+      "x": 3.25,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S14_3",
+      "x": 3.5,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S15_3",
+      "x": 3.75,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S16_3",
+      "x": 4.0,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S17_3",
+      "x": 4.25,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S18_3",
+      "x": 4.5,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S19_3",
+      "x": 4.75,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S20_3",
+      "x": 5.0,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S21_3",
+      "x": 5.25,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S22_3",
+      "x": 5.5,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S23_3",
+      "x": 5.75,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S24_3",
+      "x": 6.0,
+      "y": 3.75,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S0_4",
+      "x": 0.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S1_4",
+      "x": 0.25,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S2_4",
+      "x": 0.5,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S3_4",
+      "x": 0.75,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S4_4",
+      "x": 1.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S5_4",
+      "x": 1.25,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S6_4",
+      "x": 1.5,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S7_4",
+      "x": 1.75,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S8_4",
+      "x": 2.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S9_4",
+      "x": 2.25,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S10_4",
+      "x": 2.5,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S11_4",
+      "x": 2.75,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S12_4",
+      "x": 3.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S13_4",
+      "x": 3.25,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S14_4",
+      "x": 3.5,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S15_4",
+      "x": 3.75,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S16_4",
+      "x": 4.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S17_4",
+      "x": 4.25,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S18_4",
+      "x": 4.5,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S19_4",
+      "x": 4.75,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S20_4",
+      "x": 5.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S21_4",
+      "x": 5.25,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S22_4",
+      "x": 5.5,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S23_4",
+      "x": 5.75,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "S24_4",
+      "x": 6.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    }
+  ],
+  "frames": [],
+  "load_patterns": [
+    {
+      "name": "TIP"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "TIP",
+      "joint": "S24_0",
+      "values": [
+        0,
+        5000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "TIP",
+      "joint": "S24_1",
+      "values": [
+        0,
+        10000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "TIP",
+      "joint": "S24_2",
+      "values": [
+        0,
+        10000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "TIP",
+      "joint": "S24_3",
+      "values": [
+        0,
+        10000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "TIP",
+      "joint": "S24_4",
+      "values": [
+        0,
+        5000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "TIP",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

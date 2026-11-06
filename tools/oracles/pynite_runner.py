@@ -54,6 +54,10 @@ def solve_case(m, loads):
         f.add_member(fr["name"], fr["i"], fr["j"], fr["mat"]["name"], fr["section"], rotation=fr.get("angle_deg", 0.0))
         if any(fr["rel_i"]) or any(fr["rel_j"]):
             f.def_releases(fr["name"], *fr["rel_i"], *fr["rel_j"])
+    for a in m.get("areas", []):
+        if a["sec"].get("bending_thickness") is not None:
+            raise Unsupported(f"area {a['name']}: a separate bending thickness")
+        f.add_quad(a["name"], *a["joints"], a["sec"]["thickness"], a["sec"]["material"])
     dirs = ["DX", "DY", "DZ", "RX", "RY", "RZ"]
     for j in m["joints"]:
         r = j["restraint"]

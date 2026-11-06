@@ -107,7 +107,8 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .get("sections")
             .and_then(|v| v.as_array())
             .is_some_and(|secs| secs.iter().any(|s| s.get("shape").is_some() || s.get("neglect_shear").is_some()));
-        if has_auto_mesh || has_envelope || has_shape {
+        let has_areas = ["area_sections", "areas", "area_loads"].iter().any(|k| raw.get(*k).is_some());
+        if has_auto_mesh || has_envelope || has_shape || has_areas {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
     }
@@ -225,6 +226,94 @@ fn derive_section_properties(m: &mut Model, issues: &mut Vec<Issue>) {
         (s.area, s.i33, s.i22, s.j) = (p.area, p.i33, p.i22, p.j);
         (s.as2, s.as3) = if s.neglect_shear { (0.0, 0.0) } else { (p.as2, p.as3) };
         s.neglect_shear = false;
+    }
+}
+
+/// Largest out-of-plane distance of a corner allowed in a flat element, as a
+/// fraction of its longer diagonal.
+pub const AREA_WARP_TOL_REL: f64 = 1e-3;
+
+fn check_areas(
+    m: &Model,
+    materials: &HashMap<Name, usize>,
+    joint_index: &HashMap<Name, usize>,
+    connected: &mut HashSet<usize>,
+    issues: &mut Vec<Issue>,
+) {
+    let sections = index_unique("area section", m.area_sections.iter().map(|s| s.name.as_str()), issues);
+    let area_index = index_unique("area", m.areas.iter().map(|a| a.name.as_str()), issues);
+    for s in &m.area_sections {
+        let e = format!("area section {}", s.name);
+        check_positive(s.thickness, &e, "thickness", issues);
+        if let Some(t) = s.bending_thickness {
+            check_positive(t, &e, "bending_thickness", issues);
+        }
+        if !materials.contains_key(&s.material) {
+            issues.push(issue(&e, "material", format!("unknown material '{}'", s.material)));
+        }
+    }
+    for a in &m.areas {
+        let e = format!("area {}", a.name);
+        if !sections.contains_key(&a.section) {
+            issues.push(issue(&e, "section", format!("unknown area section '{}'", a.section)));
+        }
+        let mut found = Vec::with_capacity(4);
+        for name in &a.joints {
+            match joint_index.get(name) {
+                Some(&k) => {
+                    connected.insert(k);
+                    found.push(k);
+                }
+                None => issues.push(issue(&e, "joints", format!("unknown joint '{name}'"))),
+            }
+        }
+        if found.len() < 4 {
+            continue;
+        }
+        let at = |k: usize| {
+            let j = &m.joints[found[k]];
+            [j.x, j.y, j.z]
+        };
+        let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+        let cross = |a: [f64; 3], b: [f64; 3]| {
+            [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+        };
+        let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let (d1, d2) = (sub(at(2), at(0)), sub(at(3), at(1)));
+        let normal = cross(d1, d2);
+        let size = dot(normal, normal).sqrt();
+        if size == 0.0 {
+            issues.push(issue(&e, "joints", "degenerate area: its diagonals are parallel"));
+            continue;
+        }
+        let n = normal.map(|c| c / size);
+        // Convex with this order: every corner turns the same way as the normal.
+        let concave = (0..4).any(|k| {
+            let (prev, here, next) = (at((k + 3) % 4), at(k), at((k + 1) % 4));
+            dot(cross(sub(here, prev), sub(next, here)), n) <= 0.0
+        });
+        if concave {
+            issues.push(issue(&e, "joints", "the joints do not make a convex area in this order"));
+        }
+        let longer = dot(d1, d1).max(dot(d2, d2)).sqrt();
+        let warp = (dot(sub(at(1), at(0)), n)).abs() / 2.0;
+        if warp > AREA_WARP_TOL_REL * longer {
+            issues.push(issue(
+                &e,
+                "joints",
+                format!("warped: corners {warp:e} m off the mean plane, and flat elements cannot represent it"),
+            ));
+        }
+    }
+    for (k, l) in m.area_loads.iter().enumerate() {
+        let e = format!("area load #{k}");
+        if !m.load_patterns.iter().any(|p| p.name == l.pattern) {
+            issues.push(issue(&e, "pattern", format!("unknown load pattern '{}'", l.pattern)));
+        }
+        if !area_index.contains_key(&l.area) {
+            issues.push(issue(&e, "area", format!("unknown area '{}'", l.area)));
+        }
+        check_finite(l.value, &e, "value", issues);
     }
 }
 
@@ -362,6 +451,7 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
         frame_refs.push((ji.unwrap_or(usize::MAX), jj.unwrap_or(usize::MAX), sk.unwrap_or(usize::MAX), mk));
     }
 
+    check_areas(&m, &mat_idx, &joint_index, &mut connected, &mut issues);
     index_unique("constraint", m.constraints.iter().map(|c| c.name()), &mut issues);
     let mut constrained: HashMap<usize, &str> = HashMap::new();
     for c in &m.constraints {
@@ -616,6 +706,9 @@ mod tests {
                 offsets: None,
                 auto_mesh: None,
             }],
+            area_sections: vec![],
+            areas: vec![],
+            area_loads: vec![],
             constraints: vec![],
             load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0 }],
             joint_loads: vec![JointLoad {
@@ -1035,6 +1128,75 @@ mod tests {
         ];
         let errs = validate(&m).expect_err("must fail");
         assert!(errs.iter().any(|i| i.cause.contains("cyclic")));
+    }
+
+    fn with_area(corners: [[f64; 3]; 4]) -> Model {
+        let mut m = cantilever();
+        for (k, c) in corners.iter().enumerate() {
+            m.joints.push(Joint {
+                name: format!("A{k}"),
+                x: c[0],
+                y: c[1],
+                z: c[2],
+                restraint: [false; 6],
+                springs: [0.0; 6],
+            });
+        }
+        m.area_sections = vec![AreaSection {
+            name: "S1".into(),
+            material: "S".into(),
+            thickness: 0.2,
+            bending_thickness: None,
+            behavior: AreaBehavior::Shell,
+        }];
+        m.areas = vec![Area {
+            name: "Q".into(),
+            joints: ["A0".to_string(), "A1".to_string(), "A2".to_string(), "A3".to_string()],
+            section: "S1".into(),
+        }];
+        m
+    }
+
+    #[test]
+    fn areas_are_validated() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+        assert!(validate(&with_area(flat)).is_ok());
+        let crossed = [[0.0, 5.0, 0.0], [2.0, 7.0, 0.0], [2.0, 5.0, 0.0], [0.0, 7.0, 0.0]];
+        assert!(validate(&with_area(crossed)).is_err());
+        let concave = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [0.5, 5.5, 0.0], [0.0, 7.0, 0.0]];
+        assert!(validate(&with_area(concave)).expect_err("fail").iter().any(|i| i.cause.contains("convex")));
+        let warped = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.2], [2.0, 7.0, 0.0], [0.0, 7.0, 0.2]];
+        assert!(validate(&with_area(warped)).expect_err("fail").iter().any(|i| i.cause.contains("warped")));
+        let mut m = with_area(flat);
+        m.area_sections[0].thickness = 0.0;
+        m.areas[0].section = "NOPE".into();
+        m.area_loads = vec![AreaLoad {
+            pattern: "NOPE".into(),
+            area: "NOPE".into(),
+            direction: LoadDirection::Gravity,
+            value: f64::NAN,
+        }];
+        let errs = validate(&m).expect_err("fail");
+        for field in ["thickness", "section", "pattern", "area", "value"] {
+            assert!(errs.iter().any(|i| i.field == field), "{field}: {errs:?}");
+        }
+        // Thickness is a length and the load a stress.
+        let mut m = with_area(flat);
+        m.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
+        m.materials[0].e = 200.0;
+        m.sections[0].area = 1e4;
+        m.sections[0].i33 = 1e8;
+        m.sections[0].i22 = 1e8;
+        m.sections[0].j = 2e8;
+        for j in &mut m.joints {
+            (j.x, j.y) = (j.x * 1000.0, j.y * 1000.0);
+        }
+        m.area_sections[0].thickness = 200.0;
+        m.area_loads =
+            vec![AreaLoad { pattern: "P".into(), area: "Q".into(), direction: LoadDirection::Gravity, value: 2e-3 }];
+        let s = validate(&m).expect("ok");
+        assert!((s.model.area_sections[0].thickness - 0.2).abs() < 1e-14);
+        assert!((s.model.area_loads[0].value - 2e6).abs() < 1e-3); // kN/mm² -> Pa
     }
 
     fn shaped(shape: SectionShape) -> Model {

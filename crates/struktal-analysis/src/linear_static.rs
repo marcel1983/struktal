@@ -10,6 +10,7 @@ use struktal_elements::release::Condensation;
 use struktal_math::nullspace::{self, NullSpaceOptions, NullVector};
 use struktal_math::{Backend, MatrixClass, SolverError, TripletBuilder, relative_residual};
 
+use crate::areas::{self, AreaData};
 use crate::constraints::DofMap;
 use crate::results::*;
 use crate::status::{CaseStatus, Completion, PhysicalStatus};
@@ -100,12 +101,14 @@ struct CaseLoads {
     resultant: [f64; 6],
     /// Imposed displacements by global DOF (decision 0012).
     imposed: Vec<f64>,
+    /// Consistent nodal loads of each area, in global axes.
+    area_nodal: Vec<[f64; 24]>,
 }
 
 /// Load vector of the free system: applied loads, minus the elastic forces of
 /// the support movements (−K u_p), plus the forces of the grounded spring ends
 /// that move (k u_g).
-fn effective_loads(s: &Snapshot, frames: &[FrameData], cl: &CaseLoads) -> Vec<f64> {
+fn effective_loads(s: &Snapshot, frames: &[FrameData], area_data: &[AreaData], cl: &CaseLoads) -> Vec<f64> {
     let mut f = cl.f_full.clone();
     if cl.imposed.iter().all(|&v| v == 0.0) {
         return f;
@@ -120,6 +123,15 @@ fn effective_loads(s: &Snapshot, frames: &[FrameData], cl: &CaseLoads) -> Vec<f6
         let fg = frame3d::mat_t_vec(&fd.t, &ku);
         for (k, &d) in fd.dofs.iter().enumerate() {
             f[d] -= fg[k];
+        }
+    }
+    for a in area_data {
+        let up: [f64; 24] = a.dofs.map(|d| if held(d) { cl.imposed[d] } else { 0.0 });
+        if up.iter().all(|&v| v == 0.0) {
+            continue;
+        }
+        for (row, &d) in a.k_global.iter().zip(&a.dofs) {
+            f[d] -= row.iter().zip(&up).map(|(k, v)| k * v).sum::<f64>();
         }
     }
     for (g, v) in f.iter_mut().enumerate() {
@@ -138,7 +150,7 @@ fn add_resultant(res: &mut [f64; 6], at: Vec3, force: Vec3) {
     }
 }
 
-fn build_case_loads(s: &Snapshot, frames: &[FrameData], loads: &[(usize, f64)]) -> CaseLoads {
+fn build_case_loads(s: &Snapshot, frames: &[FrameData], area_data: &[AreaData], loads: &[(usize, f64)]) -> CaseLoads {
     let m = &s.model;
     let ndof = 6 * m.joints.len();
     let mut joint_loads = vec![0.0; ndof];
@@ -255,7 +267,39 @@ fn build_case_loads(s: &Snapshot, frames: &[FrameData], loads: &[(usize, f64)]) 
             f_full[d] += fg[k];
         }
     }
-    CaseLoads { f_full, joint_loads, span, resultant, imposed }
+    // Areas: self-weight and uniform loads, as consistent nodal forces.
+    let mut intensity: Vec<Vec3> = vec![[0.0; 3]; area_data.len()];
+    for p in &m.load_patterns {
+        let sc = pscale(&p.name) * p.self_weight_multiplier;
+        if sc != 0.0 {
+            for (w, a) in intensity.iter_mut().zip(area_data) {
+                w[2] -= a.weight * sc;
+            }
+        }
+    }
+    for l in &m.area_loads {
+        let sc = pscale(&l.pattern);
+        if sc != 0.0 {
+            let k = m.areas.iter().position(|a| a.name == l.area).expect("validated area");
+            let g = global_dir(l.direction, &area_data[k].axes);
+            for c in 0..3 {
+                intensity[k][c] += g[c] * l.value * sc;
+            }
+        }
+    }
+    let mut area_nodal = Vec::with_capacity(area_data.len());
+    for (a, &w) in area_data.iter().zip(&intensity) {
+        let f = a.uniform_load(w);
+        for (k, &d) in a.dofs.iter().enumerate() {
+            f_full[d] += f[k];
+        }
+        // Σ xᵢ ∫Nᵢ dA = ∫x dA, so the nodal forces carry the exact moment too.
+        for (n, corner) in a.corners.iter().enumerate() {
+            add_resultant(&mut resultant, *corner, [f[6 * n], f[6 * n + 1], f[6 * n + 2]]);
+        }
+        area_nodal.push(f);
+    }
+    CaseLoads { f_full, joint_loads, span, resultant, imposed, area_nodal }
 }
 
 /// Null-space analysis after a failed SPD factorization (decision 0006).
@@ -443,6 +487,7 @@ fn failed_case(name: &str, kind: &str, c: Completion, p: PhysicalStatus, message
         joints: vec![],
         frames: vec![],
         checks: None,
+        areas: vec![],
         envelope: None,
     }
 }
@@ -622,6 +667,36 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             }
         }
     }
+    let area_data = areas::build(s);
+    for a in &area_data {
+        // Through the same elimination as frames, including the noise filter
+        // when the element's corners are tied.
+        if map.has_tied_dof(&a.dofs) {
+            let r = map.reduced_element(&a.dofs, &a.k_global);
+            let size = r.eqs.len();
+            for (i, &ea) in r.eqs.iter().enumerate() {
+                for (q, &eb) in r.eqs.iter().enumerate() {
+                    if let Err(e) = tb.add(ea, eb, r.k[i * size + q]) {
+                        manifest.messages.push(e.to_string());
+                        return RunResult { manifest, cases: vec![] };
+                    }
+                }
+            }
+            continue;
+        }
+        for (row, &da) in a.k_global.iter().zip(&a.dofs) {
+            for &(ea, ca) in map.terms(da) {
+                for (&kab, &db) in row.iter().zip(&a.dofs) {
+                    for &(eb, cb) in map.terms(db) {
+                        if let Err(e) = tb.add(ea, eb, ca * cb * kab) {
+                            manifest.messages.push(e.to_string());
+                            return RunResult { manifest, cases: vec![] };
+                        }
+                    }
+                }
+            }
+        }
+    }
     for (j, joint) in m.joints.iter().enumerate() {
         for (d, &kd) in joint.springs.iter().enumerate() {
             if kd == 0.0 {
@@ -712,8 +787,8 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     for case in &m.load_cases {
         let LoadCase::LinearStatic { name, loads } = case;
         let pats: Vec<(usize, f64)> = loads.iter().map(|sp| (s.pattern_index[&sp.pattern], sp.scale)).collect();
-        let cl = build_case_loads(s, &frames, &pats);
-        let rhs = map.reduce(&effective_loads(s, &frames, &cl));
+        let cl = build_case_loads(s, &frames, &area_data, &pats);
+        let rhs = map.reduce(&effective_loads(s, &frames, &area_data, &cl));
         let t_solve = Instant::now();
         let x = factor.as_ref().map(|f| f.solve(&rhs)).unwrap_or_default();
         manifest.timings.solve_s += t_solve.elapsed().as_secs_f64();
@@ -750,6 +825,17 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                 internal[d] += fg[kk];
             }
             piece_ends.push(fl);
+        }
+        let mut area_results = Vec::with_capacity(area_data.len());
+        for (k, a) in area_data.iter().enumerate() {
+            let ue: [f64; 24] = a.dofs.map(|d| u[d]);
+            for (row, &d) in a.k_global.iter().zip(&a.dofs) {
+                internal[d] += row.iter().zip(&ue).map(|(q, v)| q * v).sum::<f64>();
+            }
+            for (&d, f) in a.dofs.iter().zip(&cl.area_nodal[k]) {
+                internal[d] -= f;
+            }
+            area_results.push(a.result(&m.areas[k].name, &ue));
         }
 
         // Results per frame of the model: its end I and J pieces give the end
@@ -845,6 +931,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             joints,
             frames: frame_results,
             checks: Some(checks),
+            areas: area_results,
             envelope: None,
         };
         by_name.insert(name.clone(), cr.clone());
@@ -905,6 +992,11 @@ fn combine(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
     };
     let mut joints = first.joints.clone();
     let mut frames = first.frames.clone();
+    let mut areas = first.areas.clone();
+    for a in &mut areas {
+        a.center = [0.0; 8];
+        a.corners = [[0.0; 8]; 4];
+    }
     for j in &mut joints {
         j.displacement = [0.0; 6];
         j.reaction = j.reaction.map(|_| [0.0; 6]);
@@ -936,6 +1028,14 @@ fn combine(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
                 }
             }
         }
+        for (a, b) in areas.iter_mut().zip(&c.areas) {
+            for d in 0..8 {
+                a.center[d] += sc * b.center[d];
+                for corner in 0..4 {
+                    a.corners[corner][d] += sc * b.corners[corner][d];
+                }
+            }
+        }
     }
     CaseResult {
         name: name.to_string(),
@@ -948,6 +1048,7 @@ fn combine(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
         joints,
         frames,
         checks: None,
+        areas,
         envelope: None,
     }
 }
@@ -1027,13 +1128,16 @@ fn envelope(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
         name: name.to_string(),
         kind: KIND.into(),
         status: CaseStatus::engine(Completion::Complete, PhysicalStatus::ResponseComputed),
-        messages: vec![format!(
+        messages: std::iter::once(format!(
             "envelope of: {}",
             terms.iter().map(|(c, s)| format!("{s} x {}", c.name)).collect::<Vec<_>>().join(", ")
-        )],
+        ))
+        .chain((!first.areas.is_empty()).then(|| "area forces are not enveloped yet".to_string()))
+        .collect(),
         joints: vec![],
         frames: vec![],
         checks: None,
+        areas: vec![],
         envelope: Some(Envelope { joints, frames }),
     }
 }

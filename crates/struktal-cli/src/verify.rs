@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use struktal_analysis::{
-    CaseResult, Completion, PhysicalStatus, RunResult, results::COMPONENTS, results::REACTION_COMPONENTS,
-    results::STATION_COMPONENTS,
+    CaseResult, Completion, PhysicalStatus, RunResult, results::AREA_COMPONENTS, results::COMPONENTS,
+    results::REACTION_COMPONENTS, results::STATION_COMPONENTS,
 };
 
 #[derive(Debug, Deserialize)]
@@ -161,6 +161,14 @@ fn lookup(r: &RunResult, e: &Expected) -> Result<f64, String> {
             Ok(st.actions[comp(&STATION_COMPONENTS)?])
         }
         "external_work" => c.checks.as_ref().map(|k| k.external_work).ok_or_else(|| "no checks in case".into()),
+        "area_center" => {
+            let a = c
+                .areas
+                .iter()
+                .find(|a| a.area == e.entity)
+                .ok_or_else(|| format!("area '{}' not in results", e.entity))?;
+            Ok(a.center[comp(&AREA_COMPONENTS)?])
+        }
         "envelope_joint_displacement" | "envelope_joint_reaction" | "envelope_frame_station" => {
             let env = c.envelope.as_ref().ok_or("case has no envelope")?;
             let (b, k) = match e.result.as_str() {

@@ -1,0 +1,33 @@
+{
+  "case_id": "V-MECH-009",
+  "title": "One shell element with no supports",
+  "feature_ids": [
+    "F03-001",
+    "F08",
+    "stability"
+  ],
+  "model": "model.json",
+  "model_sha256": "3a87b191f9878ece2abf8fa51da3273d7769f6a5bd82a5327b8880f6dc58963c",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "A free body has six rigid-body modes; a spurious drilling mode would add more",
+    "derivation": [
+      "nullity(K) = 6"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "nullity = 6 (exact)"
+    }
+  ],
+  "expected": [],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

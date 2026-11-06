@@ -1,0 +1,52 @@
+{
+  "case_id": "V-SHELL-002",
+  "title": "Wall in plane: pure bending, exact in one row of elements",
+  "feature_ids": [
+    "F03-003"
+  ],
+  "model": "model.json",
+  "model_sha256": "02fd83dc23d4cc858f3502d5429f868a2162e17338596f28abf9cec875e612a1",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "drilling-penalty-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Beam in pure bending: the incompatible modes reproduce it exactly on rectangles",
+    "derivation": [
+      "M = +F H about +Z: forces +F at y = 0 and -F at y = H",
+      "delta = M L^2/(2 E I), I = t H^3/12",
+      "the bottom fiber stretches: u = M L/(E I) H/2",
+      "within the small stiffening of the drilling term"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "M6_0",
+      "component": "UY",
+      "value": 0.00032399999999999996,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "M6_1",
+      "component": "UY",
+      "value": 0.00032399999999999996,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "M6_0",
+      "component": "UX",
+      "value": 5.4e-05,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

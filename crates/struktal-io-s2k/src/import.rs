@@ -18,7 +18,7 @@ use crate::parser::{Row, S2k};
 const IGNORED: &[&str] = &[
     "ANALYSIS MESSAGES",
     "ANALYSIS OPTIONS",
-    "AREA SECTION PROPERT",
+    "AREA SECTION PROPERTY",
     "ASSEMBLED JOINT MASSES",
     "AUTO WAVE",
     "BASE REACTIONS",
@@ -65,6 +65,11 @@ const IGNORED: &[&str] = &[
 /// Tables this importer reads.
 const READ: &[&str] = &[
     "ACTIVE DEGREES OF FREEDOM",
+    "AREA LOADS - GRAVITY",
+    "AREA LOADS - UNIFORM",
+    "AREA SECTION ASSIGNMENTS",
+    "AREA SECTION PROPERTIES",
+    "CONNECTIVITY - AREA",
     "CASE - STATIC 1 - LOAD ASSIGNMENTS",
     "COMBINATION DEFINITIONS",
     "CONNECTIVITY - FRAME",
@@ -487,6 +492,146 @@ impl Importer<'_> {
         frames
     }
 
+    /// Areas as they are in the file: objects are elements. A model whose
+    /// analysis mesh differs from its objects is refused, because this reader
+    /// has no way to pass the loads of an object to its elements.
+    fn areas(&mut self) -> (Vec<AreaSection>, Vec<Area>) {
+        const C: &str = "CONNECTIVITY - AREA";
+        const A: &str = "AREA SECTION ASSIGNMENTS";
+        const P: &str = "AREA SECTION PROPERTIES";
+        const E: &str = "OBJECTS AND ELEMENTS - AREAS";
+        let mut assigned: HashMap<String, String> = HashMap::new();
+        for row in self.s2k.rows(A) {
+            let (Some(area), Some(section)) = (self.text(A, row, "Area"), self.text(A, row, "Section")) else {
+                continue;
+            };
+            assigned.insert(area, section);
+        }
+        let mut areas = Vec::new();
+        for row in self.s2k.rows(C) {
+            let Some(name) = self.text(C, row, "Area") else { continue };
+            if row.get("NumJoints").is_some_and(|n| n != "4") {
+                self.problem(C, row.line, format!("area {name}: only four joints (triangles are pending)"));
+                continue;
+            }
+            let (Some(a), Some(b), Some(c), Some(d)) = (
+                self.text(C, row, "Joint1"),
+                self.text(C, row, "Joint2"),
+                self.text(C, row, "Joint3"),
+                self.text(C, row, "Joint4"),
+            ) else {
+                continue;
+            };
+            let Some(section) = assigned.get(&name).cloned() else {
+                self.problem(C, row.line, format!("area {name} has no section assignment"));
+                continue;
+            };
+            areas.push(Area { name, joints: [a, b, c, d], section });
+        }
+        for row in self.s2k.rows(E) {
+            let (object, element) = (row.get("AreaObject"), row.get("AreaElem"));
+            if let (Some(object), Some(element)) = (object, element)
+                && object != element
+            {
+                self.problem(E, row.line, format!("area {object} is meshed into elements: export the mesh as objects"));
+                break;
+            }
+        }
+        let used: Vec<String> = areas.iter().map(|a: &Area| a.section.clone()).collect();
+        let mut sections = Vec::new();
+        for row in self.s2k.rows(P) {
+            let Some(name) = self.text(P, row, "Section") else { continue };
+            if !used.contains(&name) {
+                continue;
+            }
+            let behavior = match row.get("Type").unwrap_or("Shell-Thin") {
+                "Shell-Thin" | "Shell-Thick" => AreaBehavior::Shell,
+                "Membrane" => AreaBehavior::Membrane,
+                "Plate-Thin" | "Plate-Thick" => AreaBehavior::Plate,
+                other => {
+                    self.problem(P, row.line, format!("area section {name}: type {other} is not supported"));
+                    continue;
+                }
+            };
+            if row.get("Type").is_some_and(|t| t.ends_with("-Thin")) {
+                self.notes.push(format!(
+                    "area section {name}: thin formulation read as this element, which includes shear and tends to it when thin"
+                ));
+            }
+            if row.get("AreaType").is_some_and(|t| t != "Shell") {
+                self.problem(P, row.line, format!("area section {name}: only shells, membranes and plates"));
+            }
+            for key in ["F11Mod", "F22Mod", "F12Mod", "M11Mod", "M22Mod", "M12Mod", "V13Mod", "V23Mod", "MMod", "WMod"]
+            {
+                if self.num_or(P, row, key, 1.0) != 1.0 {
+                    self.problem(P, row.line, format!("area section {name}: modifier {key} is not supported"));
+                }
+            }
+            let Some(material) = self.text(P, row, "Material") else { continue };
+            if row.get("MatAngle").is_some_and(|a| a.parse::<f64>().is_ok_and(|v| v != 0.0)) {
+                self.problem(P, row.line, format!("area section {name}: material angle is not supported"));
+            }
+            let thickness = self.need_num(P, row, "Thickness");
+            let bending = self.opt_num(P, row, "BendThick").filter(|t| *t != thickness);
+            sections.push(AreaSection { name, material, thickness, bending_thickness: bending, behavior });
+        }
+        (sections, areas)
+    }
+
+    fn area_loads(&mut self, m: &mut Model) {
+        const U: &str = "AREA LOADS - UNIFORM";
+        for row in self.s2k.rows(U) {
+            let (Some(area), Some(pattern)) = (self.text(U, row, "Area"), self.text(U, row, "LoadPat")) else {
+                continue;
+            };
+            let direction = match (row.get("CoordSys").unwrap_or("GLOBAL"), row.get("Dir").unwrap_or("Gravity")) {
+                ("Local", "3" | "Local 3") => LoadDirection::Local3,
+                ("Local", "1" | "Local 1") => LoadDirection::Local1,
+                ("Local", "2" | "Local 2") => LoadDirection::Local2,
+                (_, "X") => LoadDirection::GlobalX,
+                (_, "Y") => LoadDirection::GlobalY,
+                (_, "Z") => LoadDirection::GlobalZ,
+                (_, "Gravity") => LoadDirection::Gravity,
+                (cs, dir) => {
+                    self.problem(U, row.line, format!("area load direction {dir} in {cs} is not supported"));
+                    continue;
+                }
+            };
+            let value = self.need_num(U, row, "UnifLoad");
+            m.area_loads.push(AreaLoad { pattern, area, direction, value });
+        }
+        const G: &str = "AREA LOADS - GRAVITY";
+        for row in self.s2k.rows(G) {
+            let (Some(area), Some(pattern)) = (self.text(G, row, "Area"), self.text(G, row, "LoadPat")) else {
+                continue;
+            };
+            let Some(sec) = m.areas.iter().find(|a| a.name == area).map(|a| a.section.clone()) else {
+                self.problem(G, row.line, format!("unknown area {area}"));
+                continue;
+            };
+            let w =
+                m.area_sections.iter().find(|s| s.name == sec).and_then(|s| {
+                    m.materials.iter().find(|x| x.name == s.material).map(|x| x.unit_weight * s.thickness)
+                });
+            let Some(w) = w else { continue };
+            for (key, direction) in [
+                ("MultiplierX", LoadDirection::GlobalX),
+                ("MultiplierY", LoadDirection::GlobalY),
+                ("MultiplierZ", LoadDirection::GlobalZ),
+            ] {
+                let mult = self.num_or(G, row, key, 0.0);
+                if mult != 0.0 {
+                    m.area_loads.push(AreaLoad {
+                        pattern: pattern.clone(),
+                        area: area.clone(),
+                        direction,
+                        value: w * mult,
+                    });
+                }
+            }
+        }
+    }
+
     fn frame_of(&mut self, table: &str, row: &Row, index: &HashMap<String, usize>) -> Option<usize> {
         let name = self.text(table, row, "Frame")?;
         let found = index.get(&name).copied();
@@ -807,8 +952,12 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
             }
         }
     }
-    let used_materials: Vec<Material> =
-        materials.iter().filter(|m| used.iter().any(|s| s.material == m.name)).cloned().collect();
+    let (area_sections, areas) = im.areas();
+    let used_materials: Vec<Material> = materials
+        .iter()
+        .filter(|m| used.iter().any(|s| s.material == m.name) || area_sections.iter().any(|s| s.material == m.name))
+        .cloned()
+        .collect();
 
     const P: &str = "LOAD PATTERN DEFINITIONS";
     let mut load_patterns = Vec::new();
@@ -828,15 +977,19 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
         sections: used,
         joints,
         frames,
+        area_sections,
+        areas,
         constraints,
         load_patterns,
         joint_loads: Vec::new(),
         joint_displacements: Vec::new(),
         frame_loads: Vec::new(),
+        area_loads: Vec::new(),
         load_cases: Vec::new(),
         combinations: Vec::new(),
     };
     im.loads(&mut model, &|f| frame_names.iter().any(|n| n == f));
+    im.area_loads(&mut model);
     im.cases(&mut model);
     im.combinations(&mut model);
 
@@ -1008,6 +1161,57 @@ mod tests {
             "{:?}",
             im.notes
         );
+    }
+
+    const AREA: &str = concat!(
+        "TABLE:  \"JOINT COORDINATES\"\n",
+        "   Joint=3   XorR=100   Y=100   Z=0\n   Joint=4   XorR=0   Y=100   Z=0\n",
+        "TABLE:  \"AREA SECTION PROPERTIES\"\n",
+        "   Section=SL   Material=S   AreaType=Shell   Type=Shell-Thin   Thickness=5   BendThick=5   F11Mod=1\n",
+        "   Section=UNUSED   Material=NOPE   AreaType=Shell   Type=Other   Thickness=x\n",
+        "TABLE:  \"CONNECTIVITY - AREA\"\n",
+        "   Area=A1   NumJoints=4   Joint1=1   Joint2=2   Joint3=3   Joint4=4\n",
+        "TABLE:  \"AREA SECTION ASSIGNMENTS\"\n   Area=A1   Section=SL\n",
+    );
+
+    #[test]
+    fn areas_and_their_loads_are_read() {
+        let im = run(&format!(
+            "{AREA}TABLE:  \"AREA LOADS - UNIFORM\"\n   Area=A1   LoadPat=P1   CoordSys=Local   Dir=3   UnifLoad=-0.01\n   Area=A1   LoadPat=P1   CoordSys=GLOBAL   Dir=Gravity   UnifLoad=0.02\nTABLE:  \"AREA LOADS - GRAVITY\"\n   Area=A1   LoadPat=P1   MultiplierZ=-1\n"
+        ))
+        .expect("ok");
+        let m = &im.model;
+        assert_eq!(m.area_sections.len(), 1);
+        assert_eq!(m.area_sections[0].behavior, AreaBehavior::Shell);
+        assert_eq!(m.area_sections[0].bending_thickness, None);
+        assert_eq!(m.areas[0].joints[2], "3");
+        assert_eq!(m.area_loads[0].direction, LoadDirection::Local3);
+        assert_eq!(m.area_loads[1].direction, LoadDirection::Gravity);
+        // Multiplier -1 on Z: unit weight 0.1 × thickness 5, downward.
+        assert_eq!((m.area_loads[2].direction, m.area_loads[2].value), (LoadDirection::GlobalZ, -0.5));
+        assert!(im.notes.iter().any(|n| n.contains("thin formulation")), "{:?}", im.notes);
+        struktal_core::validate(m).expect("valid");
+    }
+
+    #[test]
+    fn areas_that_cannot_be_represented_are_refused() {
+        for (extra, needle) in [
+            (
+                "TABLE:  \"CONNECTIVITY - AREA\"\n   Area=T1   NumJoints=3   Joint1=1   Joint2=2   Joint3=3\n",
+                "triangles",
+            ),
+            ("TABLE:  \"OBJECTS AND ELEMENTS - AREAS\"\n   AreaElem=1   AreaObject=A1\n", "meshed"),
+            (
+                "TABLE:  \"AREA LOADS - UNIFORM\"\n   Area=A1   LoadPat=P1   CoordSys=GLOBAL   Dir=\"Gravity Proj\"   UnifLoad=1\n",
+                "Gravity Proj",
+            ),
+            ("TABLE:  \"AREA LOADS - TEMPERATURE\"\n   Area=A1   LoadPat=P1\n", "not supported"),
+        ] {
+            let text = causes(&format!("{AREA}{extra}"));
+            assert!(text.contains(needle), "{needle}: {text}");
+        }
+        let modified = AREA.replace("F11Mod=1", "F11Mod=0.5");
+        assert!(causes(&modified).contains("F11Mod"));
     }
 
     #[test]

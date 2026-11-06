@@ -278,6 +278,18 @@ fn s2k_with_something_unsupported_is_refused_with_all_the_reasons() {
 }
 
 #[test]
+fn area_forces_reach_the_results_in_cases_and_combinations() {
+    let model = repo().join("verification/cases/V-SHELL-001/model.json");
+    let out = bin().arg("solve").arg(&model).output().expect("run");
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("json");
+    let cases = v["cases"].as_array().expect("cases");
+    let area = &cases[0]["areas"][0];
+    assert!(area["center"].as_array().expect("center").len() == 8, "{area}");
+    assert!(area["corners"].as_array().expect("corners").len() == 4, "{area}");
+}
+
+#[test]
 fn restraint_on_a_tied_component_is_input_error() {
     let dir = copy_case("V-DIA-001", "restrained");
     let model = dir.join("model.json");
