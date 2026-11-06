@@ -1,0 +1,159 @@
+{
+  "schema_version": 3,
+  "title": "V-SPR-001 cantilevers on tip springs",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "A1",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "T1",
+      "x": 3.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "springs": [
+        0,
+        0,
+        2000000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "A2",
+      "x": 0,
+      "y": 4,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "T2",
+      "x": 3.0,
+      "y": 4,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "springs": [
+        0,
+        0,
+        0,
+        0,
+        5000000.0,
+        0
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "F1",
+      "i": "A1",
+      "j": "T1",
+      "section": "B"
+    },
+    {
+      "name": "F2",
+      "i": "A2",
+      "j": "T2",
+      "section": "B"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "L"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "L",
+      "joint": "T1",
+      "values": [
+        0,
+        0,
+        -10000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "L",
+      "joint": "T2",
+      "values": [
+        0,
+        0,
+        -10000.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "L",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

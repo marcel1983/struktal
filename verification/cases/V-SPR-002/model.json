@@ -1,0 +1,151 @@
+{
+  "constraints": [
+    {
+      "kind": "Diaphragm",
+      "name": "D1",
+      "joints": [
+        "N0",
+        "N1",
+        "N2"
+      ]
+    }
+  ],
+  "schema_version": 3,
+  "title": "V-SPR-002 floor on springs",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "N0",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ],
+      "springs": [
+        3000000.0,
+        1000000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "N1",
+      "x": 6.0,
+      "y": 0.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ],
+      "springs": [
+        1000000.0,
+        2000000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "N2",
+      "x": 6.0,
+      "y": 4.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ],
+      "springs": [
+        2000000.0,
+        4000000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frames": [],
+  "load_patterns": [
+    {
+      "name": "L"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "L",
+      "joint": "N0",
+      "values": [
+        25000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "L",
+      "joint": "N2",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        40000.0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "L",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

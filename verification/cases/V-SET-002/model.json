@@ -1,0 +1,313 @@
+{
+  "joint_displacements": [
+    {
+      "pattern": "ROT",
+      "joint": "A",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0.003,
+        0
+      ]
+    },
+    {
+      "pattern": "TIM",
+      "joint": "D",
+      "values": [
+        0,
+        0,
+        -0.012,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "SPAN",
+      "joint": "M",
+      "values": [
+        0,
+        0,
+        -0.012,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "GND",
+      "joint": "H",
+      "values": [
+        0,
+        0,
+        -0.02,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "schema_version": 3,
+  "title": "V-SET-002 imposed displacements",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    },
+    {
+      "name": "SH",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002,
+      "as2": 0.004,
+      "as3": 0.004
+    }
+  ],
+  "joints": [
+    {
+      "name": "A",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B",
+      "x": 5.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "C",
+      "x": 0,
+      "y": 4,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "D",
+      "x": 5.0,
+      "y": 4,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "E",
+      "x": 0,
+      "y": 8,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "M",
+      "x": 4.0,
+      "y": 8,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "F",
+      "x": 8.0,
+      "y": 8,
+      "z": 0,
+      "restraint": [
+        false,
+        true,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "G",
+      "x": 0,
+      "y": 12,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "H",
+      "x": 3.0,
+      "y": 12,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "springs": [
+        0,
+        0,
+        1500000.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "F1",
+      "i": "A",
+      "j": "B",
+      "section": "B"
+    },
+    {
+      "name": "F2",
+      "i": "C",
+      "j": "D",
+      "section": "SH"
+    },
+    {
+      "name": "F3",
+      "i": "E",
+      "j": "M",
+      "section": "B"
+    },
+    {
+      "name": "F4",
+      "i": "M",
+      "j": "F",
+      "section": "B"
+    },
+    {
+      "name": "F5",
+      "i": "G",
+      "j": "H",
+      "section": "B"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "ROT"
+    },
+    {
+      "name": "TIM"
+    },
+    {
+      "name": "SPAN"
+    },
+    {
+      "name": "GND"
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "ROT",
+      "loads": [
+        {
+          "pattern": "ROT",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "TIM",
+      "loads": [
+        {
+          "pattern": "TIM",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "SPAN",
+      "loads": [
+        {
+          "pattern": "SPAN",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "GND",
+      "loads": [
+        {
+          "pattern": "GND",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

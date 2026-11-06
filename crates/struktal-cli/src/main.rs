@@ -201,9 +201,10 @@ fn main() -> ExitCode {
                 "analysis": ["linear_static"],
                 "combinations": ["linear_add"],
                 "elements": ["frame3d_timoshenko (euler_bernoulli when shear area = 0)", "frame_end_releases_and_partial_fixity", "frame_rigid_end_offsets"],
-                "constraints": ["diaphragm"],
+                "constraints": ["diaphragm", "body", "equal"],
+                "supports": ["restraints", "joint_springs_global", "imposed_displacements"],
                 "loads": ["joint_force_moment", "frame_uniform_full_length", "frame_point_force", "self_weight"],
-                "not_supported": ["insertion_points", "joint_springs", "body_equal_local_constraints", "areas", "solids", "modal", "response_spectrum", "time_history", "nonlinear", "staged_construction", "moving_loads", "design", "s2k_import", "s2k_export", "oapi"],
+                "not_supported": ["insertion_points", "joint_local_axes", "local_constraints", "areas", "solids", "modal", "response_spectrum", "time_history", "nonlinear", "staged_construction", "moving_loads", "design", "s2k_import", "s2k_export", "oapi"],
                 "solver_backends": Backend::all().into_iter().map(Backend::capabilities).collect::<Vec<_>>(),
                 "compatibility": "specified_not_verified (see spec/sap_profile.yaml)"
             });

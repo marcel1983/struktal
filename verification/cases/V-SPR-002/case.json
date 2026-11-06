@@ -1,0 +1,147 @@
+{
+  "case_id": "V-SPR-002",
+  "title": "Rigid floor held only by springs on tied joints",
+  "feature_ids": [
+    "F04-002",
+    "F04-005"
+  ],
+  "model": "model.json",
+  "model_sha256": "4da2538ae3b957db96597ec6932ee8f1a88dc8617e9ea42a812a95cc86c473c3",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Three-DOF rigid floor on springs, same closed form as V-DIA-001 with no columns",
+    "derivation": [
+      "K q = F from the energy of the springs",
+      "spring reaction = -k u"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "N0",
+      "component": "UX",
+      "value": 0.006040145985401465,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "N0",
+      "component": "UY",
+      "value": -0.0072262773722627715,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "N0",
+      "component": "RZ",
+      "value": 0.0014051094890510946,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "N0",
+      "component": "FX",
+      "value": -18120.437956204394,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "N0",
+      "component": "FY",
+      "value": 7226.277372262772,
+      "unit": "N"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "N1",
+      "component": "UX",
+      "value": 0.006040145985401465,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "N1",
+      "component": "UY",
+      "value": 0.0012043795620437963,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "N1",
+      "component": "RZ",
+      "value": 0.0014051094890510946,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "N1",
+      "component": "FX",
+      "value": -6040.145985401465,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "N1",
+      "component": "FY",
+      "value": -2408.7591240875927,
+      "unit": "N"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "N2",
+      "component": "UX",
+      "value": 0.00041970802919708613,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "N2",
+      "component": "UY",
+      "value": 0.0012043795620437963,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "N2",
+      "component": "RZ",
+      "value": 0.0014051094890510946,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "N2",
+      "component": "FX",
+      "value": -839.4160583941723,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "N2",
+      "component": "FY",
+      "value": -4817.518248175185,
+      "unit": "N"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

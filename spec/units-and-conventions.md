@@ -45,6 +45,15 @@ Estado: convenciones de struktal definidas y verificadas analíticamente. La cor
 
 - `axis` es la normal del plano. Con normal n y r desde la referencia: u = u_ref + θ n × r en el plano, y mismo giro alrededor de n. La traslación normal y los otros dos giros siguen libres en cada nudo (decisión 0011).
 
+## Otras restricciones
+
+- Body: u = u_ref + θ × r, mismo giro. Equal: componentes globales elegidas iguales, sin brazo (decisión 0011).
+
+## Resortes y desplazamientos impuestos
+
+- `springs`: en ejes globales; fuerza/longitud para traslaciones y fuerza·longitud/rad para giros. La reacción de un nudo incluye la fuerza del resorte, k (u_g − u), con el mismo signo que una reacción de apoyo: fuerza sobre el nudo.
+- `joint_displacements`: longitud y radianes, escalados por el patrón. Solo sobre componentes con apoyo o con resorte (decisión 0012).
+
 ## Cargas en barras
 
 - Uniforme: por unidad de longitud real del miembro, en toda la longitud. La opción proyectada es F06-009.

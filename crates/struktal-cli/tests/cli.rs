@@ -137,18 +137,23 @@ fn solved_displacements(model: &Path) -> std::collections::HashMap<String, Vec<f
 }
 
 #[test]
-fn diaphragm_results_do_not_depend_on_the_reference_joint() {
-    let dir = copy_case("V-DIA-001", "reference");
-    let model = dir.join("model.json");
-    let base = solved_displacements(&model);
-    let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&model).expect("read")).expect("json");
-    v["constraints"][0]["joints"].as_array_mut().expect("joints").reverse();
-    std::fs::write(&model, serde_json::to_string_pretty(&v).expect("ser")).expect("write");
-    let other = solved_displacements(&model);
-    assert_eq!(base.len(), other.len());
-    for (name, a) in &base {
-        for (x, y) in a.iter().zip(&other[name]) {
-            assert!((x - y).abs() <= 1e-10 * x.abs().max(1e-6), "joint {name}: {x} vs {y}");
+fn constraint_results_do_not_depend_on_the_reference_joint() {
+    for id in ["V-DIA-001", "V-BODY-001", "V-EQ-001"] {
+        let dir = copy_case(id, "reference");
+        let model = dir.join("model.json");
+        let base = solved_displacements(&model);
+        let mut v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&model).expect("read")).expect("json");
+        for c in v["constraints"].as_array_mut().expect("constraints") {
+            c["joints"].as_array_mut().expect("joints").reverse();
+        }
+        std::fs::write(&model, serde_json::to_string_pretty(&v).expect("ser")).expect("write");
+        let other = solved_displacements(&model);
+        assert_eq!(base.len(), other.len());
+        for (name, a) in &base {
+            for (x, y) in a.iter().zip(&other[name]) {
+                assert!((x - y).abs() <= 1e-10 * x.abs().max(1e-6), "{id} joint {name}: {x} vs {y}");
+            }
         }
     }
 }

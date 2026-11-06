@@ -10,8 +10,9 @@ use crate::units::{Dim, UnitSystem};
 
 /// v2 (2026-10-30): shear areas `as2`, `as3` on frame sections. v1 files are
 /// migrated with both set to 0, which keeps their v1 meaning.
-/// v3 (2026-11-05): rigid end offsets on frames and joint constraints. Older
-/// files are migrated with neither (decisions 0010 and 0011).
+/// v3 (2026-11-05): rigid end offsets on frames, joint constraints, joint
+/// springs and imposed joint displacements. Older files are migrated with
+/// none of them (decisions 0010, 0011 and 0012).
 pub const SCHEMA_VERSION: u32 = 3;
 
 pub type Name = String;
@@ -35,6 +36,8 @@ pub struct Model {
     pub load_patterns: Vec<LoadPattern>,
     #[serde(default)]
     pub joint_loads: Vec<JointLoad>,
+    #[serde(default)]
+    pub joint_displacements: Vec<JointDisplacement>,
     #[serde(default)]
     pub frame_loads: Vec<FrameLoad>,
     #[serde(default)]
@@ -90,6 +93,10 @@ pub struct Joint {
     /// Restrained components [UX, UY, UZ, RX, RY, RZ] in global axes.
     #[serde(default)]
     pub restraint: [bool; 6],
+    /// Grounded springs [UX, UY, UZ, RX, RY, RZ] in global axes; 0 = none.
+    /// Units: force/length for translations, force·length/rad for rotations.
+    #[serde(default)]
+    pub springs: [f64; 6],
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -153,18 +160,39 @@ pub enum Constraint {
         axis: GlobalAxis,
         joints: Vec<Name>,
     },
+    /// All six components move as one rigid body with the first joint.
+    Body { name: Name, joints: Vec<Name> },
+    /// The selected global components [UX, UY, UZ, RX, RY, RZ] are equal in
+    /// every joint, with no lever arm.
+    Equal { name: Name, components: [bool; 6], joints: Vec<Name> },
 }
 
 impl Constraint {
     pub fn name(&self) -> &str {
         match self {
-            Constraint::Diaphragm { name, .. } => name,
+            Constraint::Diaphragm { name, .. } | Constraint::Body { name, .. } | Constraint::Equal { name, .. } => name,
         }
     }
 
     pub fn joints(&self) -> &[Name] {
         match self {
-            Constraint::Diaphragm { joints, .. } => joints,
+            Constraint::Diaphragm { joints, .. }
+            | Constraint::Body { joints, .. }
+            | Constraint::Equal { joints, .. } => joints,
+        }
+    }
+
+    /// Reference rotations [RX, RY, RZ] that act through a lever arm on the
+    /// tied translations: u = u_ref + θ × r with only these θ components.
+    pub fn lever_rotations(&self) -> [bool; 3] {
+        match self {
+            Constraint::Diaphragm { axis, .. } => {
+                let mut r = [false; 3];
+                r[axis.index()] = true;
+                r
+            }
+            Constraint::Body { .. } => [true; 3],
+            Constraint::Equal { .. } => [false; 3],
         }
     }
 
@@ -178,6 +206,8 @@ impl Constraint {
                 c[3 + n] = true;
                 c
             }
+            Constraint::Body { .. } => [true; 6],
+            Constraint::Equal { components, .. } => *components,
         }
     }
 }
@@ -259,6 +289,18 @@ pub struct LoadPattern {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JointLoad {
+    pub pattern: Name,
+    pub joint: Name,
+    pub values: [f64; 6],
+}
+
+/// Imposed displacement in global axes [UX, UY, UZ, RX, RY, RZ], in length
+/// and radians, scaled by the load pattern like a load. On a restrained
+/// component it is the support movement; on a sprung component, the movement
+/// of the grounded end of the spring.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JointDisplacement {
     pub pattern: Name,
     pub joint: Name,
     pub values: [f64; 6],
@@ -362,6 +404,10 @@ impl Model {
             j.x *= l;
             j.y *= l;
             j.z *= l;
+            for k in 0..3 {
+                j.springs[k] *= u.factor(Dim::FORCE_PER_LENGTH);
+                j.springs[k + 3] *= u.factor(Dim::MOMENT);
+            }
         }
         for f in &mut m.frames {
             if let Some(r) = &mut f.releases {
@@ -382,6 +428,11 @@ impl Model {
             for k in 0..3 {
                 jl.values[k] *= u.factor(Dim::FORCE);
                 jl.values[k + 3] *= u.factor(Dim::MOMENT);
+            }
+        }
+        for jd in &mut m.joint_displacements {
+            for k in 0..3 {
+                jd.values[k] *= l;
             }
         }
         for fl in &mut m.frame_loads {

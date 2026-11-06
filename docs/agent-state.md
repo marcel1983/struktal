@@ -17,15 +17,15 @@ Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 | P02 | Parcial. Tripletas→CSC determinista; backends `faer-sparse-ldlt` (por defecto, AMD, supernodal) y `skyline-ldlt` (referencia) tras el mismo contrato; residuo; presupuesto de memoria antes de reservar; espacio nulo verificado con cotas y hueco espectral (F08-007). Falta: backend para indefinidas (MUMPS u otro), ensamblaje simbólico reutilizable. | `struktal-math`, decisiones 0002, 0005 y 0006 |
 | P03 | No iniciado (no hay mallado ni subdivisión). | — |
 | P04 | Parcial. Barra 3D Timoshenko/Euler–Bernoulli (As2, As3; decisión 0007), sección general, cargas nodales/uniformes/puntuales/peso propio con fuerzas de empotramiento exactas, suma lineal. Falta: secciones paramétricas (y As automático) y variables, cargas trapezoidales/térmicas, envolventes, importación S2K mínima. | `struktal-elements`, `struktal-analysis`, V-LIN-001..005 |
-| P05 | Parcial: liberaciones y fijación parcial (decisión 0008); offsets rígidos vectoriales (decisión 0010); diafragmas por eliminación exacta (decisión 0011). Falta: puntos cardinales y zonas rígidas por factor, restricciones body/equal/local, masas. | `release.rs`, `frame3d::offset_transformation`, `struktal-analysis/src/constraints.rs`, V-REL-*, V-OFF-*, V-DIA-*, V-MECH-006/007 |
+| P05 | Parcial: liberaciones y fijación parcial (decisión 0008); offsets rígidos vectoriales (decisión 0010); diafragma, body y equal por eliminación exacta (decisión 0011); resortes de nudo y asientos (decisión 0012). Falta: puntos cardinales y zonas rígidas por factor, restricciones locales y weld, ejes locales de nudo, masas. | `release.rs`, `frame3d::offset_transformation`, `struktal-analysis/src/constraints.rs`, V-REL-*, V-OFF-*, V-DIA-*, V-BODY-*, V-EQ-*, V-SPR-*, V-SET-*, V-MECH-006..008 |
 | P06–P16 | No iniciados. | `spec/features.csv` |
 
 ## Último resultado de pruebas (ejecutado)
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
-- `cargo test --workspace`: 74 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 20, 0 fallos.
-- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 18/18 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `cargo test --workspace`: 90 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 20, 0 fallos.
+- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 31/31 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - Benchmarks: docs/benchmarks.md.
 
 ## Decisiones pendientes
@@ -35,7 +35,9 @@ Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 ## Siguiente paso concreto
 
-1. P05: restricciones body/equal con la misma eliminación (`DofMap`), resortes de nudo (F04-002) y asientos (F04-006); después masas (F07).
+Objetivo del usuario: herramienta open source para su propio trabajo, con modelos que suelen tener losas o muros. Orden acordado el 2026-11-05: 1) resto de pórticos, 2) lo que pide un modelo real (secciones paramétricas, cargas, subdivisión, envolventes), 3) S2K, 4) láminas, 5) masas, modos y espectro.
+
+1. Lo que pide un modelo real: secciones paramétricas (F02-002), cargas trapezoidales y parciales (F06-006), momentos en vano (F06-007), subdivisión de barras (F01-006) y envolventes (F16-002).
 2. P13 mínimo: parser S2K con AST para las tablas de `spec/s2k-table-coverage.csv`, en modo estricto.
 
 ## Comandos de reproducción

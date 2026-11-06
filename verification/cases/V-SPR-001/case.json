@@ -1,0 +1,107 @@
+{
+  "case_id": "V-SPR-001",
+  "title": "Joint springs: translational and rotational at a cantilever tip",
+  "feature_ids": [
+    "F04-002"
+  ],
+  "model": "model.json",
+  "model_sha256": "5fd1d738944cd033cfb95e5b719c8889fd6af7afb62d05aad325a1875530428f",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Springs in parallel; cantilever under tip force and restoring moment",
+    "derivation": [
+      "delta = P / (3 E I / L^3 + k)",
+      "theta = (P L^2 / (2 E I)) / (1 + kr L / (E I))",
+      "u = -P L^3/(3 E I) + kr theta L^2/(2 E I)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "T1",
+      "component": "UZ",
+      "value": -0.002368421052631579,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "T1",
+      "component": "FZ",
+      "value": 4736.842105263158,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "FZ",
+      "value": 5263.157894736842,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "MY",
+      "value": -15789.473684210525,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "T2",
+      "component": "UZ",
+      "value": -0.003053571428571428,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "T2",
+      "component": "RY",
+      "value": 0.0012857142857142856,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "T2",
+      "component": "MY",
+      "value": -6428.571428571428,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A2",
+      "component": "FZ",
+      "value": 10000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A2",
+      "component": "MY",
+      "value": -23571.428571428572,
+      "unit": "N*m"
+    },
+    {
+      "result": "external_work",
+      "case": "LC1",
+      "entity": "",
+      "component": "",
+      "value": 27.109962406015033,
+      "unit": "J"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

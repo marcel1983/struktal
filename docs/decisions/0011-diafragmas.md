@@ -1,10 +1,17 @@
-# 0011 — Diafragmas rígidos por eliminación exacta (F04-005, parcial)
+# 0011 — Diafragmas, body y equal por eliminación exacta (F04-005, parcial)
 
 Fecha: 2026-11-05. Estado: aceptada. Reduce el alcance de la decisión pendiente 1 de `agent-state.md`.
 
 ## Modelo
 
-`constraints[]`, entrada `{"kind": "Diaphragm", "name", "axis", "joints"}`. `axis` es la normal del plano (X, Y o Z; Z por defecto). Un diafragma ata las dos traslaciones del plano y el giro alrededor de la normal. La traslación normal y los otros dos giros siguen independientes en cada nudo. Los otros tipos de restricción (body, equal, local) siguen pendientes.
+`constraints[]`, entrada `{"kind": "Diaphragm", "name", "axis", "joints"}`. `axis` es la normal del plano (X, Y o Z; Z por defecto). Un diafragma ata las dos traslaciones del plano y el giro alrededor de la normal. La traslación normal y los otros dos giros siguen independientes en cada nudo.
+
+Otros tipos, con la misma eliminación:
+
+- `{"kind": "Body", "name", "joints"}`: las seis componentes se mueven como un sólido rígido. No admite seleccionar componentes.
+- `{"kind": "Equal", "name", "components", "joints"}`: las componentes globales elegidas son iguales en todos los nudos, sin brazo. Sirve también para nudos coincidentes.
+
+Las restricciones locales y las de tipo weld siguen pendientes.
 
 ## Formulación
 
@@ -19,7 +26,13 @@ El sistema reducido Cᵀ K C x = Cᵀ f sigue siendo simétrico y semidefinido p
 - sirven los backends SPD y el diagnóstico de mecanismos sin cambios;
 - **los diafragmas no dependen del backend para matrices indefinidas** (F08-004).
 
-La referencia es el primer nudo de la lista: un detalle interno. La prueba `diaphragm_results_do_not_depend_on_the_reference_joint` invierte el orden y compara.
+La referencia es el primer nudo de la lista: un detalle interno. La prueba `constraint_results_do_not_depend_on_the_reference_joint` invierte el orden y compara.
+
+## Ruido de redondeo en barras atadas
+
+Una barra con sus extremos en la misma restricción rígida tiene, en teoría, filas exactamente nulas en Cᵀ K C. En coma flotante quedan restos de redondeo. Eso es peligroso: el escalado diagonal los hace parecer rigidez real. V-MECH-008 lo destapó: un sólido libre con 6 modos se informaba como «nulidad = 4 (exacta)». Con mala suerte, un mecanismo podría pasar como resuelto.
+
+Por eso `DofMap::reduced_element` pone a 0 las entradas de la matriz reducida del elemento por debajo de su nivel de redondeo: |v| ≤ 1e-13 · Σ|cₐ c_b| · máx|k|. Solo quita ruido, no añade rigidez, y no se aplica a elementos sin DOF atados. Una rigidez real 13 órdenes por debajo de la mayor del mismo elemento también se anularía, pero ya sería indistinguible del ruido.
 
 ## Reglas de validación
 
@@ -35,7 +48,10 @@ La referencia es el primer nudo de la lista: un detalle interno. La prueba `diap
 
 ## Verificación
 
-- `DofMap`: filas de C para las tres normales; Cᵀ es la traspuesta de C.
+- `DofMap`: filas de C para las tres normales, body y equal; Cᵀ es la traspuesta de C; barra dentro de un body con ceros exactos.
+- V-BODY-001: carga oblicua en un nudo atado rígidamente a la punta de un voladizo, con otro nudo solo para comprobar la cinemática.
+- V-EQ-001: dos voladizos con UZ atado en nudos coincidentes: la carga se reparte según su rigidez y los giros siguen libres.
+- V-MECH-008: barra oblicua dentro de un body sin apoyos: nulidad 6 exacta.
 - V-DIA-001: piso rígido sobre cuatro columnas distintas con cargas excéntricas, referencia en un nudo sin elementos. Sistema de 3 DOF desde la energía de las columnas.
 - V-DIA-002: edificio de cortante de dos plantas, con cortante y torsión por planta.
 - V-DIA-003: la misma forma cerrada con normales X e Y.
@@ -56,6 +72,7 @@ La cinemática correcta sí aparece en PAS en la ruta dinámica no lineal (`rigi
 
 ## Pendiente
 
-- Body, equal y restricciones locales.
+- Restricciones locales y weld; selección de componentes en body.
+- Un nudo en dos restricciones a la vez (se rechaza).
 - Apoyos sobre componentes atadas: requieren elegir otro DOF dependiente o una reducción general.
 - Equivalencia con SAP2000 (referencia, avisos, tratamiento de nudos fuera del plano): oracle_pending.

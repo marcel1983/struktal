@@ -1,0 +1,215 @@
+{
+  "case_id": "V-SET-002",
+  "title": "Imposed rotation, shear deformation, middle support, grounded spring end",
+  "feature_ids": [
+    "F04-006",
+    "F04-002",
+    "F02-003"
+  ],
+  "model": "model.json",
+  "model_sha256": "9bd485bd7ef17cbe19b9e8be84161fa1107c22a11c4188c909128112e00ef984",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Slope-deflection of a clamped beam, Timoshenko shear factor, simple beam of span 2L under a central force, springs in series",
+    "derivation": [
+      "M_A = 4 E I t/L, M_B = 2 E I t/L, V = 6 E I t/L^2",
+      "V = 12 E I d/(L^3 (1 + Phi)), Phi = 12 E I/(G As L^2)",
+      "R_mid = 6 E I d/L^3 for spans L, end rotation = R_mid L^2/(4 E I)",
+      "u = k u_g/(k + 3 E I/L^3), spring force = k (u_g - u)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_reaction",
+      "case": "ROT",
+      "entity": "A",
+      "component": "MY",
+      "value": 48000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ROT",
+      "entity": "B",
+      "component": "MY",
+      "value": 24000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ROT",
+      "entity": "A",
+      "component": "FZ",
+      "value": -14400.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ROT",
+      "entity": "B",
+      "component": "FZ",
+      "value": 14400.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "ROT",
+      "entity": "A",
+      "component": "RY",
+      "value": 0.003,
+      "unit": "rad"
+    },
+    {
+      "result": "external_work",
+      "case": "ROT",
+      "entity": "",
+      "component": "",
+      "value": 72.0,
+      "unit": "J"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "TIM",
+      "entity": "C",
+      "component": "FZ",
+      "value": 22342.901474010865,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "TIM",
+      "entity": "D",
+      "component": "FZ",
+      "value": -22342.901474010865,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "TIM",
+      "entity": "C",
+      "component": "MY",
+      "value": -55857.253685027164,
+      "unit": "N*m"
+    },
+    {
+      "result": "external_work",
+      "case": "TIM",
+      "entity": "",
+      "component": "",
+      "value": 134.05740884406518,
+      "unit": "J"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SPAN",
+      "entity": "M",
+      "component": "FZ",
+      "value": -22500.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SPAN",
+      "entity": "E",
+      "component": "FZ",
+      "value": 11250.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SPAN",
+      "entity": "F",
+      "component": "FZ",
+      "value": 11250.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SPAN",
+      "entity": "E",
+      "component": "RY",
+      "value": 0.0045,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SPAN",
+      "entity": "F",
+      "component": "RY",
+      "value": -0.0045,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SPAN",
+      "entity": "M",
+      "component": "RY",
+      "value": 0.0,
+      "unit": "rad"
+    },
+    {
+      "result": "frame_station",
+      "case": "SPAN",
+      "entity": "F3",
+      "component": "M3",
+      "value": 45000.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "external_work",
+      "case": "SPAN",
+      "entity": "",
+      "component": "",
+      "value": 135.0,
+      "unit": "J"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "GND",
+      "entity": "H",
+      "component": "UZ",
+      "value": -0.008059701492537314,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "GND",
+      "entity": "H",
+      "component": "FZ",
+      "value": -17910.44776119403,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "GND",
+      "entity": "G",
+      "component": "FZ",
+      "value": 17910.44776119403,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "GND",
+      "entity": "G",
+      "component": "MY",
+      "value": -53731.34328358209,
+      "unit": "N*m"
+    },
+    {
+      "result": "external_work",
+      "case": "GND",
+      "entity": "",
+      "component": "",
+      "value": 179.10447761194033,
+      "unit": "J"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

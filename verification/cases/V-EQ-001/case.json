@@ -1,0 +1,117 @@
+{
+  "case_id": "V-EQ-001",
+  "title": "Equal constraint: load shared by two cantilevers with tied UZ at coincident joints",
+  "feature_ids": [
+    "F04-005"
+  ],
+  "model": "model.json",
+  "model_sha256": "9dbcfa44f83396c9ca5d4545537fde528a48fa43e30fbe293c55530c34fea01e",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Two springs in parallel, k = 3 E I / L^3 for each cantilever",
+    "derivation": [
+      "delta = P / (k1 + k2)",
+      "V_i = k_i delta, M_base = V_i L_i",
+      "only the shear crosses the joint: zero moment at the tips"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "R",
+      "component": "UZ",
+      "value": -0.003085714285714286,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "S",
+      "component": "UZ",
+      "value": -0.003085714285714286,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "R",
+      "component": "RY",
+      "value": 0.0023142857142857145,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "S",
+      "component": "RY",
+      "value": -0.0015428571428571427,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "FZ",
+      "value": 23142.857142857145,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "MY",
+      "value": -46285.71428571429,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B",
+      "component": "FZ",
+      "value": 6857.142857142857,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B",
+      "component": "MY",
+      "value": 20571.428571428572,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F1",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F2",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "external_work",
+      "case": "LC1",
+      "entity": "",
+      "component": "",
+      "value": 46.285714285714285,
+      "unit": "J"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

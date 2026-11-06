@@ -1,0 +1,149 @@
+{
+  "constraints": [
+    {
+      "kind": "Equal",
+      "name": "E1",
+      "components": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "joints": [
+        "R",
+        "S"
+      ]
+    }
+  ],
+  "schema_version": 3,
+  "title": "V-EQ-001 equal UZ between two cantilevers",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "A",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "R",
+      "x": 2.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "S",
+      "x": 2.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B",
+      "x": 5.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "F1",
+      "i": "A",
+      "j": "R",
+      "section": "B"
+    },
+    {
+      "name": "F2",
+      "i": "S",
+      "j": "B",
+      "section": "B"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "L"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "L",
+      "joint": "R",
+      "values": [
+        0,
+        0,
+        -30000.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "L",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

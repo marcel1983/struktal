@@ -14,6 +14,8 @@ use crate::model::*;
 /// Relative tolerance for coincident joints / zero-length frames.
 pub const LENGTH_TOL_REL: f64 = 1e-9;
 
+const DOF_NAMES: [&str; 6] = ["UX", "UY", "UZ", "RX", "RY", "RZ"];
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Issue {
     pub entity: String,
@@ -54,8 +56,9 @@ impl std::error::Error for LoadError {}
 
 /// Reads a model from JSON, checking the schema version before the body.
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
-/// behavior); v2 → v3 adds no offsets and no constraints. Missing fields
-/// already default to that, so only the version number changes.
+/// behavior); v2 → v3 adds no offsets, constraints, springs or imposed
+/// displacements. Missing fields already default to that, so only the version
+/// number changes.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
     let ver = raw.get("schema_version").and_then(|v| v.as_u64()).ok_or(LoadError::MissingSchemaVersion)?;
@@ -83,7 +86,11 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .get("frames")
             .and_then(|v| v.as_array())
             .is_some_and(|frames| frames.iter().any(|f| f.get("offsets").is_some()));
-        if has_offsets || raw.get("constraints").is_some() {
+        let has_springs = raw
+            .get("joints")
+            .and_then(|v| v.as_array())
+            .is_some_and(|joints| joints.iter().any(|j| j.get("springs").is_some()));
+        if has_offsets || has_springs || raw.get("constraints").is_some() || raw.get("joint_displacements").is_some() {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
     }
@@ -218,6 +225,15 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
         check_finite(j.y, &e, "y", &mut issues);
         check_finite(j.z, &e, "z", &mut issues);
         scale = scale.max(j.x.abs()).max(j.y.abs()).max(j.z.abs());
+        for (d, dof) in DOF_NAMES.iter().enumerate() {
+            let k = j.springs[d];
+            let field = format!("springs[{dof}]");
+            if !k.is_finite() || k < 0.0 {
+                issues.push(issue(&e, &field, format!("must be finite and >= 0, got {k}")));
+            } else if k > 0.0 && j.restraint[d] {
+                issues.push(issue(&e, &field, "spring on a restrained component"));
+            }
+        }
     }
     let len_tol = LENGTH_TOL_REL * scale.max(1.0);
 
@@ -282,12 +298,13 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
     let mut constrained: HashMap<usize, &str> = HashMap::new();
     for c in &m.constraints {
         let e = format!("constraint {}", c.name());
-        if let Constraint::Diaphragm { joints, .. } = c
-            && joints.len() < 2
-        {
-            issues.push(issue(&e, "joints", "a diaphragm needs at least 2 joints"));
+        if c.joints().len() < 2 {
+            issues.push(issue(&e, "joints", "a constraint needs at least 2 joints"));
         }
         let tied = c.tied_components();
+        if !tied.iter().any(|&t| t) {
+            issues.push(issue(&e, "components", "no component selected"));
+        }
         for name in c.joints() {
             let Some(&k) = joint_index.get(name) else {
                 issues.push(issue(&e, "joints", format!("unknown joint '{name}'")));
@@ -297,10 +314,8 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
                 issues.push(issue(&e, "joints", format!("joint '{name}' is already in constraint '{other}'")));
             }
             connected.insert(k);
-            let held: Vec<&str> = (0..6)
-                .filter(|&d| tied[d] && m.joints[k].restraint[d])
-                .map(|d| ["UX", "UY", "UZ", "RX", "RY", "RZ"][d])
-                .collect();
+            let held: Vec<&str> =
+                (0..6).filter(|&d| tied[d] && m.joints[k].restraint[d]).map(|d| DOF_NAMES[d]).collect();
             if !held.is_empty() {
                 issues.push(issue(
                     &e,
@@ -312,6 +327,9 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
     }
 
     for (k, j) in m.joints.iter().enumerate() {
+        if j.springs.iter().any(|&s| s > 0.0) {
+            connected.insert(k);
+        }
         if !connected.contains(&k) && !j.restraint.iter().all(|&r| r) {
             issues.push(issue(
                 format!("joint {}", j.name),
@@ -339,6 +357,29 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
         }
         for v in jl.values {
             check_finite(v, &e, "values", &mut issues);
+        }
+    }
+    for (k, jd) in m.joint_displacements.iter().enumerate() {
+        let e = format!("joint displacement #{k}");
+        if !pattern_index.contains_key(&jd.pattern) {
+            issues.push(issue(&e, "pattern", format!("unknown load pattern '{}'", jd.pattern)));
+        }
+        for v in jd.values {
+            check_finite(v, &e, "values", &mut issues);
+        }
+        let Some(&j) = joint_index.get(&jd.joint) else {
+            issues.push(issue(&e, "joint", format!("unknown joint '{}'", jd.joint)));
+            continue;
+        };
+        let joint = &m.joints[j];
+        for (d, dof) in DOF_NAMES.iter().enumerate() {
+            if jd.values[d] != 0.0 && !joint.restraint[d] && joint.springs[d] <= 0.0 {
+                issues.push(issue(
+                    &e,
+                    "values",
+                    format!("{dof} of joint '{}' has neither a restraint nor a spring", jd.joint),
+                ));
+            }
         }
     }
     for (k, fl) in m.frame_loads.iter().enumerate() {
@@ -457,8 +498,8 @@ mod tests {
                 as3: 0.0,
             }],
             joints: vec![
-                Joint { name: "1".into(), x: 0.0, y: 0.0, z: 0.0, restraint: [true; 6] },
-                Joint { name: "2".into(), x: 3.0, y: 0.0, z: 0.0, restraint: [false; 6] },
+                Joint { name: "1".into(), x: 0.0, y: 0.0, z: 0.0, restraint: [true; 6], springs: [0.0; 6] },
+                Joint { name: "2".into(), x: 3.0, y: 0.0, z: 0.0, restraint: [false; 6], springs: [0.0; 6] },
             ],
             frames: vec![Frame {
                 name: "F1".into(),
@@ -476,12 +517,26 @@ mod tests {
                 joint: "2".into(),
                 values: [0.0, 0.0, -1e4, 0.0, 0.0, 0.0],
             }],
+            joint_displacements: vec![],
             frame_loads: vec![],
             load_cases: vec![LoadCase::LinearStatic {
                 name: "LC".into(),
                 loads: vec![ScaledPattern { pattern: "P".into(), scale: 1.0 }],
             }],
             combinations: vec![],
+        }
+    }
+
+    /// A serialized model as a file written before schema v3 would have it.
+    fn strip_v3_fields(v: &mut serde_json::Value) {
+        let o = v.as_object_mut().expect("obj");
+        o.remove("constraints");
+        o.remove("joint_displacements");
+        for f in v["frames"].as_array_mut().expect("frames") {
+            f.as_object_mut().expect("obj").remove("offsets");
+        }
+        for j in v["joints"].as_array_mut().expect("joints") {
+            j.as_object_mut().expect("obj").remove("springs");
         }
     }
 
@@ -498,8 +553,7 @@ mod tests {
     fn v1_file_migrates_without_shear_deformation() {
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
         v["schema_version"] = 1.into();
-        v.as_object_mut().expect("obj").remove("constraints");
-        v["frames"][0].as_object_mut().expect("obj").remove("offsets");
+        strip_v3_fields(&mut v);
         for s in v["sections"].as_array_mut().expect("sections") {
             let o = s.as_object_mut().expect("obj");
             o.remove("as2");
@@ -615,20 +669,20 @@ mod tests {
         let plain: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
         let mut v = plain.clone();
         v["schema_version"] = 2.into();
-        v.as_object_mut().expect("obj").remove("constraints");
-        v["frames"][0].as_object_mut().expect("obj").remove("offsets");
+        strip_v3_fields(&mut v);
         let m = model_from_json(&v.to_string()).expect("migrates");
         assert_eq!(m.schema_version, SCHEMA_VERSION);
         assert!(m.constraints.is_empty() && m.frames[0].offsets.is_none());
-        let mut with_offset = v.clone();
-        with_offset["frames"][0]["offsets"] = serde_json::json!({"i": [0.0, 0.0, 1.0]});
-        assert!(matches!(model_from_json(&with_offset.to_string()), Err(LoadError::UnsupportedSchema { found: 2 })));
-        let mut with_constraint = v;
-        with_constraint["constraints"] = serde_json::json!([]);
-        assert!(matches!(
-            model_from_json(&with_constraint.to_string()),
-            Err(LoadError::UnsupportedSchema { found: 2 })
-        ));
+        assert!(m.joint_displacements.is_empty() && m.joints[1].springs == [0.0; 6]);
+        let rejected = |change: fn(&mut serde_json::Value)| {
+            let mut w = v.clone();
+            change(&mut w);
+            matches!(model_from_json(&w.to_string()), Err(LoadError::UnsupportedSchema { found: 2 }))
+        };
+        assert!(rejected(|w| w["frames"][0]["offsets"] = serde_json::json!({"i": [0.0, 0.0, 1.0]})));
+        assert!(rejected(|w| w["constraints"] = serde_json::json!([])));
+        assert!(rejected(|w| w["joint_displacements"] = serde_json::json!([])));
+        assert!(rejected(|w| w["joints"][1]["springs"] = serde_json::json!([0.0, 0.0, 1.0, 0.0, 0.0, 0.0])));
     }
 
     #[test]
@@ -665,7 +719,7 @@ mod tests {
         // A joint without elements is valid inside a diaphragm, and restraints
         // on components the diaphragm does not tie are allowed.
         let mut m = with_diaphragm(&["2", "3"], [false, false, true, false, false, false]);
-        m.joints.push(Joint { name: "3".into(), x: 1.0, y: 1.0, z: 0.0, restraint: [false; 6] });
+        m.joints.push(Joint { name: "3".into(), x: 1.0, y: 1.0, z: 0.0, restraint: [false; 6], springs: [0.0; 6] });
         assert!(validate(&m).is_ok());
         m.constraints.push(Constraint::Diaphragm {
             name: "E".into(),
@@ -674,6 +728,83 @@ mod tests {
         });
         let errs = validate(&m).expect_err("fail");
         assert!(errs.iter().any(|i| i.cause.contains("already in constraint 'D'")), "{errs:?}");
+    }
+
+    #[test]
+    fn body_and_equal_validation() {
+        let two = || vec!["2".to_string(), "3".to_string()];
+        let mut m = cantilever();
+        m.joints.push(Joint { name: "3".into(), x: 4.0, y: 1.0, z: 0.0, restraint: [false; 6], springs: [0.0; 6] });
+        m.constraints = vec![Constraint::Body { name: "B".into(), joints: two() }];
+        assert!(validate(&m).is_ok());
+        let mut none = m.clone();
+        none.constraints = vec![Constraint::Equal { name: "E".into(), components: [false; 6], joints: two() }];
+        assert!(validate(&none).expect_err("fail").iter().any(|i| i.field == "components"));
+        // A restraint on a component the Equal does not select is allowed.
+        let mut held = m.clone();
+        held.joints[2].restraint[2] = true;
+        held.constraints = vec![Constraint::Equal {
+            name: "E".into(),
+            components: [true, false, false, false, false, false],
+            joints: two(),
+        }];
+        assert!(validate(&held).is_ok());
+        held.constraints = vec![Constraint::Body { name: "B".into(), joints: two() }];
+        assert!(validate(&held).expect_err("fail").iter().any(|i| i.cause.contains("restrains UZ")));
+    }
+
+    #[test]
+    fn spring_validation_and_units() {
+        let mut m = cantilever();
+        m.joints[1].springs[2] = -1.0;
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "springs[UZ]"));
+        let mut m = cantilever();
+        m.joints[0].springs[0] = 1.0;
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.cause.contains("restrained component")));
+        // A joint held only by springs is not an unconnected joint.
+        let mut m = cantilever();
+        m.joints.push(Joint { name: "3".into(), x: 9.0, y: 0.0, z: 0.0, restraint: [false; 6], springs: [1.0; 6] });
+        assert!(validate(&m).is_ok());
+        let mut m = cantilever();
+        m.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
+        m.materials[0].e = 200.0;
+        m.sections[0].area = 1e4;
+        m.sections[0].i33 = 1e8;
+        m.sections[0].i22 = 1e8;
+        m.sections[0].j = 2e8;
+        m.joints[1].x = 3000.0;
+        m.joints[1].springs = [2.0, 0.0, 0.0, 0.0, 0.0, 3.0];
+        let s = validate(&m).expect("ok");
+        assert!((s.model.joints[1].springs[0] - 2.0e6).abs() < 1e-6); // kN/mm -> N/m
+        assert!((s.model.joints[1].springs[5] - 3.0).abs() < 1e-12); // 3 kN·mm = 3 N·m
+    }
+
+    #[test]
+    fn imposed_displacement_validation_and_units() {
+        let imposed = |joint: &str, values| JointDisplacement { pattern: "P".into(), joint: joint.into(), values };
+        let mut m = cantilever();
+        m.joint_displacements = vec![imposed("1", [0.0, 0.0, -0.01, 0.0, 0.002, 0.0])];
+        assert!(validate(&m).is_ok());
+        // Joint 2 is free: the value would otherwise be silently lost.
+        m.joint_displacements = vec![imposed("2", [0.0, 0.0, -0.01, 0.0, 0.0, 0.0])];
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.cause.contains("UZ of joint '2'")));
+        m.joints[1].springs[2] = 1e6;
+        assert!(validate(&m).is_ok());
+        m.joint_displacements = vec![imposed("nope", [0.0; 6])];
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "joint"));
+
+        let mut m = cantilever();
+        m.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
+        m.materials[0].e = 200.0;
+        m.sections[0].area = 1e4;
+        m.sections[0].i33 = 1e8;
+        m.sections[0].i22 = 1e8;
+        m.sections[0].j = 2e8;
+        m.joints[1].x = 3000.0;
+        m.joint_displacements = vec![imposed("1", [0.0, 0.0, -10.0, 0.0, 0.002, 0.0])];
+        let s = validate(&m).expect("ok");
+        assert!((s.model.joint_displacements[0].values[2] + 0.01).abs() < 1e-15); // mm -> m
+        assert_eq!(s.model.joint_displacements[0].values[4], 0.002); // rad is not converted
     }
 
     #[test]

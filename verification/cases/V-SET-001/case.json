@@ -1,0 +1,305 @@
+{
+  "case_id": "V-SET-001",
+  "title": "Support settlement on a clamped beam, alone, with span load and in a combination",
+  "feature_ids": [
+    "F04-006",
+    "F06-003",
+    "F16"
+  ],
+  "model": "model.json",
+  "model_sha256": "9c4c3b23f68603e14fa6f88b526b180870797f21005996e7ca4294a3cbc6d1e6",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Clamped beam under relative end displacement; superposition with the fixed-end uniform load",
+    "derivation": [
+      "V = 12 E I d / L^3, M = 6 E I d / L^2, antisymmetric",
+      "q: R = q L/2, M_end = q L^2/12, M_mid = q L^2/24",
+      "W = V d / 2"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "SET",
+      "entity": "B",
+      "component": "UZ",
+      "value": -0.012,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SET",
+      "entity": "A",
+      "component": "FZ",
+      "value": 23040.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SET",
+      "entity": "B",
+      "component": "FZ",
+      "value": -23040.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SET",
+      "entity": "A",
+      "component": "MY",
+      "value": -57600.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SET",
+      "entity": "B",
+      "component": "MY",
+      "value": -57600.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "SET",
+      "entity": "F1",
+      "component": "M3",
+      "value": -57600.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "SET",
+      "entity": "F1",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "SET",
+      "entity": "F1",
+      "component": "M3",
+      "value": 57600.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Q",
+      "entity": "B",
+      "component": "UZ",
+      "value": -0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "Q",
+      "entity": "A",
+      "component": "FZ",
+      "value": 20000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "Q",
+      "entity": "B",
+      "component": "FZ",
+      "value": 20000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "Q",
+      "entity": "A",
+      "component": "MY",
+      "value": -16666.666666666668,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "Q",
+      "entity": "B",
+      "component": "MY",
+      "value": 16666.666666666668,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "Q",
+      "entity": "F1",
+      "component": "M3",
+      "value": -16666.666666666668,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "Q",
+      "entity": "F1",
+      "component": "M3",
+      "value": 8333.333333333334,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "Q",
+      "entity": "F1",
+      "component": "M3",
+      "value": -16666.666666666668,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "joint_displacement",
+      "case": "BOTH",
+      "entity": "B",
+      "component": "UZ",
+      "value": -0.012,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "BOTH",
+      "entity": "A",
+      "component": "FZ",
+      "value": 43040.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "BOTH",
+      "entity": "B",
+      "component": "FZ",
+      "value": -3040.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "BOTH",
+      "entity": "A",
+      "component": "MY",
+      "value": -74266.66666666667,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "BOTH",
+      "entity": "B",
+      "component": "MY",
+      "value": -40933.33333333333,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "BOTH",
+      "entity": "F1",
+      "component": "M3",
+      "value": -74266.66666666667,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "BOTH",
+      "entity": "F1",
+      "component": "M3",
+      "value": 8333.333333333334,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "BOTH",
+      "entity": "F1",
+      "component": "M3",
+      "value": 40933.33333333333,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "joint_displacement",
+      "case": "CMB",
+      "entity": "B",
+      "component": "UZ",
+      "value": -0.024,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "CMB",
+      "entity": "A",
+      "component": "FZ",
+      "value": 66080.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "CMB",
+      "entity": "B",
+      "component": "FZ",
+      "value": -26080.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "CMB",
+      "entity": "A",
+      "component": "MY",
+      "value": -131866.66666666666,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "CMB",
+      "entity": "B",
+      "component": "MY",
+      "value": -98533.33333333333,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "CMB",
+      "entity": "F1",
+      "component": "M3",
+      "value": -131866.66666666666,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "CMB",
+      "entity": "F1",
+      "component": "M3",
+      "value": 8333.333333333334,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "CMB",
+      "entity": "F1",
+      "component": "M3",
+      "value": 98533.33333333333,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "external_work",
+      "case": "SET",
+      "entity": "",
+      "component": "",
+      "value": 138.24,
+      "unit": "J"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

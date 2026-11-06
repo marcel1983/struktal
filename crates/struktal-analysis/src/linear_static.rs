@@ -84,6 +84,36 @@ struct CaseLoads {
     joint_loads: Vec<f64>,
     span: Vec<LocalSpanLoads>,
     resultant: [f64; 6],
+    /// Imposed displacements by global DOF (decision 0012).
+    imposed: Vec<f64>,
+}
+
+/// Load vector of the free system: applied loads, minus the elastic forces of
+/// the support movements (−K u_p), plus the forces of the grounded spring ends
+/// that move (k u_g).
+fn effective_loads(s: &Snapshot, frames: &[FrameData], cl: &CaseLoads) -> Vec<f64> {
+    let mut f = cl.f_full.clone();
+    if cl.imposed.iter().all(|&v| v == 0.0) {
+        return f;
+    }
+    let held = |g: usize| s.model.joints[g / 6].restraint[g % 6];
+    for fd in frames {
+        let up = fd.dofs.map(|d| if held(d) { cl.imposed[d] } else { 0.0 });
+        if up.iter().all(|&v| v == 0.0) {
+            continue;
+        }
+        let ku = frame3d::mat_vec(&fd.k_node, &frame3d::mat_vec(&fd.t, &up));
+        let fg = frame3d::mat_t_vec(&fd.t, &ku);
+        for (k, &d) in fd.dofs.iter().enumerate() {
+            f[d] -= fg[k];
+        }
+    }
+    for (g, v) in f.iter_mut().enumerate() {
+        if !held(g) {
+            *v += s.model.joints[g / 6].springs[g % 6] * cl.imposed[g];
+        }
+    }
+    f
 }
 
 fn add_resultant(res: &mut [f64; 6], at: Vec3, force: Vec3) {
@@ -122,6 +152,14 @@ fn build_case_loads(s: &Snapshot, frames: &[FrameData], loads: &[(usize, f64)]) 
         add_resultant(&mut resultant, at, [0, 1, 2].map(|k| sc * jl.values[k]));
         for k in 0..3 {
             resultant[3 + k] += sc * jl.values[3 + k];
+        }
+    }
+    let mut imposed = vec![0.0; ndof];
+    for jd in &m.joint_displacements {
+        let sc = pscale(&jd.pattern);
+        let j = s.joint_index[&jd.joint];
+        for d in 0..6 {
+            imposed[6 * j + d] += sc * jd.values[d];
         }
     }
     let add_uniform = |span: &mut [LocalSpanLoads], resultant: &mut [f64; 6], f: usize, w_global: Vec3| {
@@ -173,7 +211,7 @@ fn build_case_loads(s: &Snapshot, frames: &[FrameData], loads: &[(usize, f64)]) 
             f_full[d] += fg[k];
         }
     }
-    CaseLoads { f_full, joint_loads, span, resultant }
+    CaseLoads { f_full, joint_loads, span, resultant, imposed }
 }
 
 /// Null-space analysis after a failed SPD factorization (decision 0006).
@@ -473,6 +511,19 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     };
     for fd in &frames {
         let kg = frame3d::to_global(&fd.k_node, &fd.t);
+        if map.has_tied_dof(&fd.dofs) {
+            let r = map.reduced_element(&fd.dofs, &kg);
+            let size = r.eqs.len();
+            for (a, &ea) in r.eqs.iter().enumerate() {
+                for (b, &eb) in r.eqs.iter().enumerate() {
+                    if let Err(e) = tb.add(ea, eb, r.k[a * size + b]) {
+                        manifest.messages.push(e.to_string());
+                        return RunResult { manifest, cases: vec![] };
+                    }
+                }
+            }
+            continue;
+        }
         for (row, &da) in kg.iter().zip(&fd.dofs) {
             for &(ea, ca) in map.terms(da) {
                 for (&kab, &db) in row.iter().zip(&fd.dofs) {
@@ -481,6 +532,21 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                             manifest.messages.push(e.to_string());
                             return RunResult { manifest, cases: vec![] };
                         }
+                    }
+                }
+            }
+        }
+    }
+    for (j, joint) in m.joints.iter().enumerate() {
+        for (d, &kd) in joint.springs.iter().enumerate() {
+            if kd == 0.0 {
+                continue;
+            }
+            for &(ea, ca) in map.terms(6 * j + d) {
+                for &(eb, cb) in map.terms(6 * j + d) {
+                    if let Err(e) = tb.add(ea, eb, ca * cb * kd) {
+                        manifest.messages.push(e.to_string());
+                        return RunResult { manifest, cases: vec![] };
                     }
                 }
             }
@@ -544,7 +610,9 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         }
     };
 
-    let restrained_joint: Vec<bool> = m.joints.iter().map(|j| j.restraint.iter().any(|&r| r)).collect();
+    // Joints with a reaction: a restraint or a grounded spring.
+    let restrained_joint: Vec<bool> =
+        m.joints.iter().map(|j| j.restraint.iter().any(|&r| r) || j.springs.iter().any(|&k| k > 0.0)).collect();
     let mut by_name: HashMap<String, CaseResult> = HashMap::new();
     let mut out = Vec::new();
 
@@ -552,12 +620,17 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         let LoadCase::LinearStatic { name, loads } = case;
         let pats: Vec<(usize, f64)> = loads.iter().map(|sp| (s.pattern_index[&sp.pattern], sp.scale)).collect();
         let cl = build_case_loads(s, &frames, &pats);
-        let rhs = map.reduce(&cl.f_full);
+        let rhs = map.reduce(&effective_loads(s, &frames, &cl));
         let t_solve = Instant::now();
         let x = factor.as_ref().map(|f| f.solve(&rhs)).unwrap_or_default();
         manifest.timings.solve_s += t_solve.elapsed().as_secs_f64();
         let residual = if n == 0 { 0.0 } else { relative_residual(&k, &x, &rhs) };
-        let u = map.expand(&x);
+        let mut u = map.expand(&x);
+        for (j, joint) in m.joints.iter().enumerate() {
+            for d in (0..6).filter(|&d| joint.restraint[d]) {
+                u[6 * j + d] = cl.imposed[6 * j + d];
+            }
+        }
 
         // Internal nodal forces from element end forces.
         let mut internal = vec![0.0; 6 * nj];
@@ -600,18 +673,30 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         }
 
         let mut reaction_res = [0.0; 6];
+        // Work of the reactions on the imposed displacements.
+        let mut reaction_work = 0.0;
+        // Largest single reaction: the scale of the equilibrium check when the
+        // reactions balance each other, as under support movements alone.
+        let mut gross = [0.0_f64; 2];
         let joints: Vec<JointResult> = (0..nj)
             .map(|j| {
                 let reaction = restrained_joint[j].then(|| {
                     let mut r = [0.0; 6];
-                    for d in 0..6 {
-                        if m.joints[j].restraint[d] {
-                            r[d] = internal[6 * j + d] - cl.joint_loads[6 * j + d];
-                        }
+                    for (d, rd) in r.iter_mut().enumerate() {
+                        let g = 6 * j + d;
+                        *rd = if m.joints[j].restraint[d] {
+                            internal[g] - cl.joint_loads[g]
+                        } else {
+                            m.joints[j].springs[d] * (cl.imposed[g] - u[g])
+                        };
+                        reaction_work += *rd * cl.imposed[g];
                     }
                     add_resultant(&mut reaction_res, s.joint_xyz(j), [r[0], r[1], r[2]]);
+                    let arm = cross(s.joint_xyz(j), [r[0], r[1], r[2]]);
                     for k in 0..3 {
                         reaction_res[3 + k] += r[3 + k];
+                        gross[0] = gross[0].max(r[k].abs());
+                        gross[1] = gross[1].max(r[3 + k].abs()).max(arm[k].abs());
                     }
                     r
                 });
@@ -621,8 +706,8 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             })
             .collect();
 
-        let fmag = cl.resultant[..3].iter().chain(&reaction_res[..3]).fold(0.0_f64, |a, v| a.max(v.abs()));
-        let mmag = cl.resultant[3..].iter().chain(&reaction_res[3..]).fold(0.0_f64, |a, v| a.max(v.abs()));
+        let fmag = cl.resultant[..3].iter().chain(&reaction_res[..3]).fold(gross[0], |a, v| a.max(v.abs()));
+        let mmag = cl.resultant[3..].iter().chain(&reaction_res[3..]).fold(gross[1], |a, v| a.max(v.abs()));
         let ferr = (0..3).map(|k| (cl.resultant[k] + reaction_res[k]).abs()).fold(0.0, f64::max);
         let merr = (3..6).map(|k| (cl.resultant[k] + reaction_res[k]).abs()).fold(0.0, f64::max);
         let checks = Checks {
@@ -631,7 +716,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             reaction_resultant: reaction_res,
             equilibrium_force_error: if fmag > 0.0 { ferr / fmag } else { ferr },
             equilibrium_moment_error: if mmag > 0.0 { merr / mmag } else { merr },
-            external_work: 0.5 * u.iter().zip(&cl.f_full).map(|(a, b)| a * b).sum::<f64>(),
+            external_work: 0.5 * (u.iter().zip(&cl.f_full).map(|(a, b)| a * b).sum::<f64>() + reaction_work),
         };
         let mut messages = Vec::new();
         let unbalanced = !restrained_joint.iter().any(|&r| r) && n > 0;

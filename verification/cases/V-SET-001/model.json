@@ -1,0 +1,150 @@
+{
+  "joint_displacements": [
+    {
+      "pattern": "S",
+      "joint": "B",
+      "values": [
+        0,
+        0,
+        -0.012,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "schema_version": 3,
+  "title": "V-SET-001 clamped beam, settlement",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "A",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B",
+      "x": 5.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "F1",
+      "i": "A",
+      "j": "B",
+      "section": "B"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "S"
+    },
+    {
+      "name": "UDL"
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [
+    {
+      "pattern": "UDL",
+      "frame": "F1",
+      "load": {
+        "kind": "Uniform",
+        "direction": "Gravity",
+        "value": 8000.0
+      }
+    }
+  ],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "SET",
+      "loads": [
+        {
+          "pattern": "S",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "Q",
+      "loads": [
+        {
+          "pattern": "UDL",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "BOTH",
+      "loads": [
+        {
+          "pattern": "S",
+          "scale": 1.0
+        },
+        {
+          "pattern": "UDL",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": [
+    {
+      "type": "LinearAdd",
+      "name": "CMB",
+      "cases": [
+        {
+          "case": "SET",
+          "scale": 2.0
+        },
+        {
+          "case": "Q",
+          "scale": 1.0
+        }
+      ]
+    }
+  ]
+}

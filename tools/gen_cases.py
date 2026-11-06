@@ -21,10 +21,12 @@ E, NU = 200e9, 0.3
 
 
 def model(title, joints, frames, sections, patterns, joint_loads=(), frame_loads=(), cases=None,
-          combos=(), units=None, materials=None, schema=1, constraints=()):
+          combos=(), units=None, materials=None, schema=1, constraints=(), imposed=()):
     # Cases created before schema v2 stay at v1 on purpose: they exercise the
     # v1 -> v2 migration end to end (decision 0007).
     extra = {"constraints": list(constraints)} if constraints else {}
+    if imposed:
+        extra["joint_displacements"] = list(imposed)
     return {
         **extra,
         "schema_version": schema,
@@ -835,5 +837,253 @@ write("V-MECH-007", "Rigid floor on columns pinned at the base: sway mechanism",
 ), {"kind": "analytical", "source": "Pinned-base bars rotate rigidly; the floor translates in X and Y, its rotation is held by column torsion",
     "derivation": ["nullity(K) = 2"]},
     expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 2 (exact)"}])
+
+# ---------------------------------------------------------------- body
+Lb = 4.0
+SBD = {"name": "BD", "material": "STEEL", "area": 0.012, "i33": 3e-4, "i22": 1e-4, "j": 2e-4}
+EI3, EI2, GJb, EAb = E * SBD["i33"], E * SBD["i22"], G * SBD["j"], E * SBD["area"]
+
+
+def vcross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def tip_of_x_cantilever(F, M):
+    """Tip of a cantilever along +X under an end force and moment. Local 2 = +Z,
+    so Z bending uses I33 and Y bending I22 (Euler-Bernoulli)."""
+    u = (F[0] * Lb / EAb,
+         F[1] * Lb**3 / (3 * EI2) + M[2] * Lb**2 / (2 * EI2),
+         F[2] * Lb**3 / (3 * EI3) - M[1] * Lb**2 / (2 * EI3))
+    th = (M[0] * Lb / GJb,
+          -F[2] * Lb**2 / (2 * EI3) + M[1] * Lb / EI3,
+          F[1] * Lb**2 / (2 * EI2) + M[2] * Lb / EI2)
+    return u, th
+
+
+Fb3 = (5_000.0, -8_000.0, -12_000.0)
+rP = (0.7, 1.1, -0.5)   # loaded joint P, from the tip, not on any element
+rQ = (-0.4, 0.3, 0.9)   # unloaded joint Q, kinematics only
+ub, thb = tip_of_x_cantilever(Fb3, vcross(rP, Fb3))
+uP = lin(ub, vcross(thb, rP))
+uQ = lin(ub, vcross(thb, rQ))
+at_base = lin((Lb, 0.0, 0.0), rP)
+Mbase = vcross(at_base, Fb3)
+exp_b = [exp("external_work", "LC1", "", "", 0.5 * sum(f * v for f, v in zip(Fb3, uP)), "J")]
+for nm, uu in [("T", ub), ("P", uP), ("Q", uQ)]:
+    for c_, v_ in zip(["UX", "UY", "UZ"], uu):
+        exp_b.append(exp("joint_displacement", "LC1", nm, c_, v_, "m"))
+    for c_, v_ in zip(["RX", "RY", "RZ"], thb):
+        exp_b.append(exp("joint_displacement", "LC1", nm, c_, v_, "rad"))
+for c_, v_ in zip(["FX", "FY", "FZ"], Fb3):
+    exp_b.append(exp("joint_reaction", "LC1", "A", c_, -v_, "N"))
+for c_, v_ in zip(["MX", "MY", "MZ"], Mbase):
+    exp_b.append(exp("joint_reaction", "LC1", "A", c_, -v_, "N*m"))
+write("V-BODY-001", "Body constraint: oblique load on a joint rigidly tied to a cantilever tip", ["F04-005", "F08"], model(
+    "V-BODY-001 rigid body at a cantilever tip",
+    [J("A", 0, 0, 0, FIX), J("T", Lb, 0, 0), J("P", *lin((Lb, 0, 0), rP)), J("Q", *lin((Lb, 0, 0), rQ))],
+    [{"name": "F1", "i": "A", "j": "T", "section": "BD"}],
+    [SBD], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "P", "values": [*Fb3, 0, 0, 0]}],
+    schema=3,
+    constraints=[{"kind": "Body", "name": "B1", "joints": ["T", "P", "Q"]}],
+), {"kind": "analytical", "source": "Cantilever flexibility under the load moved to the tip, plus rigid-body kinematics",
+    "derivation": ["M_tip = r x F", "u_tip, theta from the cantilever formulas in each plane and torsion", "u_joint = u_tip + theta x r",
+                   "base reaction = -(F, x_P x F)"]}, exp_b)
+
+# ---------------------------------------------------------------- equal
+Le1, Le2, Pe3 = 2.0, 3.0, 30_000.0
+ke1, ke2 = 3 * E * I / Le1**3, 3 * E * I / Le2**3
+de = Pe3 / (ke1 + ke2)
+# Two cantilevers meeting at coincident joints R and S: only UZ is tied, so
+# each tip keeps its own rotation and shares the load by stiffness.
+exp_e = [exp("joint_displacement", "LC1", "R", "UZ", -de, "m"),
+         exp("joint_displacement", "LC1", "S", "UZ", -de, "m"),
+         exp("joint_displacement", "LC1", "R", "RY", ke1 * de * Le1**2 / (2 * E * I), "rad"),
+         exp("joint_displacement", "LC1", "S", "RY", -ke2 * de * Le2**2 / (2 * E * I), "rad"),
+         exp("joint_reaction", "LC1", "A", "FZ", ke1 * de, "N"),
+         exp("joint_reaction", "LC1", "A", "MY", -ke1 * de * Le1, "N*m"),
+         exp("joint_reaction", "LC1", "B", "FZ", ke2 * de, "N"),
+         exp("joint_reaction", "LC1", "B", "MY", ke2 * de * Le2, "N*m"),
+         exp("frame_station", "LC1", "F1", "M3", 0.0, "N*m", 1.0),
+         exp("frame_station", "LC1", "F2", "M3", 0.0, "N*m", 0.0),
+         exp("external_work", "LC1", "", "", Pe3 * de / 2, "J")]
+write("V-EQ-001", "Equal constraint: load shared by two cantilevers with tied UZ at coincident joints", ["F04-005"], model(
+    "V-EQ-001 equal UZ between two cantilevers",
+    [J("A", 0, 0, 0, FIX), J("R", Le1, 0, 0), J("S", Le1, 0, 0), J("B", Le1 + Le2, 0, 0, FIX)],
+    [{"name": "F1", "i": "A", "j": "R", "section": "B"}, {"name": "F2", "i": "S", "j": "B", "section": "B"}],
+    [SEC], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "R", "values": [0, 0, -Pe3, 0, 0, 0]}],
+    schema=3,
+    constraints=[{"kind": "Equal", "name": "E1", "components": [False, False, True, False, False, False], "joints": ["R", "S"]}],
+), {"kind": "analytical", "source": "Two springs in parallel, k = 3 E I / L^3 for each cantilever",
+    "derivation": ["delta = P / (k1 + k2)", "V_i = k_i delta, M_base = V_i L_i", "only the shear crosses the joint: zero moment at the tips"]}, exp_e)
+
+# A bar inside a body deforms in no way, so it holds nothing: six free modes.
+# Oblique on purpose: its reduced stiffness is pure rounding noise, which must
+# not pass as a pivot (decision 0011).
+write("V-MECH-008", "Bar with both ends in one body and no supports", ["F04-005", "F08", "stability"], model(
+    "V-MECH-008 rigid body without supports",
+    [J("1", 0, 0, 0), J("2", 3, 1.7, 0.9)],
+    [{"name": "F1", "i": "1", "j": "2", "section": "B"}],
+    [SEC], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "2", "values": [0, 0, -P, 0, 0, 0]}],
+    schema=3,
+    constraints=[{"kind": "Body", "name": "B1", "joints": ["1", "2"]}],
+), {"kind": "analytical", "source": "A free rigid body has six rigid-body modes", "derivation": ["nullity(K) = 6"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"}])
+
+
+# ---------------------------------------------------------------- springs
+def JS(name, x, y, z, r=None, springs=None):
+    d = J(name, x, y, z, r)
+    d["springs"] = springs
+    return d
+
+
+Ls1, Pk, kt1, kr1 = 3.0, 10_000.0, 2.0e6, 5.0e6
+kc = 3 * E * I / Ls1**3
+d1 = Pk / (kc + kt1)
+Rt1 = kt1 * d1
+# Rotational spring at the tip: theta from compatibility with M_y = -kr theta.
+th2 = (Pk * Ls1**2 / (2 * E * I)) / (1 + kr1 * Ls1 / (E * I))
+uz2 = -Pk * Ls1**3 / (3 * E * I) + kr1 * th2 * Ls1**2 / (2 * E * I)
+exp_s1 = [exp("joint_displacement", "LC1", "T1", "UZ", -d1, "m"),
+          exp("joint_reaction", "LC1", "T1", "FZ", Rt1, "N"),
+          exp("joint_reaction", "LC1", "A1", "FZ", Pk - Rt1, "N"),
+          exp("joint_reaction", "LC1", "A1", "MY", -(Pk - Rt1) * Ls1, "N*m"),
+          exp("joint_displacement", "LC1", "T2", "UZ", uz2, "m"),
+          exp("joint_displacement", "LC1", "T2", "RY", th2, "rad"),
+          exp("joint_reaction", "LC1", "T2", "MY", -kr1 * th2, "N*m"),
+          exp("joint_reaction", "LC1", "A2", "FZ", Pk, "N"),
+          exp("joint_reaction", "LC1", "A2", "MY", -Pk * Ls1 + kr1 * th2, "N*m"),
+          exp("external_work", "LC1", "", "", 0.5 * Pk * (d1 - uz2), "J")]
+write("V-SPR-001", "Joint springs: translational and rotational at a cantilever tip", ["F04-002"], model(
+    "V-SPR-001 cantilevers on tip springs",
+    [J("A1", 0, 0, 0, FIX), JS("T1", Ls1, 0, 0, None, [0, 0, kt1, 0, 0, 0]),
+     J("A2", 0, 4, 0, FIX), JS("T2", Ls1, 4, 0, None, [0, 0, 0, 0, kr1, 0])],
+    [{"name": "F1", "i": "A1", "j": "T1", "section": "B"}, {"name": "F2", "i": "A2", "j": "T2", "section": "B"}],
+    [SEC], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "T1", "values": [0, 0, -Pk, 0, 0, 0]},
+                 {"pattern": "L", "joint": "T2", "values": [0, 0, -Pk, 0, 0, 0]}],
+    schema=3,
+), {"kind": "analytical", "source": "Springs in parallel; cantilever under tip force and restoring moment",
+    "derivation": ["delta = P / (3 E I / L^3 + k)", "theta = (P L^2 / (2 E I)) / (1 + kr L / (E I))", "u = -P L^3/(3 E I) + kr theta L^2/(2 E I)"]}, exp_s1)
+
+# Floor with no frames at all: only springs and the diaphragm hold it.
+pts_s = [(0.0, 0.0, 3.0e6, 1.0e6), (6.0, 0.0, 1.0e6, 2.0e6), (6.0, 4.0, 2.0e6, 4.0e6)]
+Fa_s, Mn_s = 25_000.0, 40_000.0
+uas, ubs, ths = rigid_floor([(a_, b_, ka, kb, 0.0) for a_, b_, ka, kb in pts_s],
+                            [(0.0, 0.0, Fa_s, 0.0, 0.0), (6.0, 4.0, 0.0, 0.0, Mn_s)])
+HELD = [False, False, True, True, True, False]
+exp_s2 = []
+for k_, (a_, b_, ka, kb) in enumerate(pts_s):
+    ua_, ub_ = uas - ths * b_, ubs + ths * a_
+    exp_s2 += [exp("joint_displacement", "LC1", f"N{k_}", "UX", ua_, "m"),
+               exp("joint_displacement", "LC1", f"N{k_}", "UY", ub_, "m"),
+               exp("joint_displacement", "LC1", f"N{k_}", "RZ", ths, "rad"),
+               exp("joint_reaction", "LC1", f"N{k_}", "FX", -ka * ua_, "N"),
+               exp("joint_reaction", "LC1", f"N{k_}", "FY", -kb * ub_, "N")]
+write("V-SPR-002", "Rigid floor held only by springs on tied joints", ["F04-002", "F04-005"], model(
+    "V-SPR-002 floor on springs",
+    [JS(f"N{k_}", a_, b_, 0, HELD, [ka, kb, 0, 0, 0, 0]) for k_, (a_, b_, ka, kb) in enumerate(pts_s)],
+    [], [SEC], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "N0", "values": [Fa_s, 0, 0, 0, 0, 0]},
+                 {"pattern": "L", "joint": "N2", "values": [0, 0, 0, 0, 0, Mn_s]}],
+    schema=3,
+    constraints=[{"kind": "Diaphragm", "name": "D1", "joints": ["N0", "N1", "N2"]}],
+), {"kind": "analytical", "source": "Three-DOF rigid floor on springs, same closed form as V-DIA-001 with no columns",
+    "derivation": ["K q = F from the energy of the springs", "spring reaction = -k u"]}, exp_s2)
+
+# ---------------------------------------------------------------- imposed
+Lm, dm, qm = 5.0, 0.012, 8_000.0
+Vm = 12 * E * I * dm / Lm**3
+Mm = 6 * E * I * dm / Lm**2
+Mq = qm * Lm**2 / 12
+Rq = qm * Lm / 2
+# Case SET: end B of a clamped beam moves down by dm. Case Q: uniform load.
+# Case BOTH must be their sum, solved as one case. Combination 2 SET + Q.
+exp_m = []
+for case_, s_, q_ in [("SET", 1.0, 0.0), ("Q", 0.0, 1.0), ("BOTH", 1.0, 1.0), ("CMB", 2.0, 1.0)]:
+    exp_m += [exp("joint_displacement", case_, "B", "UZ", -s_ * dm, "m"),
+              exp("joint_reaction", case_, "A", "FZ", s_ * Vm + q_ * Rq, "N"),
+              exp("joint_reaction", case_, "B", "FZ", -s_ * Vm + q_ * Rq, "N"),
+              exp("joint_reaction", case_, "A", "MY", -s_ * Mm - q_ * Mq, "N*m"),
+              exp("joint_reaction", case_, "B", "MY", -s_ * Mm + q_ * Mq, "N*m"),
+              exp("frame_station", case_, "F1", "M3", -s_ * Mm - q_ * Mq, "N*m", 0.0),
+              exp("frame_station", case_, "F1", "M3", q_ * qm * Lm**2 / 24, "N*m", 0.5),
+              exp("frame_station", case_, "F1", "M3", s_ * Mm - q_ * Mq, "N*m", 1.0)]
+exp_m.append(exp("external_work", "SET", "", "", 0.5 * Vm * dm, "J"))
+write("V-SET-001", "Support settlement on a clamped beam, alone, with span load and in a combination", ["F04-006", "F06-003", "F16"], model(
+    "V-SET-001 clamped beam, settlement",
+    [J("A", 0, 0, 0, FIX), J("B", Lm, 0, 0, FIX)],
+    [{"name": "F1", "i": "A", "j": "B", "section": "B"}],
+    [SEC], [{"name": "S"}, {"name": "UDL"}],
+    frame_loads=[{"pattern": "UDL", "frame": "F1", "load": {"kind": "Uniform", "direction": "Gravity", "value": qm}}],
+    cases=[{"type": "LinearStatic", "name": "SET", "loads": [{"pattern": "S", "scale": 1.0}]},
+           {"type": "LinearStatic", "name": "Q", "loads": [{"pattern": "UDL", "scale": 1.0}]},
+           {"type": "LinearStatic", "name": "BOTH", "loads": [{"pattern": "S", "scale": 1.0}, {"pattern": "UDL", "scale": 1.0}]}],
+    combos=[{"type": "LinearAdd", "name": "CMB", "cases": [{"case": "SET", "scale": 2.0}, {"case": "Q", "scale": 1.0}]}],
+    schema=3,
+    imposed=[{"pattern": "S", "joint": "B", "values": [0, 0, -dm, 0, 0, 0]}],
+), {"kind": "analytical", "source": "Clamped beam under relative end displacement; superposition with the fixed-end uniform load",
+    "derivation": ["V = 12 E I d / L^3, M = 6 E I d / L^2, antisymmetric", "q: R = q L/2, M_end = q L^2/12, M_mid = q L^2/24", "W = V d / 2"]}, exp_m)
+
+# Imposed rotation; shear-deformable end movement; middle support of a
+# two-span beam; moving grounded end of a spring. Independent load cases.
+tm = 0.003
+SHD = dict(SR, name="SH")
+PHI = 12 * E * SHD["i33"] / (G * SHD["as2"] * Lm**2)
+Vt = 12 * E * SHD["i33"] * dm / (Lm**3 * (1 + PHI))
+Lt = 4.0
+Rmid = 6 * E * I * dm / Lt**3
+ks, ug = 1.5e6, -0.02
+kcs = 3 * E * I / Ls1**3
+us = ks * ug / (ks + kcs)
+Rs = ks * (ug - us)
+names_i = ["ROT", "TIM", "SPAN", "GND"]
+write("V-SET-002", "Imposed rotation, shear deformation, middle support, grounded spring end", ["F04-006", "F04-002", "F02-003"], model(
+    "V-SET-002 imposed displacements",
+    [J("A", 0, 0, 0, FIX), J("B", Lm, 0, 0, FIX),
+     J("C", 0, 4, 0, FIX), J("D", Lm, 4, 0, FIX),
+     J("E", 0, 8, 0, PIN), J("M", Lt, 8, 0, [False, False, True, False, False, False]), J("F", 2 * Lt, 8, 0, ROL),
+     J("G", 0, 12, 0, FIX), JS("H", Ls1, 12, 0, None, [0, 0, ks, 0, 0, 0])],
+    [{"name": "F1", "i": "A", "j": "B", "section": "B"}, {"name": "F2", "i": "C", "j": "D", "section": "SH"},
+     {"name": "F3", "i": "E", "j": "M", "section": "B"}, {"name": "F4", "i": "M", "j": "F", "section": "B"},
+     {"name": "F5", "i": "G", "j": "H", "section": "B"}],
+    [SEC, SHD], [{"name": n} for n in names_i],
+    cases=[{"type": "LinearStatic", "name": n, "loads": [{"pattern": n, "scale": 1.0}]} for n in names_i],
+    schema=3,
+    imposed=[{"pattern": "ROT", "joint": "A", "values": [0, 0, 0, 0, tm, 0]},
+             {"pattern": "TIM", "joint": "D", "values": [0, 0, -dm, 0, 0, 0]},
+             {"pattern": "SPAN", "joint": "M", "values": [0, 0, -dm, 0, 0, 0]},
+             {"pattern": "GND", "joint": "H", "values": [0, 0, ug, 0, 0, 0]}],
+), {"kind": "analytical", "source": "Slope-deflection of a clamped beam, Timoshenko shear factor, simple beam of span 2L under a central force, springs in series",
+    "derivation": ["M_A = 4 E I t/L, M_B = 2 E I t/L, V = 6 E I t/L^2", "V = 12 E I d/(L^3 (1 + Phi)), Phi = 12 E I/(G As L^2)",
+                   "R_mid = 6 E I d/L^3 for spans L, end rotation = R_mid L^2/(4 E I)",
+                   "u = k u_g/(k + 3 E I/L^3), spring force = k (u_g - u)"]}, [
+    exp("joint_reaction", "ROT", "A", "MY", 4 * E * I * tm / Lm, "N*m"),
+    exp("joint_reaction", "ROT", "B", "MY", 2 * E * I * tm / Lm, "N*m"),
+    exp("joint_reaction", "ROT", "A", "FZ", -6 * E * I * tm / Lm**2, "N"),
+    exp("joint_reaction", "ROT", "B", "FZ", 6 * E * I * tm / Lm**2, "N"),
+    exp("joint_displacement", "ROT", "A", "RY", tm, "rad"),
+    exp("external_work", "ROT", "", "", 2 * E * I * tm**2 / Lm, "J"),
+    exp("joint_reaction", "TIM", "C", "FZ", Vt, "N"),
+    exp("joint_reaction", "TIM", "D", "FZ", -Vt, "N"),
+    exp("joint_reaction", "TIM", "C", "MY", -Vt * Lm / 2, "N*m"),
+    exp("external_work", "TIM", "", "", 0.5 * Vt * dm, "J"),
+    exp("joint_reaction", "SPAN", "M", "FZ", -Rmid, "N"),
+    exp("joint_reaction", "SPAN", "E", "FZ", Rmid / 2, "N"),
+    exp("joint_reaction", "SPAN", "F", "FZ", Rmid / 2, "N"),
+    exp("joint_displacement", "SPAN", "E", "RY", Rmid * Lt**2 / (4 * E * I), "rad"),
+    exp("joint_displacement", "SPAN", "F", "RY", -Rmid * Lt**2 / (4 * E * I), "rad"),
+    exp("joint_displacement", "SPAN", "M", "RY", 0.0, "rad"),
+    exp("frame_station", "SPAN", "F3", "M3", Rmid * Lt / 2, "N*m", 1.0),
+    exp("external_work", "SPAN", "", "", 0.5 * Rmid * dm, "J"),
+    exp("joint_displacement", "GND", "H", "UZ", us, "m"),
+    exp("joint_reaction", "GND", "H", "FZ", Rs, "N"),
+    exp("joint_reaction", "GND", "G", "FZ", -Rs, "N"),
+    exp("joint_reaction", "GND", "G", "MY", Rs * Ls1, "N*m"),
+    exp("external_work", "GND", "", "", 0.5 * Rs * ug, "J"),
+])
 
 print("cases written to", ROOT)
