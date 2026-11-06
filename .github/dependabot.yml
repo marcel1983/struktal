@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    # faer is pinned (=0.24.4): a new version requires repeating the feasibility test (decision 0005).
+    ignore:
+      - dependency-name: faer
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

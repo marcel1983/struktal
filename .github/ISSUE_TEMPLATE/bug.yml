@@ -1,0 +1,27 @@
+name: Error del motor
+description: Resultado incorrecto, fallo, o comportamiento distinto del documentado.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Qué pasa
+      description: Resultado obtenido frente al esperado, con unidades.
+    validations: {required: true}
+  - type: textarea
+    id: repro
+    attributes:
+      label: Cómo reproducirlo
+      description: Modelo mínimo (JSON) y comando exacto. Salida de `struktal --version`.
+      render: shell
+    validations: {required: true}
+  - type: input
+    id: reference
+    attributes:
+      label: Referencia independiente
+      description: Fórmula, publicación o programa con el que se compara (no otra salida de Struktal).
+  - type: input
+    id: platform
+    attributes:
+      label: Plataforma
+      placeholder: Windows 11 x64 / Linux x86_64
