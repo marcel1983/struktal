@@ -1157,7 +1157,15 @@ mod tests {
         assert!(validate(&m).expect_err("fail").iter().any(|i| i.cause.contains("restrained component")));
         // A joint held only by springs is not an unconnected joint.
         let mut m = cantilever();
-        m.joints.push(Joint { name: "3".into(), x: 9.0, y: 0.0, z: 0.0, restraint: [false; 6], springs: [1.0; 6] });
+        m.joints.push(Joint {
+            name: "3".into(),
+            x: 9.0,
+            y: 0.0,
+            z: 0.0,
+            restraint: [false; 6],
+            springs: [1.0; 6],
+            added_mass: [0.0; 6],
+        });
         assert!(validate(&m).is_ok());
         let mut m = cantilever();
         m.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
