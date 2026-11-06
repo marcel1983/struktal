@@ -47,7 +47,7 @@ jobs:
           cargo build -p struktal-cli --locked
           ./target/debug/struktal verify --backend faer verification/cases/*/case.json --report verify-faer.json
           ./target/debug/struktal verify --backend skyline verification/cases/*/case.json --report verify-skyline.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: verification-${{ matrix.os }}
