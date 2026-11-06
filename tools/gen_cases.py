@@ -66,7 +66,8 @@ def exp(result, case, entity, component, value, unit, rel=None):
     return d
 
 
-def write(case_id, title, features, mdl, reference, expected=(), expected_status=(), tol="linear-closed-form-v1"):
+def write(case_id, title, features, mdl, reference, expected=(), expected_status=(), tol="linear-closed-form-v1",
+          oracle=ORACLE_PENDING):
     d = ROOT / case_id
     d.mkdir(parents=True, exist_ok=True)
     text = json.dumps(mdl, indent=2) + "\n"
@@ -82,7 +83,7 @@ def write(case_id, title, features, mdl, reference, expected=(), expected_status
         "reference": reference,
         "expected_status": list(expected_status),
         "expected": list(expected),
-        "oracle": ORACLE_PENDING,
+        "oracle": oracle,
     }
     (d / "case.json").write_text(json.dumps(case, indent=2) + "\n", encoding="utf-8", newline="\n")
 
@@ -1934,6 +1935,33 @@ write("V-MOD-003", "First period of a simply supported beam with distributed mas
     "derivation": ["T = 2 L^2/pi sqrt(rho A/(E I))", "tolerance of the mesh: 0.5 %"]}, [
     exp("modal_period", "M", "1", "", T1b, "s"),
 ], tol="modes-mesh-v1")
+
+# Plane frame of 10 bays and 9 storeys, kip and ft in the source. A stop on the
+# eigenvalues alone left its vectors above the accepted residual (decision 0023).
+bw_bays, bw_floors = 10, 9
+bw_plane = [False, True, False, True, False, True]
+
+
+def bw(i_, j_):
+    return f"N{i_}_{j_}"
+
+
+jj_bw = [J(bw(i_, j_), i_ * 20.0, 0, j_ * 10.0, FIX if j_ == 0 else bw_plane)
+         for j_ in range(bw_floors + 1) for i_ in range(bw_bays + 1)]
+ff_bw = [{"name": f"C{i_}_{j_}", "i": bw(i_, j_), "j": bw(i_, j_ + 1), "section": "BW"}
+         for i_ in range(bw_bays + 1) for j_ in range(bw_floors)]
+ff_bw += [{"name": f"V{i_}_{j_}", "i": bw(i_, j_), "j": bw(i_ + 1, j_), "section": "BW"}
+          for j_ in range(1, bw_floors + 1) for i_ in range(bw_bays)]
+write("V-MOD-004", "Modes of a 10-bay, 9-storey plane frame against published eigenvalues", ["F09-001", "F07-001"], model(
+    "V-MOD-004 ten-bay frame",
+    jj_bw, ff_bw, [{"name": "BW", "material": "M", "area": 3.0, "i33": 1.0, "i22": 1.0, "j": 1.0}], [],
+    materials=[{"name": "M", "e": 432000.0, "nu": 0.3, "unit_weight": 0.0, "mass_density": 1.0}],
+    cases=[{"type": "Modal", "name": "M", "modes": 3}], schema=7,
+), {"kind": "published", "source": "Bathe and Wilson, Large eigenvalue problems in dynamic analysis, ASCE J. Eng. Mech. Div. 98(6), 1972, 1471-1485",
+    "derivation": ["eigenvalues 0.589541, 5.52695, 16.5878 for A = 3, I = 1, E = 432000, mass 3 per unit length, lumped",
+                   "T = 2 pi / sqrt(lambda); the tolerance follows the digits published"]},
+    [exp("modal_period", "M", str(k_ + 1), "", 2 * math.pi / math.sqrt(v), "s") for k_, v in enumerate((0.589541, 5.52695, 16.5878))],
+    tol="modes-published-v1", oracle={**ORACLE_PENDING, "independent": "published"})
 
 # Spectrum on one mode: u = Sa/w^2, V = M Sa, M_base = V L. And two modes, with
 # both combinations: u_i = phi_i Gamma_i Sa_i/w_i^2.

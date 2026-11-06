@@ -27,7 +27,7 @@ Cobertura verificada independientemente: 35/124 (28 %). Cobertura contrastada co
 - CLI con manifiesto, hash de snapshot y estados por caso.
 - Láminas de 3 y 4 nudos para losas y muros, con taladro sin rigidez ficticia (decisiones 0019 y 0021).
 - Masas concentradas, fuente de masa con elementos, masas añadidas y patrones, modos propios y espectro de respuesta con CQC y SRSS (decisiones 0020 y 0022).
-- Banco de 61 casos analíticos, todos pasan con ambos backends (rtol 1e-8).
+- Banco de 62 casos, 61 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 

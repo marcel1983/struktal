@@ -53,7 +53,9 @@ Comparación con otros motores: no aplica, porque el traductor no pasa la fuente
 
 ## Archivos locales
 
-De los 17 S2K locales, leídos solo por su forma y sin comparar resultados, se importan 6 y se rechazan 11, cada uno con su causa. Ninguno de los 6 tiene un caso modal. El único con un caso de espectro, `Example 1-022`, se rechaza al validar: tiene secciones con I22 y J nulas. Además, su función tiene amortiguamiento 0 y el caso 0,05, y por eso ese espectro quedaría fuera. **Por eso modos, fuente de masa y espectro desde S2K solo se han resuelto con archivos escritos a mano**. Los nombres de campos vienen de cómo aparecen en estos archivos.
+De los 17 S2K locales, leídos solo por su forma y sin comparar resultados, se importan 6 y se rechazan 11, cada uno con su causa. Ninguno de los 6 tiene un caso modal. El único con un caso de espectro, `Example 1-022`, se rechaza al validar: tiene secciones con I22 y J nulas. Además, su función tiene amortiguamiento 0 y el caso 0,05, y por eso ese espectro quedaría fuera. **Por eso el espectro desde S2K solo se ha resuelto con archivos escritos a mano.** Los nombres de campos vienen de cómo aparecen en estos archivos.
+
+*Corrección del 2026-11-06:* aquí se decía lo mismo de los modos y la fuente de masa, y era engañoso. Los tres archivos de `ejemplo/` tienen caso modal y fuente de masa, pero estaban entre los rechazados. Dos de ellos se resuelven en copias sin sus tablas de sismo (decisión 0023), aunque esos resultados siguen sin compararse. Tampoco se habían contado los 10 archivos `.$2k`.
 
 ## Pendiente
 

@@ -11,6 +11,9 @@
 use crate::factor::Factor;
 use crate::sparse::Csc;
 
+/// Residual the iteration aims for once the eigenvalues have settled.
+const RESIDUAL_GOAL: f64 = 1e-8;
+
 #[derive(Debug, Clone)]
 pub struct Modes {
     /// λ = ω², increasing.
@@ -139,6 +142,13 @@ fn start_vectors(n: usize, q: usize, md: &[f64], kd: &[f64]) -> Vec<Vec<f64>> {
     out
 }
 
+/// ‖K φ − λ M φ‖ / ‖K φ‖.
+fn residual(k: &Csc, m: &Csc, x: &[f64], lambda: f64) -> f64 {
+    let (kx, mx) = (k.mul_vec(x), m.mul_vec(x));
+    let r: f64 = kx.iter().zip(&mx).map(|(a, b)| (a - lambda * b).powi(2)).sum::<f64>().sqrt();
+    r / dot(&kx, &kx).sqrt().max(f64::MIN_POSITIVE)
+}
+
 /// `modes` lowest modes, or fewer if M has fewer DOF with mass.
 pub fn subspace_iteration(
     factor: &Factor,
@@ -161,6 +171,7 @@ pub fn subspace_iteration(
     let mut values = vec![f64::INFINITY; q];
     let mut iterations = 0;
     let mut converged = false;
+    let mut last_worst = f64::INFINITY;
     for it in 1..=max_iter {
         iterations = it;
         let mut y: Vec<Vec<f64>> = x.iter().map(|v| factor.solve(&m.mul_vec(v))).collect();
@@ -195,18 +206,19 @@ pub fn subspace_iteration(
             .fold(0.0, f64::max);
         x = new_x;
         values = new_values;
-        if change <= tol {
-            converged = true;
-            break;
+        converged = change <= tol;
+        if converged {
+            // An eigenvalue settles twice as fast as its vector, so it cannot
+            // stop the iteration alone. A residual that no longer falls is at
+            // the rounding floor.
+            let worst = (0..p).map(|i| residual(k, m, &x[i], values[i])).fold(0.0, f64::max);
+            if worst <= RESIDUAL_GOAL || worst >= last_worst {
+                break;
+            }
+            last_worst = worst;
         }
     }
-    let residuals: Vec<f64> = (0..p)
-        .map(|i| {
-            let (kx, mx) = (k.mul_vec(&x[i]), m.mul_vec(&x[i]));
-            let r: f64 = kx.iter().zip(&mx).map(|(a, b)| (a - values[i] * b).powi(2)).sum::<f64>().sqrt();
-            r / dot(&kx, &kx).sqrt().max(f64::MIN_POSITIVE)
-        })
-        .collect();
+    let residuals: Vec<f64> = (0..p).map(|i| residual(k, m, &x[i], values[i])).collect();
 
     // Is there a mode below the ones found? Iterate a fresh vector, kept clear of them.
     let mut missed_mode_probe = None;
@@ -282,6 +294,17 @@ mod tests {
                 }
             }
             assert!(r.missed_mode_probe.expect("probe") >= r.values[5] * (1.0 - 1e-9));
+        }
+    }
+
+    #[test]
+    fn the_vectors_converge_along_with_the_values() {
+        let (k, m) = chain(300, 1.0e6, 2.0);
+        let f = factorize(Backend::Skyline, &k, MatrixClass::Spd, 1 << 30).expect("factor");
+        let r = subspace_iteration(&f, &k, &m, 3, 1e-11, 400).expect("modes");
+        assert!(r.converged, "{} iterations", r.iterations);
+        for (j, v) in r.residuals.iter().enumerate() {
+            assert!(*v <= RESIDUAL_GOAL, "mode {j}: residual {v}");
         }
     }
 

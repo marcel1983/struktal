@@ -60,7 +60,7 @@ Con OpenSeesPy 3.8 y su `ASDShellT3`. Pynite no tiene lámina de tres nudos: n/a
 
 ## Límites
 
-- **No hay ningún archivo real con áreas malladas en esta máquina.** De los 12 S2K locales ninguno tiene áreas, así que los nombres de campos vienen de cómo los lee PAS y la lectura solo se ha probado con archivos escritos a mano. Los 12 locales siguen igual: 6 se importan y 6 se rechazan.
+- **No hay ningún archivo real con una malla de áreas en esta máquina.** Los nombres de campos vienen de cómo los lee PAS, y una malla solo se ha probado con archivos escritos a mano. *Corrección del 2026-11-06:* aquí se decía que ningún S2K local tenía áreas, pero solo se habían mirado 12 de ellos. `ejemplo_lineal` tiene 2 áreas con su tabla de elementos, al parecer un elemento por objeto; se resuelve en una copia sin sus tablas de sismo (decisión 0023).
 - Una barra cortada en la malla se corta también en cualquier otro nudo del modelo que esté sobre su eje. El archivo podría no hacerlo; es un caso raro y no se detecta.
 - Los ejes locales de los elementos salen de su propio plano, sin contrastar con SAP2000.
 

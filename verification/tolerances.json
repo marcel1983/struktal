@@ -28,9 +28,16 @@
     "equilibrium_max": 1e-9
   },
   "modes-closed-form-v1": {
-    "description": "Modes and spectra against closed forms. Tighter than the iteration needs: its convergence is 1e-11 on eigenvalues.",
+    "description": "Modes and spectra against closed forms. Tighter than the iteration needs: its convergence is 1e-11 on eigenvalues and 1e-8 on residuals.",
     "rtol": 1e-7,
     "atol": { "m": 1e-11, "rad": 1e-11, "N": 1e-5, "N*m": 1e-5, "s": 1e-10, "1": 1e-9 },
+    "residual_max": 1e-9,
+    "equilibrium_max": 1e-9
+  },
+  "modes-published-v1": {
+    "description": "Modes against values published with six significant digits: the tolerance is what those digits allow, not the error of the solver.",
+    "rtol": 1e-5,
+    "atol": { "s": 1e-10, "1": 1e-9 },
     "residual_max": 1e-9,
     "equilibrium_max": 1e-9
   },

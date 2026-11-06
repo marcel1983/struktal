@@ -1,0 +1,51 @@
+{
+  "case_id": "V-MOD-004",
+  "title": "Modes of a 10-bay, 9-storey plane frame against published eigenvalues",
+  "feature_ids": [
+    "F09-001",
+    "F07-001"
+  ],
+  "model": "model.json",
+  "model_sha256": "5dfba45ec5946840873d0e9752c611c33b7ff5905eb2849fa3b33e8f965839b6",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-published-v1",
+  "reference": {
+    "kind": "published",
+    "source": "Bathe and Wilson, Large eigenvalue problems in dynamic analysis, ASCE J. Eng. Mech. Div. 98(6), 1972, 1471-1485",
+    "derivation": [
+      "eigenvalues 0.589541, 5.52695, 16.5878 for A = 3, I = 1, E = 432000, mass 3 per unit length, lumped",
+      "T = 2 pi / sqrt(lambda); the tolerance follows the digits published"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "1",
+      "component": "",
+      "value": 8.183194269528425,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "2",
+      "component": "",
+      "value": 2.672619301290027,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "3",
+      "component": "",
+      "value": 1.5427141862286795,
+      "unit": "s"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "published"
+  }
+}

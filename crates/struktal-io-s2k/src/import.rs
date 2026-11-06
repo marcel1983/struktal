@@ -143,6 +143,8 @@ struct Importer<'a> {
 }
 
 const YES: &str = "Yes";
+/// I23 below this share of the largest inertia is rounding noise.
+const I23_NOISE: f64 = 1e-9;
 /// The elements of an area must cover it to this fraction: flat elements on a
 /// slightly warped object do not add up exactly to its projected area.
 const AREA_COVER_TOL_REL: f64 = 0.01;
@@ -293,7 +295,9 @@ impl Importer<'_> {
                 continue;
             }
             let Some(material) = self.text(T, row, "Material") else { continue };
-            if self.num_or(T, row, "I23", 0.0) != 0.0 {
+            // Files carry rounding noise here, even for symmetric sections.
+            let largest = self.num_or(T, row, "I33", 0.0).abs().max(self.num_or(T, row, "I22", 0.0).abs());
+            if self.num_or(T, row, "I23", 0.0).abs() > I23_NOISE * largest {
                 self.problem(
                     T,
                     row.line,
@@ -324,6 +328,58 @@ impl Importer<'_> {
             out.insert(name, (section, a_mod));
         }
         out
+    }
+
+    /// A joint nothing acts on and nothing connects to has no effect on the
+    /// structure, but the solver would refuse it. Anything acting on it stays,
+    /// and so does the refusal. So does a joint that a frame split at joints
+    /// will connect, because it lies on its axis.
+    fn drop_orphan_joints(&mut self, model: &mut Model) {
+        let position: HashMap<&str, [f64; 3]> =
+            model.joints.iter().map(|j| (j.name.as_str(), [j.x, j.y, j.z])).collect();
+        let splitting: Vec<([f64; 3], [f64; 3])> = model
+            .frames
+            .iter()
+            .filter(|f| f.auto_mesh.is_some_and(|a| a.at_joints))
+            .filter_map(|f| {
+                let (a, b) = (position.get(f.i.as_str())?, position.get(f.j.as_str())?);
+                let off = f.offsets.unwrap_or_default();
+                Some(([0, 1, 2].map(|k| a[k] + off.i[k]), [0, 1, 2].map(|k| b[k] + off.j[k])))
+            })
+            .collect();
+        let on_an_axis = |p: [f64; 3]| {
+            splitting.iter().any(|(a, b)| {
+                let axis = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+                let length = norm(axis);
+                let tol = FRAME_AXIS_TOL_REL * length;
+                let d = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
+                let along = dot(d, axis) / length;
+                let off = norm([0, 1, 2].map(|k| d[k] - along * axis[k] / length));
+                along > tol && along < length - tol && off <= tol
+            })
+        };
+        let mut used: HashSet<&str> = HashSet::new();
+        used.extend(model.frames.iter().flat_map(|f| [f.i.as_str(), f.j.as_str()]));
+        used.extend(model.areas.iter().flat_map(|a| a.joints.iter().map(String::as_str)));
+        used.extend(model.constraints.iter().flat_map(|c| c.joints().iter().map(String::as_str)));
+        used.extend(model.joint_loads.iter().map(|l| l.joint.as_str()));
+        used.extend(model.joint_displacements.iter().map(|d| d.joint.as_str()));
+        let orphans: Vec<String> = model
+            .joints
+            .iter()
+            .filter(|j| {
+                !used.contains(j.name.as_str())
+                    && !j.restraint.iter().all(|r| *r)
+                    && j.springs.iter().all(|v| *v == 0.0)
+                    && j.added_mass.iter().all(|v| *v == 0.0)
+                    && !on_an_axis([j.x, j.y, j.z])
+            })
+            .map(|j| j.name.clone())
+            .collect();
+        if !orphans.is_empty() {
+            self.notes.push(format!("joints connected to nothing, left out: {}", orphans.join(", ")));
+            model.joints.retain(|j| !orphans.contains(&j.name));
+        }
     }
 
     fn joints(&mut self, active: [bool; 6]) -> (Vec<Joint>, BTreeMap<String, usize>) {
@@ -1437,6 +1493,7 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
     im.area_loads(&mut model);
     im.cases(&mut model);
     im.combinations(&mut model);
+    im.drop_orphan_joints(&mut model);
 
     if im.problems.is_empty() { Ok(Imported { model, ignored_tables, notes: im.notes }) } else { Err(im.problems) }
 }
@@ -1679,6 +1736,50 @@ mod tests {
         let LoadCase::LinearStatic { loads, .. } = &m.load_cases[0] else { panic!("static case") };
         assert_eq!(loads[0].scale, 2.0);
         struktal_core::validate(m).expect("valid model");
+    }
+
+    #[test]
+    fn i23_is_refused_unless_it_is_rounding_noise() {
+        let text = |v: &str| BASE.replace("I23=0", &format!("I23={v}"));
+        assert!(import(&parse(&text("1.4E-20")).expect("parse")).is_ok());
+        assert!(import(&parse(&text("-1.7E-12")).expect("parse")).is_ok());
+        let found = import(&parse(&text("0.5")).expect("parse")).expect_err("must fail");
+        assert!(found.iter().any(|p| p.to_string().contains("I23 is not zero")), "{found:?}");
+    }
+
+    #[test]
+    fn a_joint_with_nothing_on_it_is_left_out_with_a_note() {
+        let joint = "   Joint=9   CoordSys=GLOBAL   CoordType=Cartesian   XorR=5   Y=5   Z=5\n";
+        let text = BASE.replace(
+            "TABLE:  \"JOINT RESTRAINT ASSIGNMENTS\"",
+            &format!("{joint}TABLE:  \"JOINT RESTRAINT ASSIGNMENTS\""),
+        );
+        let im = import_text(&text);
+        assert!(!im.model.joints.iter().any(|j| j.name == "9"));
+        assert!(im.notes.iter().any(|n| n.contains("connected to nothing") && n.contains('9')), "{:?}", im.notes);
+
+        // A load on it is not ignored: the solver refuses the joint instead.
+        let load = "TABLE:  \"JOINT LOADS - FORCE\"\n   Joint=9   LoadPat=P1   CoordSys=GLOBAL   F1=1\n";
+        let im = import_text(&format!("{text}{load}"));
+        assert!(im.model.joints.iter().any(|j| j.name == "9"));
+        // Fully restrained, it is valid as it is.
+        let fixed = "   Joint=9   U1=Yes   U2=Yes   U3=Yes   R1=Yes   R2=Yes   R3=Yes\n";
+        let text =
+            text.replace("TABLE:  \"CONNECTIVITY - FRAME\"", &format!("{fixed}TABLE:  \"CONNECTIVITY - FRAME\""));
+        assert!(import_text(&text).model.joints.iter().any(|j| j.name == "9"));
+    }
+
+    #[test]
+    fn a_joint_on_the_axis_of_a_split_frame_is_kept() {
+        let mesh = "TABLE:  \"FRAME AUTO MESH ASSIGNMENTS\"\n   Frame=F1   AutoMesh=Yes   AtJoints=Yes   AtFrames=No\n";
+        let kept = |y: f64| {
+            let joint = format!("   Joint=9   CoordSys=GLOBAL   CoordType=Cartesian   XorR=50   Y={y}   Z=0\n");
+            let table = "TABLE:  \"JOINT RESTRAINT ASSIGNMENTS\"";
+            let text = format!("{}{mesh}", BASE.replace(table, &format!("{joint}{table}")));
+            import_text(&text).model.joints.iter().any(|j| j.name == "9")
+        };
+        assert!(kept(0.0));
+        assert!(!kept(5.0));
     }
 
     #[test]
