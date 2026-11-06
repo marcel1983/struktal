@@ -19,7 +19,9 @@ def differences(old, new, path="$"):
             yield f"{path}: keys {sorted(old.keys() ^ new.keys())}"
             return
         for k in old:
-            yield from differences(old[k], new[k], f"{path}.{k}")
+            # The hash follows the bytes of model.json, whose numbers are compared.
+            if k != "model_sha256":
+                yield from differences(old[k], new[k], f"{path}.{k}")
     elif isinstance(old, list) and isinstance(new, list):
         if len(old) != len(new):
             yield f"{path}: length {len(old)} -> {len(new)}"
