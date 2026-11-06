@@ -14,6 +14,7 @@ path = "src/main.rs"
 struktal-core.workspace = true
 struktal-math.workspace = true
 struktal-analysis.workspace = true
+struktal-io-s2k.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

@@ -235,6 +235,49 @@ fn joint_off_the_axis_of_a_split_frame_fails_with_the_reason() {
 }
 
 #[test]
+fn imported_s2k_solves_to_the_closed_form_in_si() {
+    let dir = std::env::temp_dir().join(format!("struktal-test-import-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let model = dir.join("portal.json");
+    let out = bin()
+        .arg("import")
+        .arg(repo().join("verification/s2k/portal.s2k"))
+        .arg("-o")
+        .arg(&model)
+        .output()
+        .expect("run");
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("MODAL"), "the skipped case is reported");
+    let r = bin().arg("solve").arg(&model).output().expect("run");
+    assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&r.stdout).expect("json");
+    assert_eq!(v["cases"].as_array().expect("cases").len(), 1);
+    let tip = v["cases"][0]["joints"].as_array().expect("joints").iter().find(|j| j["joint"] == "2").expect("joint");
+    // Vertical cantilever: 10 kip along X bends with I33 (local 2 = +X).
+    let delta_in = 10.0 * 120.0_f64.powi(3) / (3.0 * 29000.0 * 800.0);
+    let got = tip["displacement"][0].as_f64().expect("ux");
+    assert!((got - delta_in * 0.0254).abs() < 1e-12, "{got}");
+}
+
+#[test]
+fn s2k_with_something_unsupported_is_refused_with_all_the_reasons() {
+    let dir = std::env::temp_dir().join(format!("struktal-test-import-bad-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let file = dir.join("bad.s2k");
+    let text = std::fs::read_to_string(repo().join("verification/s2k/portal.s2k")).expect("read");
+    let bad = format!(
+        "{}\nTABLE:  \"FRAME LOADS - TEMPERATURE\"\n   Frame=C1   LoadPat=H   Temp=10\nTABLE:  \"AREA LOADS - UNIFORM\"\n   Area=1\n",
+        text.replace("END TABLE DATA", "")
+    );
+    std::fs::write(&file, bad).expect("write");
+    let out = bin().arg("import").arg(&file).output().expect("run");
+    assert_eq!(out.status.code(), Some(2));
+    assert!(out.stdout.is_empty(), "no partial model");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("FRAME LOADS - TEMPERATURE") && err.contains("AREA LOADS - UNIFORM"), "{err}");
+}
+
+#[test]
 fn restraint_on_a_tied_component_is_input_error() {
     let dir = copy_case("V-DIA-001", "restrained");
     let model = dir.join("model.json");

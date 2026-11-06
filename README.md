@@ -11,6 +11,7 @@ cargo build --release
 ./target/release/struktal validate verification/cases/V-LIN-001/model.json
 ./target/release/struktal solve verification/cases/V-LIN-003/model.json --stations 5 -o results.json
 ./target/release/struktal solve verification/cases/V-LIN-003/model.json --backend skyline   # backend de referencia
+./target/release/struktal import modelo.s2k -o modelo.json
 ./target/release/struktal capabilities
 ./target/release/struktal verify verification/cases/*/case.json
 ```
@@ -25,6 +26,7 @@ Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 en
 | `crates/struktal-math` | Tripletas/CSC, contrato de solver; backends `faer-sparse-ldlt` (por defecto) y `skyline-ldlt` (referencia) |
 | `crates/struktal-elements` | Barra 3D con cortante, liberaciones, offsets, ejes locales, cargas equivalentes, acciones en estaciones |
 | `crates/struktal-analysis` | Estática lineal, restricciones por eliminación, combinaciones, resultados, manifiesto, estados por caso |
+| `crates/struktal-io-s2k` | Lector S2K estricto: solo barras, y rechaza lo que no puede representar |
 | `crates/struktal-cli` | Binario `struktal` y comparador de verificación |
 | `spec/` | Perfil, inventario de requisitos, convenciones, cobertura S2K/API, capacidades de solver |
 | `verification/` | Casos con referencia analítica independiente, tolerancias, oráculos externos |

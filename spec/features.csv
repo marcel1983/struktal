@@ -109,8 +109,8 @@ F18-007,F18,Tablas de resultados con nombres/formato SAP,sap2000-ultimate-27.1.0
 F18-008,F18,Section cuts,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F18-009,F18,Tensiones y resultantes en shells/sólidos,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
 F18-010,F18,Persistencia por bloques de historias largas,sap2000-ultimate-27.1.0-target,,,pending P00,specified,specified,specified,specified,n/a,,specified,
-F19-001,F19,"Parser S2K/.$2k con AST (tabla, campo, fila, posición)",sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,specified,specified,specified,specified,n/a,,specified,
-F19-002,F19,Traducción semántica S2K → modelo canónico por versión,sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,specified,specified,specified,specified,n/a,,specified,
+F19-001,F19,"Parser S2K/.$2k con AST (tabla, campo, fila, posición)",sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,implemented,specified,n/a,n/a,n/a,parser tests,implemented,Sin contrastar con una exportación propia de SAP2000 ejecutada de ida y vuelta (decisión 0018)
+F19-002,F19,Traducción semántica S2K → modelo canónico por versión,sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,partial,specified,n/a,n/a,n/a,import tests; imported_s2k_solves...,partial,"Solo barras, estricto; rechaza lo no representable; resultados sin contrastar con SAP2000 (decisión 0018)"
 F19-003,F19,Exportación S2K y round-trip ejecutado en SAP2000,sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,specified,specified,specified,specified,n/a,,specified,
 F19-004,F19,Puente OAPI en proceso Windows separado,sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,specified,specified,specified,specified,n/a,,specified,
 F19-005,F19,API Python (PyO3),sap2000-ultimate-27.1.0-target,,,S12/S13 / pending P00,specified,specified,specified,specified,n/a,,specified,

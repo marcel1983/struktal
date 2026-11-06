@@ -43,6 +43,14 @@ enum Cmd {
         #[arg(long, default_value = "faer")]
         backend: String,
     },
+    /// Read an S2K file into a model file. Strict: fails, listing every problem,
+    /// on anything it cannot represent faithfully.
+    Import {
+        input: PathBuf,
+        /// Output model file (stdout if omitted).
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     /// Print engine and solver backend capabilities as JSON.
     Capabilities,
     /// Run verification cases: solve each case's model and compare with its reference.
@@ -76,6 +84,35 @@ fn load_snapshot(path: &Path) -> Result<struktal_core::Snapshot, Fail> {
             issues.iter().map(|i| format!("  - {i}")).collect::<Vec<_>>().join("\n")
         ))
     })
+}
+
+fn import_s2k(input: &Path, output: Option<&Path>) -> Result<bool, Fail> {
+    // Lossy: file paths and names in legacy encodings must not stop the import.
+    let bytes = std::fs::read(input).map_err(|e| Fail::Io(format!("{}: {e}", input.display())))?;
+    let text = String::from_utf8_lossy(&bytes);
+    let parsed = struktal_io_s2k::parse(&text).map_err(|e| Fail::Input(format!("{}: {e}", input.display())))?;
+    let imported = struktal_io_s2k::import(&parsed).map_err(|problems| {
+        Fail::Input(format!(
+            "{}: {} problem(s):\n{}",
+            input.display(),
+            problems.len(),
+            problems.iter().map(|p| format!("  - {p}")).collect::<Vec<_>>().join("\n")
+        ))
+    })?;
+    struktal_core::validate(&imported.model).map_err(|issues| {
+        Fail::Input(format!(
+            "{}: {} validation issue(s) in the imported model:\n{}",
+            input.display(),
+            issues.len(),
+            issues.iter().map(|i| format!("  - {i}")).collect::<Vec<_>>().join("\n")
+        ))
+    })?;
+    for note in &imported.notes {
+        eprintln!("note: {note}");
+    }
+    eprintln!("{} table(s) ignored: no effect on this analysis", imported.ignored_tables.len());
+    write_out(output, &struktal_core::model_to_json(&imported.model))?;
+    Ok(true)
 }
 
 fn stations_ok(n: usize) -> Result<usize, Fail> {
@@ -192,6 +229,7 @@ fn main() -> ExitCode {
                 write_out(output.as_deref(), &json(&r)).map(|_| ok)
             })
         }
+        Cmd::Import { input, output } => import_s2k(&input, output.as_deref()),
         Cmd::Capabilities => {
             let caps = serde_json::json!({
                 "engine": "struktal",
@@ -205,7 +243,8 @@ fn main() -> ExitCode {
                 "constraints": ["diaphragm", "body", "equal"],
                 "supports": ["restraints", "joint_springs_global", "imposed_displacements"],
                 "loads": ["joint_force_moment", "frame_uniform_full_length", "frame_point_force", "frame_trapezoidal", "frame_point_moment", "frame_trapezoidal_moment", "self_weight"],
-                "not_supported": ["insertion_points", "joint_local_axes", "local_constraints", "areas", "solids", "modal", "response_spectrum", "time_history", "nonlinear", "staged_construction", "moving_loads", "design", "s2k_import", "s2k_export", "oapi"],
+                "not_supported": ["insertion_points", "joint_local_axes", "local_constraints", "areas", "solids", "modal", "response_spectrum", "time_history", "nonlinear", "staged_construction", "moving_loads", "design", "s2k_export", "oapi"],
+                "import": ["s2k (strict, frames only; decision 0018)"],
                 "solver_backends": Backend::all().into_iter().map(Backend::capabilities).collect::<Vec<_>>(),
                 "compatibility": "specified_not_verified (see spec/sap_profile.yaml)"
             });

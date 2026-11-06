@@ -11,9 +11,9 @@ Denominador: 124 requisitos atómicos, 20 familias (+1 en esta revisión: F08-00
 | Estado global | Requisitos |
 |---|---|
 | verified_independent | 31 |
-| implemented | 2 |
-| partial | 7 |
-| specified | 82 |
+| implemented | 3 |
+| partial | 8 |
+| specified | 80 |
 | blocked | 2 |
 | verified_sap | 0 |
 
@@ -41,7 +41,7 @@ Cobertura verificada independientemente: 31/124 (25 %). Cobertura contrastada co
 | Restricciones | Un apoyo sobre una componente atada se rechaza; body sin selección de componentes; locales y weld no implementados. |
 | Desplazamientos impuestos | Un valor sobre una componente sin apoyo ni resorte es un error en Struktal; se cree que SAP2000 lo ignora. Sin confirmar. |
 | Resortes de nudo | Solo lineales y en ejes globales. |
-| Intercambio S2K/OAPI | Nada implementado. |
+| Intercambio S2K/OAPI | Lector S2K estricto de barras (decisión 0018), sin contrastar con SAP2000; sin escritura ni OAPI. |
 | Recuento de modos de mecanismo | Exacto con hueco espectral; por encima de ~10⁵ ecuaciones puede quedar como cota inferior (F08-007, decisión 0006). Formato de aviso de SAP2000 no comparado. |
 
 ## Bloqueos

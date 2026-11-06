@@ -1,0 +1,16 @@
+[package]
+name = "struktal-io-s2k"
+description = "Strict reader of the S2K text format into the canonical model"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+struktal-core.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

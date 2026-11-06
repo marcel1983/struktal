@@ -38,7 +38,9 @@ Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 Objetivo del usuario: herramienta open source para su propio trabajo, con modelos que suelen tener losas o muros. Orden acordado el 2026-11-05: 1) resto de pórticos, 2) lo que pide un modelo real (secciones paramétricas, cargas, subdivisión, envolventes), 3) S2K, 4) láminas, 5) masas, modos y espectro.
 
-1. P13 mínimo: parser S2K con AST para las tablas de `spec/s2k-table-coverage.csv`, en modo estricto.
+1. Hito 2: decidir el giro de taladro y portar láminas MITC4/MITC3, con su lectura desde S2K.
+2. Contraste con SAP2000: `tools/gen_sap_lot.py` genera el lote; pendiente de que el usuario revise la licencia y lo ejecute en su otro equipo.
+3. Probar el importador con un pórtico real del usuario.
 
 ## Comandos de reproducción
 

@@ -1,0 +1,42 @@
+File portal.s2k: written by hand for the importer tests. Not an export of any program.
+
+TABLE:  "PROGRAM CONTROL"
+   ProgramName=Handwritten   CurrUnits="Kip, in, F"
+
+TABLE:  "MATERIAL PROPERTIES 02 - BASIC MECHANICAL PROPERTIES"
+   Material=STEEL   UnitWeight=0   E1=29000   G12=11153.846153846154   U12=0.3
+
+TABLE:  "FRAME SECTION PROPERTIES 01 - GENERAL"
+   SectionName=COL   Material=STEEL   Shape=General   Area=20   TorsConst=50   I33=800   I22=300   I23=0   AS2=0   AS3=0
+   SectionName=NOTUSED   Material=STEEL   Shape=General   Area=1   TorsConst=1   I33=1   I22=1   I23=0   AS2=0   AS3=0
+
+TABLE:  "JOINT COORDINATES"
+   Joint=1   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=0   Z=0
+   Joint=2   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=0   Z=120
+
+TABLE:  "JOINT RESTRAINT ASSIGNMENTS"
+   Joint=1   U1=Yes   U2=Yes   U3=Yes   R1=Yes   R2=Yes   R3=Yes
+
+TABLE:  "CONNECTIVITY - FRAME"
+   Frame=C1   JointI=1   JointJ=2   IsCurved=No
+
+TABLE:  "FRAME SECTION ASSIGNMENTS"
+   Frame=C1   AnalSect=COL   MatProp=Default
+
+TABLE:  "LOAD PATTERN DEFINITIONS"
+   LoadPat=H   SelfWtMult=0
+
+TABLE:  "LOAD CASE DEFINITIONS"
+   Case=H1   Type=LinStatic
+   Case=MODAL   Type=LinModal
+
+TABLE:  "CASE - STATIC 1 - LOAD ASSIGNMENTS"
+   Case=H1   LoadType="Load pattern"   LoadName=H   LoadSF=1
+
+TABLE:  "JOINT LOADS - FORCE"
+   Joint=2   LoadPat=H   CoordSys=GLOBAL   F1=10   F2=0   F3=0   M1=0   M2=0   M3=0
+
+TABLE:  "GRID LINES"
+   CoordSys=GLOBAL   AxisDir=X   GridID=A   XRYZCoord=0
+
+END TABLE DATA

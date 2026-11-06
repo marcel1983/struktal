@@ -786,6 +786,7 @@ dependencies = [
  "sha2",
  "struktal-analysis",
  "struktal-core",
+ "struktal-io-s2k",
  "struktal-math",
 ]
 
@@ -802,6 +803,14 @@ dependencies = [
 name = "struktal-elements"
 version = "0.1.0"
 dependencies = [
+ "struktal-core",
+]
+
+[[package]]
+name = "struktal-io-s2k"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
  "struktal-core",
 ]
 

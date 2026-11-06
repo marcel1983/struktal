@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/struktal-core", "crates/struktal-math", "crates/struktal-elements", "crates/struktal-analysis", "crates/struktal-cli"]
+members = ["crates/struktal-core", "crates/struktal-math", "crates/struktal-elements", "crates/struktal-analysis", "crates/struktal-io-s2k", "crates/struktal-cli"]
 
 [workspace.package]
 version = "0.1.0"
@@ -17,6 +17,7 @@ struktal-core = { path = "crates/struktal-core" }
 struktal-math = { path = "crates/struktal-math" }
 struktal-elements = { path = "crates/struktal-elements" }
 struktal-analysis = { path = "crates/struktal-analysis" }
+struktal-io-s2k = { path = "crates/struktal-io-s2k" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
