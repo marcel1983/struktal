@@ -1,0 +1,43 @@
+{
+  "case_id": "V-TRI-005",
+  "title": "Three-node shell: its mass in equal thirds, one rigid mode on springs",
+  "feature_ids": [
+    "F03-001",
+    "F09-001"
+  ],
+  "model": "model.json",
+  "model_sha256": "274945b02fbe25e676cff8462812916d61ef3b717e311c5aa3f71965ae0ea0f2",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "One degree of freedom: T = 2 pi sqrt(m/k) with m = rho t A/3 per joint",
+    "derivation": [
+      "rho t A / 3 = 2500 x 0.2 x 3 / 3 = 500 kg",
+      "a uniform UZ does not strain the element"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "1",
+      "component": "",
+      "value": 0.14049629462081453,
+      "unit": "s"
+    },
+    {
+      "result": "modal_mass_ratio",
+      "case": "M",
+      "entity": "1",
+      "component": "Z",
+      "value": 1.0,
+      "unit": "1"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

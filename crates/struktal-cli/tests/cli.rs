@@ -260,6 +260,45 @@ fn imported_s2k_solves_to_the_closed_form_in_si() {
 }
 
 #[test]
+fn a_meshed_s2k_area_solves_to_the_closed_form() {
+    let dir = std::env::temp_dir().join(format!("struktal-test-import-mesh-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let model = dir.join("strip.json");
+    let out = bin()
+        .arg("import")
+        .arg(repo().join("verification/s2k/meshed-strip.s2k"))
+        .arg("-o")
+        .arg(&model)
+        .output()
+        .expect("run");
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let r = bin().arg("solve").arg(&model).output().expect("run");
+    assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&r.stdout).expect("json");
+    let case = &v["cases"][0];
+    let joint =
+        |name: &str| case["joints"].as_array().expect("joints").iter().find(|j| j["joint"] == name).expect("joint");
+    // Uniaxial tension: u = F L/(E t b) along the strip, and it varies with x inside the mesh.
+    let strain = 300_000.0 / (2e11 * 0.1 * 1.0);
+    let at = |name: &str, x: f64| {
+        let got = joint(name)["displacement"][0].as_f64().expect("ux");
+        assert!((got - strain * x).abs() < 1e-11, "{name}: {got}");
+    };
+    at("2", 4.0);
+    at("3", 4.0);
+    at("~1", 1.5);
+    at("~3", 3.0);
+    let areas = case["areas"].as_array().expect("areas");
+    assert_eq!(areas.len(), 5);
+    for a in areas {
+        let f11 = a["center"][0].as_f64().expect("F11");
+        assert!((f11 - 300_000.0).abs() < 1e-3, "{a}");
+    }
+    assert_eq!(areas[0]["corners"].as_array().expect("corners").len(), 4);
+    assert_eq!(areas[1]["corners"].as_array().expect("corners").len(), 3);
+}
+
+#[test]
 fn s2k_with_something_unsupported_is_refused_with_all_the_reasons() {
     let dir = std::env::temp_dir().join(format!("struktal-test-import-bad-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("mkdir");

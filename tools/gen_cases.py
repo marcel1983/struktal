@@ -1703,8 +1703,158 @@ write("V-SHELL-005", "Scordelis-Lo roof, quarter model, mesh 16 x 16", ["F03-001
     exp("joint_displacement", "LC1", f"R{Nr}_{Nr}", "UZ", -0.3024, "m"),
 ], tol=MESH_TOL)
 
+# ---------------------------------------------------------------- triangles
+NWT, NPT, NRT = (120, 20), 24, 40
+
+
+def split(areas, nx):
+    """Each quadrilateral into two triangles, with alternating diagonals so the mesh has no bias."""
+    out = []
+    for k, a_ in enumerate(areas):
+        n0, n1, n2, n3 = a_["joints"]
+        along = (k % nx + k // nx) % 2 == 0
+        pair = [[n0, n1, n2], [n0, n2, n3]] if along else [[n0, n1, n3], [n1, n2, n3]]
+        out += [{"name": a_["name"] + s_, "section": "SH", "joints": j_} for s_, j_ in zip("ab", pair)]
+    return out
+
+
+# The strips of V-SHELL-001, in triangles. A third strip mixes both shapes, and
+# two fixed triangles receive a load: each joint takes a third, in any plane.
+jx, ax = grid("X", 3, 2, lambda i, j: xd[i], lambda i, j: yd(i, j) + 6.0, restraint=held_end)
+amix = [a_ for k_, a_ in enumerate(ax) if k_ % 3 != 1] + split([a_ for k_, a_ in enumerate(ax) if k_ % 3 == 1], 1)
+loads_x = [{"pattern": "MIX", "joint": f"X3_{j}", "values": [Fs_ * edge[j], 0, 0, 0, 0, 0]} for j in range(3)]
+FIXED = [True] * 6
+jq = [J("HA", 0, 0, 20, FIXED), J("HB", 3, 0, 20, FIXED), J("HC", 0, 2, 20, FIXED),
+      J("IA", 0, 0, 30, FIXED), J("IB", 2, 0, 30, FIXED), J("IC", 0, 1, 31, FIXED)]
+aq = [{"name": "HT", "section": "SH", "joints": ["HA", "HB", "HC"]},
+      {"name": "IT", "section": "SH", "joints": ["IA", "IB", "IC"]}]
+qt = 1_200.0
+write("V-TRI-001", "Three-node shell: exact states on a distorted mesh, mixed with four-node elements, and load shares", ["F03-001", "F03-002", "F18-009"], model(
+    "V-TRI-001 exact triangle states",
+    jt + jb + jx + jq, [], [SEC], [{"name": n_} for n_ in ["TEN", "BEN", "MIX", "Q"]],
+    joint_loads=loads_t + loads_b + loads_x,
+    cases=[{"type": "LinearStatic", "name": n_, "loads": [{"pattern": n_, "scale": 1.0}]} for n_ in ["TEN", "BEN", "MIX", "Q"]],
+    schema=6, area_sections=[Ess_], areas=split(at, 3) + split(ab, 3) + amix + aq,
+    area_loads=[{"pattern": "Q", "area": "HT", "direction": "Gravity", "value": qt},
+                {"pattern": "Q", "area": "IT", "direction": "Local3", "value": qt}],
+), {"kind": "analytical", "source": "Same closed forms as V-SHELL-001: constant strain and constant curvature, which the element must reproduce exactly",
+    "derivation": ["u = F L/(E t b), F11 = F/b", "theta = M L/(E I), M11 = M/b", "the third strip has the same states across both shapes",
+                   "a uniform load gives each joint of a triangle q A/3", "inclined triangle: A = sqrt(2), normal (0, -1, 1)/sqrt(2), so the reaction per joint is q/3 in +Y and -Z"]}, [
+    exp("joint_displacement", "TEN", "T3_1", "UX", Fs_ * Ls_ / EAs, "m"),
+    exp("joint_displacement", "TEN", "T1_0", "UX", Fs_ * xd[1] / EAs, "m"),
+    exp("joint_displacement", "TEN", "T3_2", "UY", -NU * Fs_ / (E * ts_), "m"),
+    exp("joint_reaction", "TEN", "T0_1", "FX", -Fs_ * 0.5, "N"),
+    exp("area_center", "TEN", "TA1_0a", "F11", sig_t, "N/m"),
+    exp("area_center", "TEN", "TA1_0b", "F22", 0.0, "N/m"),
+    exp("area_center", "TEN", "TA1_0a", "F12", 0.0, "N/m"),
+    exp("joint_displacement", "BEN", "B3_1", "RY", Ms_ * Ls_ / EIs, "rad"),
+    exp("joint_displacement", "BEN", "B3_1", "UZ", -Ms_ * Ls_**2 / (2 * EIs), "m"),
+    exp("joint_displacement", "BEN", "B1_0", "UZ", -Ms_ * xd[1]**2 / (2 * EIs) + NU * (Ms_ / EIs) * (bs_ / 2)**2 / 2, "m"),
+    exp("area_center", "BEN", "BA1_0a", "M11", Ms_ / bs_, "N*m/m"),
+    exp("area_center", "BEN", "BA1_0b", "M22", 0.0, "N*m/m"),
+    exp("area_center", "BEN", "BA1_0a", "V13", 0.0, "N/m"),
+    exp("joint_displacement", "MIX", "X3_1", "UX", Fs_ * Ls_ / EAs, "m"),
+    exp("joint_displacement", "MIX", "X3_2", "UY", -NU * Fs_ / (E * ts_), "m"),
+    exp("area_center", "MIX", "XA0_0", "F11", sig_t, "N/m"),
+    exp("area_center", "MIX", "XA1_0a", "F11", sig_t, "N/m"),
+    exp("joint_reaction", "Q", "HB", "FZ", qt * 3.0 / 3, "N"),
+    exp("joint_reaction", "Q", "IC", "FY", qt / 3, "N"),
+    exp("joint_reaction", "Q", "IB", "FZ", -qt / 3, "N"),
+], tol=CLOSED_AREA)
+
+jwt, awt = wall_grid("S", NWT[0], NWT[1], 3.0)
+loads_wt = [{"pattern": "TIP", "joint": f"S{NWT[0]}_{j}", "values": [0, Vw * (0.5 if j in (0, NWT[1]) else 1.0) / NWT[1], 0, 0, 0, 0]}
+            for j in range(NWT[1] + 1)]
+write("V-TRI-002", f"Three-node shell, wall in plane: tip shear against Timoshenko beam theory, mesh {NWT[0]} x {NWT[1]}", ["F03-003", "F06-011"], model(
+    "V-TRI-002 triangular wall under tip shear",
+    jwt, [], [SEC], [{"name": "TIP"}],
+    joint_loads=loads_wt, schema=6, area_sections=[wall], areas=split(awt, NWT[0]),
+), {"kind": "analytical", "source": "Timoshenko cantilever with k = 5/6, as V-SHELL-003",
+    "derivation": ["delta = V L^3/(3 E I) + 1.2 V L/(G A)", "constant-strain membranes are stiff in bending: this mesh is what reaches the 1 % of the mesh tolerance"]}, [
+    exp("joint_displacement", "LC1", f"S{NWT[0]}_{NWT[1] // 2}", "UY", d_tim, "m"),
+], tol=MESH_TOL)
+
+
+def plates_of(n_):
+    # A quarter of each plate: symmetry at i, j = n_, where the center is.
+    def ss(i, j):
+        support = i == 0 or j == 0
+        return [True, True, support, (i == 0 and j != 0) or j == n_, (j == 0 and i != 0) or i == n_, True]
+
+    def cl(i, j):
+        support = i == 0 or j == 0
+        return [True, True, support, support or j == n_, support or i == n_, True]
+    js_, as_ = grid("P", n_, n_, lambda i, j: ap / 2 * i / n_, lambda i, j: ap / 2 * j / n_, restraint=ss)
+    jc_, ac_ = grid("C", n_, n_, lambda i, j: 10 + ap / 2 * i / n_, lambda i, j: ap / 2 * j / n_, restraint=cl)
+    return js_ + jc_, split(as_, n_) + split(ac_, n_)
+
+
+jpt, apt = plates_of(NPT)
+write("V-TRI-003", f"Three-node shell: thin square plates under uniform load, quarter model, mesh {NPT} x {NPT} x 2", ["F03-002", "F06-011"], model(
+    "V-TRI-003 triangular plates",
+    jpt, [], [SEC], [{"name": "Q"}], schema=6, area_sections=[plate_sec], areas=apt,
+    area_loads=[{"pattern": "Q", "area": a_["name"], "direction": "Gravity", "value": qp} for a_ in apt],
+), {"kind": "analytical", "source": "Navier series for the simply supported plate; 0.00126 q a^4/D for the clamped one (Timoshenko and Woinowsky-Krieger)",
+    "derivation": ["D = E t^3/(12 (1 - nu^2)), a/t = 200", "tolerance of the mesh: 1 %"]}, [
+    exp("joint_displacement", "LC1", f"P{NPT}_{NPT}", "UZ", -Wss, "m"),
+    exp("joint_displacement", "LC1", f"C{NPT}_{NPT}", "UZ", -0.00126 * qp * ap**4 / Dp_, "m"),
+], tol=MESH_TOL)
+
+
+def roof_of(n_):
+    def rest(i, j):
+        r = [False] * 6
+        if i == 0:
+            r[1] = r[2] = r[3] = True
+        if i == n_:
+            r[0] = r[4] = r[5] = True
+        if j == 0:
+            r[1] = r[3] = r[5] = True
+        return r
+    th = lambda j: phi * j / n_
+    js_, as_ = grid("R", n_, n_, lambda i, j: Lr_ / 2 * i / n_, lambda i, j: Rr * math.sin(th(j)), lambda i, j: Rr * math.cos(th(j)) - Rr, rest)
+    return js_, split(as_, n_)
+
+
+jrt, art = roof_of(NRT)
+write("V-TRI-004", f"Three-node shell: Scordelis-Lo roof, quarter model, mesh {NRT} x {NRT} x 2", ["F03-001", "F03-002", "F06-011"], model(
+    "V-TRI-004 triangular Scordelis-Lo roof",
+    jrt, [], [], [{"name": "G"}], materials=mat_r, schema=6, area_sections=[sec_r], areas=art,
+    area_loads=[{"pattern": "G", "area": a_["name"], "direction": "Gravity", "value": qr_} for a_ in art],
+), {"kind": "analytical", "source": "MacNeal and Harder (1985): vertical displacement at the midside of the free edge, 0.3024 in the model's units",
+    "derivation": ["reference from a converged solution, not a closed form", "tolerance of the mesh: 1 %"]}, [
+    exp("joint_displacement", "LC1", f"R{NRT}_{NRT}", "UZ", -0.3024, "m"),
+], tol=MESH_TOL)
+
+# A free triangle has its six rigid-body modes and no more.
+write("V-MECH-010", "One three-node shell element with no supports", ["F03-001", "F08", "stability"], model(
+    "V-MECH-010 free triangle",
+    [J("A", 0, 0, 0), J("B", 2, 0, 0), J("C", 0.5, 2, 0)], [], [SEC], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "C", "values": [0, 0, -P, 0, 0, 0]}], schema=6,
+    area_sections=[dict(name="SH", material="STEEL", thickness=0.2)],
+    areas=[{"name": "T", "section": "SH", "joints": ["A", "B", "C"]}],
+), {"kind": "analytical", "source": "A free body has six rigid-body modes; a spurious mode of the element would add more", "derivation": ["nullity(K) = 6"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"}])
+
 # ---------------------------------------------------------------- modes
 MOD_TOL = "modes-closed-form-v1"
+
+# A triangle's mass goes in equal thirds: on three equal springs, the whole
+# element moves as one, whatever its stiffness.
+kt_, rhot_, Att_ = 1.0e6, 2500.0, 3.0
+held_z = [True, True, False, True, True, True]
+jmt = [dict(J(n_, x_, y_, 0, held_z), springs=[0, 0, kt_, 0, 0, 0]) for n_, x_, y_ in [("A", 0, 0), ("B", 3, 0), ("C", 0, 2)]]
+write("V-TRI-005", "Three-node shell: its mass in equal thirds, one rigid mode on springs", ["F03-001", "F09-001"], model(
+    "V-TRI-005 triangle on springs",
+    jmt, [], [], [{"name": "L"}], materials=[{"name": "M", "e": E, "nu": NU, "unit_weight": 0.0, "mass_density": rhot_}],
+    cases=[{"type": "Modal", "name": "M", "modes": 1}], schema=6,
+    area_sections=[dict(name="SH", material="M", thickness=0.2)],
+    areas=[{"name": "T", "section": "SH", "joints": ["A", "B", "C"]}],
+), {"kind": "analytical", "source": "One degree of freedom: T = 2 pi sqrt(m/k) with m = rho t A/3 per joint",
+    "derivation": ["rho t A / 3 = 2500 x 0.2 x 3 / 3 = 500 kg", "a uniform UZ does not strain the element"]}, [
+    exp("modal_period", "M", "1", "", 2 * math.pi * math.sqrt(rhot_ * 0.2 * Att_ / 3 / kt_), "s"),
+    exp("modal_mass_ratio", "M", "1", "Z", 1.0, "1"),
+], tol=MOD_TOL)
 
 
 def JM(name, x, y, z, r=None, mass=None):

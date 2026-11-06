@@ -1,0 +1,35 @@
+{
+  "case_id": "V-TRI-002",
+  "title": "Three-node shell, wall in plane: tip shear against Timoshenko beam theory, mesh 120 x 20",
+  "feature_ids": [
+    "F03-003",
+    "F06-011"
+  ],
+  "model": "model.json",
+  "model_sha256": "ab8ae739d9873a1184a3ca7c2a61fff97598a3326af8ca9a8473b3c3b3eb67c0",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "mesh-convergence-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Timoshenko cantilever with k = 5/6, as V-SHELL-003",
+    "derivation": [
+      "delta = V L^3/(3 E I) + 1.2 V L/(G A)",
+      "constant-strain membranes are stiff in bending: this mesh is what reaches the 1 % of the mesh tolerance"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "S120_10",
+      "component": "UY",
+      "value": 0.0008827199999999999,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

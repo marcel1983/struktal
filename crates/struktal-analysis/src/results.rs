@@ -170,7 +170,7 @@ pub const AREA_COMPONENTS: [&str; 8] = ["F11", "F22", "F12", "M11", "M22", "M12"
 pub struct AreaResult {
     pub area: String,
     pub center: [f64; 8],
-    pub corners: [[f64; 8]; 4],
+    pub corners: Vec<[f64; 8]>,
 }
 
 /// Maximum and minimum per component, with the term that governs each one.

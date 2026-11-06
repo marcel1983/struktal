@@ -1056,7 +1056,7 @@ fn combine(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
     let mut areas = first.areas.clone();
     for a in &mut areas {
         a.center = [0.0; 8];
-        a.corners = [[0.0; 8]; 4];
+        a.corners.fill([0.0; 8]);
     }
     for j in &mut joints {
         j.displacement = [0.0; 6];
@@ -1092,7 +1092,7 @@ fn combine(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
         for (a, b) in areas.iter_mut().zip(&c.areas) {
             for d in 0..8 {
                 a.center[d] += sc * b.center[d];
-                for corner in 0..4 {
+                for corner in 0..a.corners.len() {
                     a.corners[corner][d] += sc * b.corners[corner][d];
                 }
             }

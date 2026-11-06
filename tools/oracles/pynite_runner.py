@@ -57,6 +57,8 @@ def solve_case(m, loads):
     for a in m.get("areas", []):
         if a["sec"].get("bending_thickness") is not None:
             raise Unsupported(f"area {a['name']}: a separate bending thickness")
+        if len(a["joints"]) != 4:
+            raise Unsupported(f"area {a['name']}: this engine has no three-node shell")
         f.add_quad(a["name"], *a["joints"], a["sec"]["thickness"], a["sec"]["material"])
     dirs = ["DX", "DY", "DZ", "RX", "RY", "RZ"]
     for j in m["joints"]:

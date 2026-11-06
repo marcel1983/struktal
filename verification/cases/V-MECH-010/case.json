@@ -1,0 +1,33 @@
+{
+  "case_id": "V-MECH-010",
+  "title": "One three-node shell element with no supports",
+  "feature_ids": [
+    "F03-001",
+    "F08",
+    "stability"
+  ],
+  "model": "model.json",
+  "model_sha256": "cfd6a6384765763578fff7e31c34b47883b395890c01deb811e500b7d0343e35",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "A free body has six rigid-body modes; a spurious mode of the element would add more",
+    "derivation": [
+      "nullity(K) = 6"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "nullity = 6 (exact)"
+    }
+  ],
+  "expected": [],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

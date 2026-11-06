@@ -25,9 +25,9 @@ Cobertura verificada independientemente: 34/124 (27 %). Cobertura contrastada co
 - Backend por defecto `faer-sparse-ldlt` (decisión 0005); `skyline-ldlt` como referencia.
 - Diagnóstico de mecanismo con vectores del espacio nulo verificados: nulidad exacta cuando hay hueco espectral, modos con DOF dominantes y nudos afectados (decisión 0006); rechazo explícito de clases de matriz no admitidas.
 - CLI con manifiesto, hash de snapshot y estados por caso.
-- Láminas de 4 nudos para losas y muros, con taladro sin rigidez ficticia (decisión 0019).
+- Láminas de 3 y 4 nudos para losas y muros, con taladro sin rigidez ficticia (decisiones 0019 y 0021).
 - Masas concentradas, modos propios y espectro de respuesta con CQC y SRSS (decisión 0020).
-- Banco de 51 casos analíticos, todos pasan con ambos backends (rtol 1e-8).
+- Banco de 57 casos analíticos, todos pasan con ambos backends (rtol 1e-8).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 
@@ -36,7 +36,7 @@ Cobertura verificada independientemente: 34/124 (27 %). Cobertura contrastada co
 | Convención de signos de V2, V3, M2, M3 | Propia (decisión 0003); mapeo SAP pendiente de oráculo. |
 | Ejes locales de barras verticales/casi verticales | Implementado según la ayuda [S06]; umbral sin confirmar. |
 | Deformación por cortante | Implementada (decisión 0007). Con una forma, As es automática por reglas de ingeniería (decisión 0017), sin contrastar con los valores de SAP2000; una sección general sin As se comporta como Euler–Bernoulli. |
-| Láminas | Sin triángulos ni mallado de áreas; MITC4 en lugar de una formulación delgada propia; taladro y membrana distintos de lo que pueda usar SAP2000; ejes locales y signos sin confirmar. |
+| Láminas | Sin mallado propio de áreas; MITC4 y MITC3 en lugar de una formulación delgada propia; el triángulo es rígido en flexión en su plano y pide mallas finas en muros (decisión 0021); taladro y membrana distintos de lo que pueda usar SAP2000; ejes locales y signos sin confirmar. |
 | Dinámica | Masa concentrada y declarada, no derivada de patrones; sin masa faltante, combinación direccional ni excentricidad accidental; sin recuento de Sturm. |
 | Secciones paramétricas | J de pared delgada y As por reglas de ingeniería; sin acuerdos de perfiles laminados, sin T, canal, ángulo ni tablas. |
 | Carga uniforme en barras inclinadas | Por longitud real; las opciones de proyección no están implementadas. |
@@ -45,7 +45,7 @@ Cobertura verificada independientemente: 34/124 (27 %). Cobertura contrastada co
 | Restricciones | Un apoyo sobre una componente atada se rechaza; body sin selección de componentes; locales y weld no implementados. |
 | Desplazamientos impuestos | Un valor sobre una componente sin apoyo ni resorte es un error en Struktal; se cree que SAP2000 lo ignora. Sin confirmar. |
 | Resortes de nudo | Solo lineales y en ejes globales. |
-| Intercambio S2K/OAPI | Lector S2K estricto de barras (decisión 0018), sin contrastar con SAP2000; sin escritura ni OAPI. |
+| Intercambio S2K/OAPI | Lector S2K estricto de barras y áreas, con su malla de análisis (decisiones 0018 y 0021), sin contrastar con SAP2000 ni probado con una malla real; sin escritura ni OAPI. |
 | Recuento de modos de mecanismo | Exacto con hueco espectral; por encima de ~10⁵ ecuaciones puede quedar como cota inferior (F08-007, decisión 0006). Formato de aviso de SAP2000 no comparado. |
 
 ## Bloqueos

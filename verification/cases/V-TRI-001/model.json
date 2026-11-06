@@ -1,0 +1,1118 @@
+{
+  "area_sections": [
+    {
+      "name": "SH",
+      "material": "STEEL",
+      "thickness": 0.1
+    }
+  ],
+  "areas": [
+    {
+      "name": "TA0_0a",
+      "section": "SH",
+      "joints": [
+        "T0_0",
+        "T1_0",
+        "T1_1"
+      ]
+    },
+    {
+      "name": "TA0_0b",
+      "section": "SH",
+      "joints": [
+        "T0_0",
+        "T1_1",
+        "T0_1"
+      ]
+    },
+    {
+      "name": "TA1_0a",
+      "section": "SH",
+      "joints": [
+        "T1_0",
+        "T2_0",
+        "T1_1"
+      ]
+    },
+    {
+      "name": "TA1_0b",
+      "section": "SH",
+      "joints": [
+        "T2_0",
+        "T2_1",
+        "T1_1"
+      ]
+    },
+    {
+      "name": "TA2_0a",
+      "section": "SH",
+      "joints": [
+        "T2_0",
+        "T3_0",
+        "T3_1"
+      ]
+    },
+    {
+      "name": "TA2_0b",
+      "section": "SH",
+      "joints": [
+        "T2_0",
+        "T3_1",
+        "T2_1"
+      ]
+    },
+    {
+      "name": "TA0_1a",
+      "section": "SH",
+      "joints": [
+        "T0_1",
+        "T1_1",
+        "T0_2"
+      ]
+    },
+    {
+      "name": "TA0_1b",
+      "section": "SH",
+      "joints": [
+        "T1_1",
+        "T1_2",
+        "T0_2"
+      ]
+    },
+    {
+      "name": "TA1_1a",
+      "section": "SH",
+      "joints": [
+        "T1_1",
+        "T2_1",
+        "T2_2"
+      ]
+    },
+    {
+      "name": "TA1_1b",
+      "section": "SH",
+      "joints": [
+        "T1_1",
+        "T2_2",
+        "T1_2"
+      ]
+    },
+    {
+      "name": "TA2_1a",
+      "section": "SH",
+      "joints": [
+        "T2_1",
+        "T3_1",
+        "T2_2"
+      ]
+    },
+    {
+      "name": "TA2_1b",
+      "section": "SH",
+      "joints": [
+        "T3_1",
+        "T3_2",
+        "T2_2"
+      ]
+    },
+    {
+      "name": "BA0_0a",
+      "section": "SH",
+      "joints": [
+        "B0_0",
+        "B1_0",
+        "B1_1"
+      ]
+    },
+    {
+      "name": "BA0_0b",
+      "section": "SH",
+      "joints": [
+        "B0_0",
+        "B1_1",
+        "B0_1"
+      ]
+    },
+    {
+      "name": "BA1_0a",
+      "section": "SH",
+      "joints": [
+        "B1_0",
+        "B2_0",
+        "B1_1"
+      ]
+    },
+    {
+      "name": "BA1_0b",
+      "section": "SH",
+      "joints": [
+        "B2_0",
+        "B2_1",
+        "B1_1"
+      ]
+    },
+    {
+      "name": "BA2_0a",
+      "section": "SH",
+      "joints": [
+        "B2_0",
+        "B3_0",
+        "B3_1"
+      ]
+    },
+    {
+      "name": "BA2_0b",
+      "section": "SH",
+      "joints": [
+        "B2_0",
+        "B3_1",
+        "B2_1"
+      ]
+    },
+    {
+      "name": "BA0_1a",
+      "section": "SH",
+      "joints": [
+        "B0_1",
+        "B1_1",
+        "B0_2"
+      ]
+    },
+    {
+      "name": "BA0_1b",
+      "section": "SH",
+      "joints": [
+        "B1_1",
+        "B1_2",
+        "B0_2"
+      ]
+    },
+    {
+      "name": "BA1_1a",
+      "section": "SH",
+      "joints": [
+        "B1_1",
+        "B2_1",
+        "B2_2"
+      ]
+    },
+    {
+      "name": "BA1_1b",
+      "section": "SH",
+      "joints": [
+        "B1_1",
+        "B2_2",
+        "B1_2"
+      ]
+    },
+    {
+      "name": "BA2_1a",
+      "section": "SH",
+      "joints": [
+        "B2_1",
+        "B3_1",
+        "B2_2"
+      ]
+    },
+    {
+      "name": "BA2_1b",
+      "section": "SH",
+      "joints": [
+        "B3_1",
+        "B3_2",
+        "B2_2"
+      ]
+    },
+    {
+      "name": "XA0_0",
+      "section": "SH",
+      "joints": [
+        "X0_0",
+        "X1_0",
+        "X1_1",
+        "X0_1"
+      ]
+    },
+    {
+      "name": "XA2_0",
+      "section": "SH",
+      "joints": [
+        "X2_0",
+        "X3_0",
+        "X3_1",
+        "X2_1"
+      ]
+    },
+    {
+      "name": "XA0_1",
+      "section": "SH",
+      "joints": [
+        "X0_1",
+        "X1_1",
+        "X1_2",
+        "X0_2"
+      ]
+    },
+    {
+      "name": "XA2_1",
+      "section": "SH",
+      "joints": [
+        "X2_1",
+        "X3_1",
+        "X3_2",
+        "X2_2"
+      ]
+    },
+    {
+      "name": "XA1_0a",
+      "section": "SH",
+      "joints": [
+        "X1_0",
+        "X2_0",
+        "X2_1"
+      ]
+    },
+    {
+      "name": "XA1_0b",
+      "section": "SH",
+      "joints": [
+        "X1_0",
+        "X2_1",
+        "X1_1"
+      ]
+    },
+    {
+      "name": "XA1_1a",
+      "section": "SH",
+      "joints": [
+        "X1_1",
+        "X2_1",
+        "X1_2"
+      ]
+    },
+    {
+      "name": "XA1_1b",
+      "section": "SH",
+      "joints": [
+        "X2_1",
+        "X2_2",
+        "X1_2"
+      ]
+    },
+    {
+      "name": "HT",
+      "section": "SH",
+      "joints": [
+        "HA",
+        "HB",
+        "HC"
+      ]
+    },
+    {
+      "name": "IT",
+      "section": "SH",
+      "joints": [
+        "IA",
+        "IB",
+        "IC"
+      ]
+    }
+  ],
+  "area_loads": [
+    {
+      "pattern": "Q",
+      "area": "HT",
+      "direction": "Gravity",
+      "value": 1200.0
+    },
+    {
+      "pattern": "Q",
+      "area": "IT",
+      "direction": "Local3",
+      "value": 1200.0
+    }
+  ],
+  "schema_version": 6,
+  "title": "V-TRI-001 exact triangle states",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "T0_0",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "T1_0",
+      "x": 1.3,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T2_0",
+      "x": 2.4,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T3_0",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T0_1",
+      "x": 0.0,
+      "y": 0.5,
+      "z": 0.0,
+      "restraint": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "T1_1",
+      "x": 1.3,
+      "y": 0.63,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T2_1",
+      "x": 2.4,
+      "y": 0.37,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T3_1",
+      "x": 4.0,
+      "y": 0.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T0_2",
+      "x": 0.0,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "T1_2",
+      "x": 1.3,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T2_2",
+      "x": 2.4,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T3_2",
+      "x": 4.0,
+      "y": 1.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B0_0",
+      "x": 0.0,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        false,
+        false,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B1_0",
+      "x": 1.3,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B2_0",
+      "x": 2.4,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B3_0",
+      "x": 4.0,
+      "y": 3.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B0_1",
+      "x": 0.0,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B1_1",
+      "x": 1.3,
+      "y": 3.63,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B2_1",
+      "x": 2.4,
+      "y": 3.37,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B3_1",
+      "x": 4.0,
+      "y": 3.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B0_2",
+      "x": 0.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        false,
+        false,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B1_2",
+      "x": 1.3,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B2_2",
+      "x": 2.4,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B3_2",
+      "x": 4.0,
+      "y": 4.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "X0_0",
+      "x": 0.0,
+      "y": 6.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "X1_0",
+      "x": 1.3,
+      "y": 6.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "X2_0",
+      "x": 2.4,
+      "y": 6.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "X3_0",
+      "x": 4.0,
+      "y": 6.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "X0_1",
+      "x": 0.0,
+      "y": 6.5,
+      "z": 0.0,
+      "restraint": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "X1_1",
+      "x": 1.3,
+      "y": 6.63,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "X2_1",
+      "x": 2.4,
+      "y": 6.37,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "X3_1",
+      "x": 4.0,
+      "y": 6.5,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "X0_2",
+      "x": 0.0,
+      "y": 7.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "X1_2",
+      "x": 1.3,
+      "y": 7.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "X2_2",
+      "x": 2.4,
+      "y": 7.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "X3_2",
+      "x": 4.0,
+      "y": 7.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "HA",
+      "x": 0,
+      "y": 0,
+      "z": 20,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "HB",
+      "x": 3,
+      "y": 0,
+      "z": 20,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "HC",
+      "x": 0,
+      "y": 2,
+      "z": 20,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "IA",
+      "x": 0,
+      "y": 0,
+      "z": 30,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "IB",
+      "x": 2,
+      "y": 0,
+      "z": 30,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "IC",
+      "x": 0,
+      "y": 1,
+      "z": 31,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  ],
+  "frames": [],
+  "load_patterns": [
+    {
+      "name": "TEN"
+    },
+    {
+      "name": "BEN"
+    },
+    {
+      "name": "MIX"
+    },
+    {
+      "name": "Q"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "TEN",
+      "joint": "T3_0",
+      "values": [
+        75000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "TEN",
+      "joint": "T3_1",
+      "values": [
+        150000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "TEN",
+      "joint": "T3_2",
+      "values": [
+        75000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "BEN",
+      "joint": "B3_0",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        3000.0,
+        0
+      ]
+    },
+    {
+      "pattern": "BEN",
+      "joint": "B3_1",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        6000.0,
+        0
+      ]
+    },
+    {
+      "pattern": "BEN",
+      "joint": "B3_2",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        3000.0,
+        0
+      ]
+    },
+    {
+      "pattern": "MIX",
+      "joint": "X3_0",
+      "values": [
+        75000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "MIX",
+      "joint": "X3_1",
+      "values": [
+        150000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "MIX",
+      "joint": "X3_2",
+      "values": [
+        75000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "TEN",
+      "loads": [
+        {
+          "pattern": "TEN",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "BEN",
+      "loads": [
+        {
+          "pattern": "BEN",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "MIX",
+      "loads": [
+        {
+          "pattern": "MIX",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "Q",
+      "loads": [
+        {
+          "pattern": "Q",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

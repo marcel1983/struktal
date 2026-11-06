@@ -1,0 +1,36 @@
+{
+  "case_id": "V-TRI-004",
+  "title": "Three-node shell: Scordelis-Lo roof, quarter model, mesh 40 x 40 x 2",
+  "feature_ids": [
+    "F03-001",
+    "F03-002",
+    "F06-011"
+  ],
+  "model": "model.json",
+  "model_sha256": "25fae61c41e36ce0c91e93ed503889fa5a4b44ce1e81a4ef3165183a5961feb5",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "mesh-convergence-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "MacNeal and Harder (1985): vertical displacement at the midside of the free edge, 0.3024 in the model's units",
+    "derivation": [
+      "reference from a converged solution, not a closed form",
+      "tolerance of the mesh: 1 %"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "R40_40",
+      "component": "UZ",
+      "value": -0.3024,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

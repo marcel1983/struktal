@@ -17,7 +17,7 @@ use crate::units::{Dim, UnitSystem};
 /// Older files have no such loads, so they migrate unchanged (decision 0014).
 /// v5 (2026-11-05): automatic subdivision of frames. Older files have none
 /// (decision 0015).
-pub const SCHEMA_VERSION: u32 = 5;
+pub const SCHEMA_VERSION: u32 = 6;
 
 pub type Name = String;
 
@@ -218,7 +218,8 @@ pub struct AreaSection {
 #[serde(deny_unknown_fields)]
 pub struct Area {
     pub name: Name,
-    pub joints: [Name; 4],
+    /// Three or four, in order around the area.
+    pub joints: Vec<Name>,
     pub section: Name,
 }
 

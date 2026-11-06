@@ -1,0 +1,57 @@
+File written by hand for the tests of the reader: a strip, one object in a mesh of triangles and quadrilaterals.
+
+TABLE:  "PROGRAM CONTROL"
+   ProgramName=Handwritten   CurrUnits="N, m, C"
+
+TABLE:  "ACTIVE DEGREES OF FREEDOM"
+   UX=Yes   UY=Yes   UZ=No   RX=No   RY=No   RZ=Yes
+
+TABLE:  "MATERIAL PROPERTIES 02 - BASIC MECHANICAL PROPERTIES"
+   Material=STEEL   UnitWeight=0   E1=2E+11   U12=0.3
+
+TABLE:  "AREA SECTION PROPERTIES"
+   Section=SH   Material=STEEL   AreaType=Shell   Type=Membrane   Thickness=0.1
+
+TABLE:  "JOINT COORDINATES"
+   Joint=1   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=0   Z=0
+   Joint=2   CoordSys=GLOBAL   CoordType=Cartesian   XorR=4   Y=0   Z=0
+   Joint=3   CoordSys=GLOBAL   CoordType=Cartesian   XorR=4   Y=1   Z=0
+   Joint=4   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=1   Z=0
+
+TABLE:  "JOINT RESTRAINT ASSIGNMENTS"
+   Joint=1   U1=Yes   U2=Yes   U3=Yes   R1=Yes   R2=Yes   R3=Yes
+   Joint=4   U1=Yes   U2=No   U3=Yes   R1=Yes   R2=Yes   R3=Yes
+
+TABLE:  "CONNECTIVITY - AREA"
+   Area=A1   NumJoints=4   Joint1=1   Joint2=2   Joint3=3   Joint4=4
+
+TABLE:  "AREA SECTION ASSIGNMENTS"
+   Area=A1   Section=SH
+
+TABLE:  "OBJECTS AND ELEMENTS - JOINTS"
+   JointElem=1   JointObject=1   GlobalX=0   GlobalY=0   GlobalZ=0
+   JointElem=~1   GlobalX=1.5   GlobalY=0   GlobalZ=0
+   JointElem=~2   GlobalX=1.5   GlobalY=1   GlobalZ=0
+   JointElem=~3   GlobalX=3   GlobalY=0.5   GlobalZ=0
+
+TABLE:  "OBJECTS AND ELEMENTS - AREAS"
+   AreaElem=E1   AreaObject=A1   ElemJt1=1   ElemJt2=~1   ElemJt3=~2   ElemJt4=4
+   AreaElem=E2   AreaObject=A1   ElemJt1=~1   ElemJt2=2   ElemJt3=~3
+   AreaElem=E3   AreaObject=A1   ElemJt1=2   ElemJt2=3   ElemJt3=~3
+   AreaElem=E4   AreaObject=A1   ElemJt1=3   ElemJt2=~2   ElemJt3=~3
+   AreaElem=E5   AreaObject=A1   ElemJt1=~2   ElemJt2=~1   ElemJt3=~3
+
+TABLE:  "LOAD PATTERN DEFINITIONS"
+   LoadPat=TEN   DesignType=Other   SelfWtMult=0
+
+TABLE:  "JOINT LOADS - FORCE"
+   Joint=2   LoadPat=TEN   F1=150000
+   Joint=3   LoadPat=TEN   F1=150000
+
+TABLE:  "LOAD CASE DEFINITIONS"
+   Case=TEN   Type=LinStatic
+
+TABLE:  "CASE - STATIC 1 - LOAD ASSIGNMENTS"
+   Case=TEN   LoadType="Load pattern"   LoadName=TEN   LoadSF=1
+
+END TABLE DATA

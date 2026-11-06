@@ -5,7 +5,7 @@
 //! `IGNORED`; any other table the importer does not know is a problem, because
 //! it may change the structure.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 
 use struktal_core::model::*;
@@ -50,8 +50,6 @@ const IGNORED: &[&str] = &[
     "MATERIAL PROPERTIES 09",
     "MODAL ",
     "NAMED SETS",
-    "OBJECTS AND ELEMENTS - FRAMES",
-    "OBJECTS AND ELEMENTS - JOINTS",
     "OPTIONS - ",
     "OVERWRITES - ",
     "PREFERENCES - ",
@@ -97,6 +95,9 @@ const READ: &[&str] = &[
     "LOAD CASE DEFINITIONS",
     "LOAD PATTERN DEFINITIONS",
     "MATERIAL PROPERTIES 02 - BASIC MECHANICAL PROPERTIES",
+    "OBJECTS AND ELEMENTS - AREAS",
+    "OBJECTS AND ELEMENTS - FRAMES",
+    "OBJECTS AND ELEMENTS - JOINTS",
     "PROGRAM CONTROL",
 ];
 
@@ -126,9 +127,36 @@ struct Importer<'a> {
     s2k: &'a S2k,
     problems: Vec<Problem>,
     notes: Vec<String>,
+    /// Object name to the names of its elements, when the file has a mesh.
+    area_elements: HashMap<String, Vec<String>>,
 }
 
 const YES: &str = "Yes";
+/// The elements of an area must cover it to this fraction: flat elements on a
+/// slightly warped object do not add up exactly to its projected area.
+const AREA_COVER_TOL_REL: f64 = 0.01;
+/// As `ON_AXIS_TOL_REL` of the analysis, which is what connects the joint.
+const FRAME_AXIS_TOL_REL: f64 = 1e-6;
+
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn norm(a: [f64; 3]) -> f64 {
+    dot(a, a).sqrt()
+}
+
+/// Normal times area of a polygon, by Newell's formula.
+fn vector_area(p: &[[f64; 3]]) -> [f64; 3] {
+    let mut out = [0.0; 3];
+    for (k, a) in p.iter().enumerate() {
+        let b = p[(k + 1) % p.len()];
+        out[0] += 0.5 * (a[1] * b[2] - a[2] * b[1]);
+        out[1] += 0.5 * (a[2] * b[0] - a[0] * b[2]);
+        out[2] += 0.5 * (a[0] * b[1] - a[1] * b[0]);
+    }
+    out
+}
 
 impl Importer<'_> {
     fn problem(&mut self, table: &str, line: usize, cause: impl Into<String>) {
@@ -494,14 +522,16 @@ impl Importer<'_> {
         frames
     }
 
-    /// Areas as they are in the file: objects are elements. A model whose
-    /// analysis mesh differs from its objects is refused, because this reader
-    /// has no way to pass the loads of an object to its elements.
-    fn areas(&mut self) -> (Vec<AreaSection>, Vec<Area>) {
+    /// The elements of the analysis mesh when the file has them, else its objects.
+    fn areas(
+        &mut self,
+        joints: &mut Vec<Joint>,
+        index: &mut BTreeMap<String, usize>,
+        active: [bool; 6],
+    ) -> (Vec<AreaSection>, Vec<Area>) {
         const C: &str = "CONNECTIVITY - AREA";
         const A: &str = "AREA SECTION ASSIGNMENTS";
         const P: &str = "AREA SECTION PROPERTIES";
-        const E: &str = "OBJECTS AND ELEMENTS - AREAS";
         let mut assigned: HashMap<String, String> = HashMap::new();
         for row in self.s2k.rows(A) {
             let (Some(area), Some(section)) = (self.text(A, row, "Area"), self.text(A, row, "Section")) else {
@@ -509,36 +539,23 @@ impl Importer<'_> {
             };
             assigned.insert(area, section);
         }
-        let mut areas = Vec::new();
+        let mut objects = Vec::new();
         for row in self.s2k.rows(C) {
             let Some(name) = self.text(C, row, "Area") else { continue };
-            if row.get("NumJoints").is_some_and(|n| n != "4") {
-                self.problem(C, row.line, format!("area {name}: only four joints (triangles are pending)"));
-                continue;
-            }
-            let (Some(a), Some(b), Some(c), Some(d)) = (
-                self.text(C, row, "Joint1"),
-                self.text(C, row, "Joint2"),
-                self.text(C, row, "Joint3"),
-                self.text(C, row, "Joint4"),
-            ) else {
+            let count = row.get("NumJoints").map_or(Some(4), |n| n.parse::<usize>().ok()).filter(|n| *n >= 3);
+            let Some(count) = count else {
+                self.problem(C, row.line, format!("area {name}: invalid NumJoints"));
                 continue;
             };
+            let found: Vec<Option<String>> = (1..=count).map(|k| self.text(C, row, &format!("Joint{k}"))).collect();
+            let Some(area_joints) = found.into_iter().collect::<Option<Vec<String>>>() else { continue };
             let Some(section) = assigned.get(&name).cloned() else {
                 self.problem(C, row.line, format!("area {name} has no section assignment"));
                 continue;
             };
-            areas.push(Area { name, joints: [a, b, c, d], section });
+            objects.push(Area { name, joints: area_joints, section });
         }
-        for row in self.s2k.rows(E) {
-            let (object, element) = (row.get("AreaObject"), row.get("AreaElem"));
-            if let (Some(object), Some(element)) = (object, element)
-                && object != element
-            {
-                self.problem(E, row.line, format!("area {object} is meshed into elements: export the mesh as objects"));
-                break;
-            }
-        }
+        let areas = self.area_mesh(objects, joints, index, active);
         let used: Vec<String> = areas.iter().map(|a: &Area| a.section.clone()).collect();
         let mut sections = Vec::new();
         for row in self.s2k.rows(P) {
@@ -580,6 +597,196 @@ impl Importer<'_> {
         (sections, areas)
     }
 
+    /// Replaces the objects by their elements. Joints inside a mesh do not exist
+    /// as objects, so they are added free, as they are in the file's analysis.
+    fn area_mesh(
+        &mut self,
+        objects: Vec<Area>,
+        joints: &mut Vec<Joint>,
+        index: &mut BTreeMap<String, usize>,
+        active: [bool; 6],
+    ) -> Vec<Area> {
+        const C: &str = "CONNECTIVITY - AREA";
+        const E: &str = "OBJECTS AND ELEMENTS - AREAS";
+        if self.s2k.rows(E).is_empty() {
+            for o in objects.iter().filter(|o| o.joints.len() > 4) {
+                self.problem(
+                    C,
+                    0,
+                    format!("area {} has {} joints: it needs the table {E} of its mesh", o.name, o.joints.len()),
+                );
+            }
+            return objects;
+        }
+
+        let mut by_object: HashMap<String, Vec<(String, Vec<String>)>> = HashMap::new();
+        for row in self.s2k.rows(E) {
+            let (Some(element), Some(object)) = (self.text(E, row, "AreaElem"), self.text(E, row, "AreaObject")) else {
+                continue;
+            };
+            if !objects.iter().any(|o| o.name == object) {
+                self.problem(E, row.line, format!("element {element}: unknown area {object}"));
+                continue;
+            }
+            let (Some(a), Some(b), Some(c)) =
+                (self.text(E, row, "ElemJt1"), self.text(E, row, "ElemJt2"), self.text(E, row, "ElemJt3"))
+            else {
+                continue;
+            };
+            let mut corners = vec![a, b, c];
+            corners.extend(row.get("ElemJt4").filter(|d| !d.is_empty()).map(str::to_string));
+            by_object.entry(object).or_default().push((element, corners));
+        }
+
+        let mut out = Vec::new();
+        let mut meshed = 0;
+        for o in objects {
+            let Some(elements) = by_object.remove(&o.name) else {
+                self.problem(E, 0, format!("area {} has no elements in this table", o.name));
+                continue;
+            };
+            for (_, corners) in &elements {
+                for name in corners {
+                    self.add_mesh_joint(name, joints, index, active);
+                }
+            }
+            let at = |names: &[String]| -> Option<Vec<[f64; 3]>> {
+                names
+                    .iter()
+                    .map(|n| {
+                        index.get(n).map(|&k| {
+                            let j = &joints[k];
+                            [j.x, j.y, j.z]
+                        })
+                    })
+                    .collect()
+            };
+            if let Some(whole) = at(&o.joints).map(|p| vector_area(&p)) {
+                let mut sum = 0.0;
+                for (element, corners) in &elements {
+                    let Some(part) = at(corners).map(|p| vector_area(&p)) else { continue };
+                    sum += norm(part);
+                    if dot(part, whole) <= 0.0 {
+                        self.problem(E, 0, format!("element {element} faces against its area {}", o.name));
+                    }
+                }
+                // Its loads go by area: a mesh that does not cover the object would lose them.
+                if (sum - norm(whole)).abs() > AREA_COVER_TOL_REL * norm(whole) {
+                    self.problem(
+                        E,
+                        0,
+                        format!("the elements of area {} cover {sum:e}, and the area is {:e}", o.name, norm(whole)),
+                    );
+                }
+            }
+            if elements.len() > 1 {
+                meshed += 1;
+            }
+            self.area_elements.insert(o.name.clone(), elements.iter().map(|(n, _)| n.clone()).collect());
+            out.extend(elements.into_iter().map(|(name, corners)| Area {
+                name,
+                joints: corners,
+                section: o.section.clone(),
+            }));
+        }
+        if meshed > 0 {
+            self.notes.push(format!(
+                "{meshed} areas are meshed: {} elements, named as in the table {E}; loads go to every element, and results are by element",
+                out.len()
+            ));
+        }
+        out
+    }
+
+    fn add_mesh_joint(
+        &mut self,
+        name: &str,
+        joints: &mut Vec<Joint>,
+        index: &mut BTreeMap<String, usize>,
+        active: [bool; 6],
+    ) {
+        const J: &str = "OBJECTS AND ELEMENTS - JOINTS";
+        if index.contains_key(name) {
+            return;
+        }
+        let Some(row) = self.s2k.rows(J).iter().find(|r| r.get("JointElem") == Some(name)) else {
+            self.problem(J, 0, format!("mesh joint {name} is not in this table"));
+            return;
+        };
+        if row.get("JointObject").is_some_and(|o| !o.is_empty()) {
+            self.problem(J, row.line, format!("mesh joint {name} has another name as an object: not supported"));
+            return;
+        }
+        let xyz =
+            [self.need_num(J, row, "GlobalX"), self.need_num(J, row, "GlobalY"), self.need_num(J, row, "GlobalZ")];
+        index.insert(name.to_string(), joints.len());
+        joints.push(Joint {
+            name: name.to_string(),
+            x: xyz[0],
+            y: xyz[1],
+            z: xyz[2],
+            restraint: active.map(|a| !a),
+            springs: [0.0; 6],
+            added_mass: [0.0; 6],
+        });
+    }
+
+    /// A frame the file cuts at a joint of an area mesh is connected there, and
+    /// this model connects it by cutting at the joints on its axis. Without this
+    /// a beam would pass by the edge of its slab with no connection.
+    fn connect_frames_to_mesh(&mut self, frames: &mut [Frame], joints: &[Joint], areas: &[Area]) {
+        const E: &str = "OBJECTS AND ELEMENTS - AREAS";
+        const T: &str = "OBJECTS AND ELEMENTS - FRAMES";
+        if self.s2k.rows(E).is_empty() {
+            return;
+        }
+        let in_mesh: HashSet<&str> = areas.iter().flat_map(|a| a.joints.iter().map(String::as_str)).collect();
+        let position = |name: &str| joints.iter().find(|j| j.name == name).map(|j| [j.x, j.y, j.z]);
+        if self.s2k.rows(T).is_empty() && !frames.is_empty() {
+            self.problem(T, 0, "a model with frames and an area mesh needs this table, to know where they connect");
+            return;
+        }
+        let mut cut = Vec::new();
+        for row in self.s2k.rows(T) {
+            let (Some(object), Some(i), Some(j)) =
+                (self.text(T, row, "FrameObject"), self.text(T, row, "ElemJtI"), self.text(T, row, "ElemJtJ"))
+            else {
+                continue;
+            };
+            let Some(f) = frames.iter_mut().find(|f| f.name == object) else {
+                self.problem(T, row.line, format!("unknown frame {object}"));
+                continue;
+            };
+            for name in [&i, &j] {
+                if *name == f.i || *name == f.j || !in_mesh.contains(name.as_str()) {
+                    continue;
+                }
+                if f.offsets.is_some() {
+                    self.problem(T, row.line, format!("frame {object} has offsets and connects to an area mesh"));
+                    continue;
+                }
+                let (Some(p), Some(a), Some(b)) = (position(name), position(&f.i), position(&f.j)) else { continue };
+                let axis = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+                let length = norm(axis);
+                let d = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
+                let along = dot(d, axis) / length;
+                let off = norm([0, 1, 2].map(|k| d[k] - along * axis[k] / length));
+                if off > FRAME_AXIS_TOL_REL * length {
+                    self.problem(T, row.line, format!("frame {object}: joint {name} is {off:e} off its axis"));
+                    continue;
+                }
+                if !f.auto_mesh.is_some_and(|m| m.at_joints) {
+                    let segments = f.auto_mesh.map_or(1, |m| m.segments);
+                    f.auto_mesh = Some(AutoMesh { segments, at_joints: true });
+                    cut.push(object.clone());
+                }
+            }
+        }
+        if !cut.is_empty() {
+            self.notes.push(format!("{} frames are cut at the joints of the area mesh, as the file does", cut.len()));
+        }
+    }
+
     fn area_loads(&mut self, m: &mut Model) {
         const U: &str = "AREA LOADS - UNIFORM";
         for row in self.s2k.rows(U) {
@@ -600,14 +807,17 @@ impl Importer<'_> {
                 }
             };
             let value = self.need_num(U, row, "UnifLoad");
-            m.area_loads.push(AreaLoad { pattern, area, direction, value });
+            for area in self.elements_of(&area) {
+                m.area_loads.push(AreaLoad { pattern: pattern.clone(), area, direction, value });
+            }
         }
         const G: &str = "AREA LOADS - GRAVITY";
         for row in self.s2k.rows(G) {
             let (Some(area), Some(pattern)) = (self.text(G, row, "Area"), self.text(G, row, "LoadPat")) else {
                 continue;
             };
-            let Some(sec) = m.areas.iter().find(|a| a.name == area).map(|a| a.section.clone()) else {
+            let elements = self.elements_of(&area);
+            let Some(sec) = m.areas.iter().find(|a| a.name == elements[0]).map(|a| a.section.clone()) else {
                 self.problem(G, row.line, format!("unknown area {area}"));
                 continue;
             };
@@ -623,15 +833,22 @@ impl Importer<'_> {
             ] {
                 let mult = self.num_or(G, row, key, 0.0);
                 if mult != 0.0 {
-                    m.area_loads.push(AreaLoad {
-                        pattern: pattern.clone(),
-                        area: area.clone(),
-                        direction,
-                        value: w * mult,
-                    });
+                    for element in &elements {
+                        m.area_loads.push(AreaLoad {
+                            pattern: pattern.clone(),
+                            area: element.clone(),
+                            direction,
+                            value: w * mult,
+                        });
+                    }
                 }
             }
         }
+    }
+
+    /// An unknown area stays as it is, and validation reports it.
+    fn elements_of(&self, area: &str) -> Vec<String> {
+        self.area_elements.get(area).cloned().unwrap_or_else(|| vec![area.to_string()])
     }
 
     fn frame_of(&mut self, table: &str, row: &Row, index: &HashMap<String, usize>) -> Option<usize> {
@@ -926,7 +1143,7 @@ fn with_weight_factor(mut section: FrameSection, factor: f64, materials: &mut Ve
 /// Reads a parsed file into a model in its declared units. The result still
 /// has to pass `struktal_core::validate`.
 pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
-    let mut im = Importer { s2k, problems: Vec::new(), notes: Vec::new() };
+    let mut im = Importer { s2k, problems: Vec::new(), notes: Vec::new(), area_elements: HashMap::new() };
     let ignored_tables = im.check_tables();
     let units = im.units();
 
@@ -938,8 +1155,8 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
 
     let mut materials = im.materials();
     let mut sections = im.sections(&mut materials);
-    let (joints, _) = im.joints(active);
-    let frames = im.frames(&mut sections, &mut materials);
+    let (mut joints, mut joint_index) = im.joints(active);
+    let mut frames = im.frames(&mut sections, &mut materials);
 
     // Only what the frames use: a file lists many unused library sections.
     let mut used: Vec<FrameSection> = Vec::new();
@@ -954,7 +1171,8 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
             }
         }
     }
-    let (area_sections, areas) = im.areas();
+    let (area_sections, areas) = im.areas(&mut joints, &mut joint_index, active);
+    im.connect_frames_to_mesh(&mut frames, &joints, &areas);
     let used_materials: Vec<Material> = materials
         .iter()
         .filter(|m| used.iter().any(|s| s.material == m.name) || area_sections.iter().any(|s| s.material == m.name))
@@ -1197,13 +1415,98 @@ mod tests {
     }
 
     #[test]
+    fn a_triangular_object_is_read() {
+        let im = run(&format!(
+            "{AREA}TABLE:  \"CONNECTIVITY - AREA\"\n   Area=T1   NumJoints=3   Joint1=1   Joint2=2   Joint3=3\nTABLE:  \"AREA SECTION ASSIGNMENTS\"\n   Area=T1   Section=SL\n"
+        ))
+        .expect("ok");
+        assert_eq!(im.model.areas[1].joints, ["1", "2", "3"]);
+        struktal_core::validate(&im.model).expect("valid");
+    }
+
+    /// The square A1 in two triangles and two quadrilaterals around ~1, ~2 and ~3.
+    const MESH: &str = concat!(
+        "TABLE:  \"OBJECTS AND ELEMENTS - JOINTS\"\n",
+        "   JointElem=1   JointObject=1   GlobalX=0   GlobalY=0   GlobalZ=0\n",
+        "   JointElem=~1   GlobalX=50   GlobalY=0   GlobalZ=0\n",
+        "   JointElem=~2   GlobalX=50   GlobalY=100   GlobalZ=0\n",
+        "   JointElem=~3   GlobalX=50   GlobalY=50   GlobalZ=0\n",
+        "   JointElem=~9   GlobalX=7   GlobalY=7   GlobalZ=7\n",
+        "TABLE:  \"OBJECTS AND ELEMENTS - AREAS\"\n",
+        "   AreaElem=E1   AreaObject=A1   ElemJt1=1   ElemJt2=~1   ElemJt3=~2   ElemJt4=4\n",
+        "   AreaElem=E2   AreaObject=A1   ElemJt1=~1   ElemJt2=2   ElemJt3=~3\n",
+        "   AreaElem=E3   AreaObject=A1   ElemJt1=2   ElemJt2=3   ElemJt3=~3\n",
+        "   AreaElem=E4   AreaObject=A1   ElemJt1=~3   ElemJt2=3   ElemJt3=~2\n",
+    );
+    const MESH_FRAMES: &str = concat!(
+        "TABLE:  \"OBJECTS AND ELEMENTS - FRAMES\"\n",
+        "   FrameElem=F1-1   FrameObject=F1   ElemJtI=1   ElemJtJ=~1\n",
+        "   FrameElem=F1-2   FrameObject=F1   ElemJtI=~1   ElemJtJ=2\n",
+    );
+
+    #[test]
+    fn a_mesh_replaces_its_object_and_gets_its_loads() {
+        let im = run(&format!(
+            "{AREA}{MESH}{MESH_FRAMES}TABLE:  \"AREA LOADS - UNIFORM\"\n   Area=A1   LoadPat=P1   CoordSys=Local   Dir=3   UnifLoad=-0.01\nTABLE:  \"AREA LOADS - GRAVITY\"\n   Area=A1   LoadPat=P1   MultiplierZ=-1\n"
+        ))
+        .expect("ok");
+        let m = &im.model;
+        let names: Vec<&str> = m.areas.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, ["E1", "E2", "E3", "E4"]);
+        assert_eq!(m.areas[1].joints, ["~1", "2", "~3"]);
+        assert!(m.areas.iter().all(|a| a.section == "SL"));
+        // Each load, once per element.
+        assert_eq!(m.area_loads.len(), 8);
+        assert_eq!(m.area_loads.iter().filter(|l| l.area == "E3").count(), 2);
+        assert_eq!(m.area_loads[7].value, -0.5);
+        // The joints it needs are added free, and only those.
+        let mid = m.joints.iter().find(|j| j.name == "~3").expect("~3");
+        assert_eq!((mid.x, mid.y, mid.restraint), (50.0, 50.0, [false; 6]));
+        assert!(!m.joints.iter().any(|j| j.name == "~9"));
+        // The beam is cut where the file cuts it, so it connects to the mesh.
+        assert!(m.frames[0].auto_mesh.expect("mesh").at_joints);
+        assert!(im.notes.iter().any(|n| n.contains("meshed")) && im.notes.iter().any(|n| n.contains("cut")));
+        struktal_core::validate(m).expect("valid");
+    }
+
+    #[test]
+    fn a_frame_not_cut_at_the_mesh_stays_whole() {
+        let frames =
+            "TABLE:  \"OBJECTS AND ELEMENTS - FRAMES\"\n   FrameElem=F1   FrameObject=F1   ElemJtI=1   ElemJtJ=2\n";
+        let im = run(&format!("{AREA}{MESH}{frames}")).expect("ok");
+        assert!(im.model.frames[0].auto_mesh.is_none());
+    }
+
+    #[test]
+    fn a_mesh_that_does_not_match_its_object_is_refused() {
+        let with_frames = |mesh: &str| causes(&format!("{AREA}{mesh}{MESH_FRAMES}"));
+        for (mesh, needle) in [
+            // Without E4, a quarter of the area and its load would be lost.
+            (MESH.replace("   AreaElem=E4   AreaObject=A1   ElemJt1=~3   ElemJt2=3   ElemJt3=~2\n", ""), "cover"),
+            (MESH.replace("ElemJt1=2   ElemJt2=3   ElemJt3=~3", "ElemJt1=3   ElemJt2=2   ElemJt3=~3"), "faces against"),
+            (MESH.replace("   JointElem=~3   GlobalX=50   GlobalY=50   GlobalZ=0\n", ""), "not in this table"),
+            (MESH.replace("JointElem=~3   GlobalX", "JointElem=~3   JointObject=9   GlobalX"), "another name"),
+            (MESH.replace("AreaObject=A1   ElemJt1=~1", "AreaObject=NOPE   ElemJt1=~1"), "unknown area"),
+            (
+                MESH.replace("JointElem=~1   GlobalX=50   GlobalY=0", "JointElem=~1   GlobalX=50   GlobalY=2"),
+                "off its axis",
+            ),
+        ] {
+            let text = with_frames(&mesh);
+            assert!(text.contains(needle), "{needle}: {text}");
+        }
+        let other = "TABLE:  \"CONNECTIVITY - AREA\"\n   Area=A2   NumJoints=3   Joint1=1   Joint2=2   Joint3=3\nTABLE:  \"AREA SECTION ASSIGNMENTS\"\n   Area=A2   Section=SL\n";
+        assert!(causes(&format!("{AREA}{other}{MESH}{MESH_FRAMES}")).contains("A2 has no elements"));
+        assert!(causes(&format!("{AREA}{MESH}")).contains("to know where they connect"));
+    }
+
+    #[test]
     fn areas_that_cannot_be_represented_are_refused() {
         for (extra, needle) in [
             (
-                "TABLE:  \"CONNECTIVITY - AREA\"\n   Area=T1   NumJoints=3   Joint1=1   Joint2=2   Joint3=3\n",
-                "triangles",
+                "TABLE:  \"CONNECTIVITY - AREA\"\n   Area=P1   NumJoints=5   Joint1=1   Joint2=2   Joint3=3   Joint4=4   Joint5=2\nTABLE:  \"AREA SECTION ASSIGNMENTS\"\n   Area=P1   Section=SL\n",
+                "needs the table",
             ),
-            ("TABLE:  \"OBJECTS AND ELEMENTS - AREAS\"\n   AreaElem=1   AreaObject=A1\n", "meshed"),
             (
                 "TABLE:  \"AREA LOADS - UNIFORM\"\n   Area=A1   LoadPat=P1   CoordSys=GLOBAL   Dir=\"Gravity Proj\"   UnifLoad=1\n",
                 "Gravity Proj",

@@ -57,7 +57,8 @@ impl std::error::Error for LoadError {}
 /// Reads a model from JSON, checking the schema version before the body.
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
 /// behavior); v2 → v3 adds no offsets, constraints, springs or imposed
-/// displacements; v3 → v4 only adds load kinds; v4 → v5 adds no subdivision.
+/// displacements; v3 → v4 only adds load kinds; v4 → v5 adds no subdivision;
+/// v5 → v6 only allows areas of three joints.
 /// Missing fields already default to that, so only the version number changes.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
@@ -91,6 +92,14 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .and_then(|v| v.as_array())
             .is_some_and(|joints| joints.iter().any(|j| j.get("springs").is_some()));
         if has_offsets || has_springs || raw.get("constraints").is_some() || raw.get("joint_displacements").is_some() {
+            return Err(LoadError::UnsupportedSchema { found: ver });
+        }
+    }
+    if ver < 6 {
+        let has_triangle = raw.get("areas").and_then(|v| v.as_array()).is_some_and(|areas| {
+            areas.iter().any(|a| a.get("joints").and_then(|j| j.as_array()).is_some_and(|j| j.len() != 4))
+        });
+        if has_triangle {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
     }
@@ -330,6 +339,10 @@ fn check_areas(
         if !sections.contains_key(&a.section) {
             issues.push(issue(&e, "section", format!("unknown area section '{}'", a.section)));
         }
+        if !matches!(a.joints.len(), 3 | 4) {
+            issues.push(issue(&e, "joints", format!("an area has 3 or 4 joints, not {}", a.joints.len())));
+            continue;
+        }
         let mut found = Vec::with_capacity(4);
         for name in &a.joints {
             match joint_index.get(name) {
@@ -340,7 +353,7 @@ fn check_areas(
                 None => issues.push(issue(&e, "joints", format!("unknown joint '{name}'"))),
             }
         }
-        if found.len() < 4 {
+        if found.len() < a.joints.len() {
             continue;
         }
         let at = |k: usize| {
@@ -352,6 +365,16 @@ fn check_areas(
             [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
         };
         let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        if found.len() == 3 {
+            // Three points are always flat and convex: only collinear ones fail.
+            let (e1, e2, e3) = (sub(at(1), at(0)), sub(at(2), at(0)), sub(at(2), at(1)));
+            let normal = cross(e1, e2);
+            let longest = dot(e1, e1).max(dot(e2, e2)).max(dot(e3, e3));
+            if dot(normal, normal).sqrt() <= 1e-12 * longest {
+                issues.push(issue(&e, "joints", "degenerate area: its joints are collinear"));
+            }
+            continue;
+        }
         let (d1, d2) = (sub(at(2), at(0)), sub(at(3), at(1)));
         let normal = cross(d1, d2);
         let size = dot(normal, normal).sqrt();
@@ -946,7 +969,8 @@ mod tests {
 
     #[test]
     fn future_schema_rejected() {
-        let text = model_to_json(&cantilever()).replacen("\"schema_version\": 5", "\"schema_version\": 99", 1);
+        let current = format!("\"schema_version\": {SCHEMA_VERSION}");
+        let text = model_to_json(&cantilever()).replacen(&current, "\"schema_version\": 99", 1);
         assert!(matches!(model_from_json(&text), Err(LoadError::FutureSchema { found: 99, .. })));
     }
 
@@ -1274,10 +1298,43 @@ mod tests {
         }];
         m.areas = vec![Area {
             name: "Q".into(),
-            joints: ["A0".to_string(), "A1".to_string(), "A2".to_string(), "A3".to_string()],
+            joints: vec!["A0".to_string(), "A1".to_string(), "A2".to_string(), "A3".to_string()],
             section: "S1".into(),
         }];
         m
+    }
+
+    #[test]
+    fn triangles_are_valid_and_need_schema_6() {
+        let mut m = with_area([[0.0, 0.0, 5.0], [2.0, 0.0, 5.0], [2.0, 2.0, 5.0], [0.0, 2.0, 5.0]]);
+        m.areas[0].joints.pop();
+        m.joints.pop();
+        validate(&m).expect("a triangle is valid");
+
+        let mut v5 = serde_json::to_value(&m).expect("json");
+        v5["schema_version"] = 5.into();
+        assert!(matches!(model_from_json(&v5.to_string()), Err(LoadError::UnsupportedSchema { found: 5 })));
+
+        // In a line, or repeating a joint.
+        let mut line = m.clone();
+        line.joints.iter_mut().find(|j| j.name == "A2").expect("A2").y = 0.0;
+        assert!(validate(&line).expect_err("fail").iter().any(|i| i.cause.contains("collinear")));
+        let mut repeated = m.clone();
+        repeated.areas[0].joints[2] = "A0".into();
+        assert!(validate(&repeated).expect_err("fail").iter().any(|i| i.cause.contains("collinear")));
+        let mut two = m;
+        two.areas[0].joints.pop();
+        assert!(validate(&two).expect_err("fail").iter().any(|i| i.cause.contains("3 or 4 joints")));
+    }
+
+    #[test]
+    fn a_v5_file_with_quadrilaterals_still_loads() {
+        let m = with_area([[0.0, 0.0, 5.0], [2.0, 0.0, 5.0], [2.0, 2.0, 5.0], [0.0, 2.0, 5.0]]);
+        let mut v5 = serde_json::to_value(&m).expect("json");
+        v5["schema_version"] = 5.into();
+        let back = model_from_json(&v5.to_string()).expect("loads");
+        assert_eq!(back.schema_version, SCHEMA_VERSION);
+        assert_eq!(back.areas[0].joints.len(), 4);
     }
 
     #[test]

@@ -130,7 +130,8 @@ def solve_case(m, loads):
         s["tag"] = 1000 + k
         ops.section("ElasticMembranePlateSection", s["tag"], s["mat"]["e"], s["mat"]["nu"], s["thickness"], 0.0)
     for a in m.get("areas", []):
-        ops.element("ShellMITC4", next_ele, *[tags[n] for n in a["joints"]], a["sec"]["tag"])
+        kind = "ASDShellT3" if len(a["joints"]) == 3 else "ShellMITC4"
+        ops.element(kind, next_ele, *[tags[n] for n in a["joints"]], a["sec"]["tag"])
         next_ele += 1
 
     for c in m.get("constraints", []):

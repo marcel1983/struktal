@@ -1,7 +1,6 @@
 //! Lumped masses, natural modes and response spectra (decision 0020).
 
 use struktal_core::{ModalCombination, Snapshot, SpectrumFunction};
-use struktal_elements::shell4;
 use struktal_math::Csc;
 use struktal_math::eigen;
 use struktal_math::factor::Factor;
@@ -42,7 +41,7 @@ pub(crate) fn assemble_mass(s: &Snapshot, map: &DofMap, frames: &[FrameData], ar
     for (a, def) in areas.iter().zip(&m.areas) {
         let sec = m.area_sections.iter().find(|x| x.name == def.section).expect("validated section");
         let density = m.materials.iter().find(|x| x.name == sec.material).map_or(0.0, |x| x.mass_density);
-        for (n, share) in shell4::nodal_areas(&a.xy).iter().enumerate() {
+        for (n, share) in a.nodal_areas().iter().enumerate() {
             for d in 0..3 {
                 lumped[a.dofs[6 * n + d]] += density * sec.thickness * share;
             }
@@ -334,11 +333,13 @@ pub(crate) fn combine_response(
             center: std::array::from_fn(|d| {
                 combine(&per_mode.iter().map(|r| r.areas[a].center[d]).collect::<Vec<_>>(), &rho)
             }),
-            corners: std::array::from_fn(|c| {
-                std::array::from_fn(|d| {
-                    combine(&per_mode.iter().map(|r| r.areas[a].corners[c][d]).collect::<Vec<_>>(), &rho)
+            corners: (0..area.corners.len())
+                .map(|c| {
+                    std::array::from_fn(|d| {
+                        combine(&per_mode.iter().map(|r| r.areas[a].corners[c][d]).collect::<Vec<_>>(), &rho)
+                    })
                 })
-            }),
+                .collect(),
         })
         .collect();
     let mut messages = vec![format!(

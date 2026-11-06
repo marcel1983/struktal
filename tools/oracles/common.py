@@ -119,11 +119,16 @@ def load_model(path):
         a["corners"] = [by_joint[n]["xyz"] for n in a["joints"]]
         a["sec"] = by_area_section[a["section"]]
         e3 = unit(cross([q - p for p, q in zip(a["corners"][0], a["corners"][2])],
-                        [q - p for p, q in zip(a["corners"][1], a["corners"][3])]))
+                        [q - p for p, q in zip(a["corners"][1], a["corners"][-1])]))
         h = cross([0.0, 0.0, 1.0], e3)
         e1 = unit(cross([0.0, 1.0, 0.0], e3)) if math.sqrt(dot(h, h)) < 1e-3 else unit(h)
         a["axes"] = [e1, cross(e3, e1), e3]
-        a["shares"] = nodal_shares(a["corners"], a["axes"])
+        if len(a["joints"]) == 3:
+            e12, e13 = [[q - p for p, q in zip(a["corners"][0], a["corners"][k])] for k in (1, 2)]
+            normal = cross(e12, e13)
+            a["shares"] = [math.sqrt(dot(normal, normal)) / 6.0] * 3
+        else:
+            a["shares"] = nodal_shares(a["corners"], a["axes"])
     for al in m.get("area_loads", []):
         al["value"] *= f / l**2
     for jl in m.get("joint_loads", []):

@@ -62,7 +62,7 @@ Error frente a la referencia de cada caso, en el punto de control:
 
 ## Pendiente
 
-- Triángulos (MITC3), mallado de áreas y subdivisión de un área objeto, con reparto de sus cargas.
+- Mallado propio de áreas. Triángulos y lectura de una malla desde S2K: hechos en la decisión 0021.
 - Presión en patrones de nudos, temperatura y cargas proyectadas.
 - Masa de láminas (hito 3), P-Δ de láminas, modificadores, secciones por capas y ortotropía.
 - Envolventes de esfuerzos de área: hoy se avisa de que no se incluyen.

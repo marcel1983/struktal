@@ -1,0 +1,191 @@
+{
+  "case_id": "V-TRI-001",
+  "title": "Three-node shell: exact states on a distorted mesh, mixed with four-node elements, and load shares",
+  "feature_ids": [
+    "F03-001",
+    "F03-002",
+    "F18-009"
+  ],
+  "model": "model.json",
+  "model_sha256": "2ec001e46e96e2fcf55701e30d46516ec287e3adb45ec8c1a8bce6c2e1b83fa4",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-area-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Same closed forms as V-SHELL-001: constant strain and constant curvature, which the element must reproduce exactly",
+    "derivation": [
+      "u = F L/(E t b), F11 = F/b",
+      "theta = M L/(E I), M11 = M/b",
+      "the third strip has the same states across both shapes",
+      "a uniform load gives each joint of a triangle q A/3",
+      "inclined triangle: A = sqrt(2), normal (0, -1, 1)/sqrt(2), so the reaction per joint is q/3 in +Y and -Z"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "TEN",
+      "entity": "T3_1",
+      "component": "UX",
+      "value": 6e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "TEN",
+      "entity": "T1_0",
+      "component": "UX",
+      "value": 1.95e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "TEN",
+      "entity": "T3_2",
+      "component": "UY",
+      "value": -4.5e-06,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "TEN",
+      "entity": "T0_1",
+      "component": "FX",
+      "value": -150000.0,
+      "unit": "N"
+    },
+    {
+      "result": "area_center",
+      "case": "TEN",
+      "entity": "TA1_0a",
+      "component": "F11",
+      "value": 300000.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "area_center",
+      "case": "TEN",
+      "entity": "TA1_0b",
+      "component": "F22",
+      "value": 0.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "area_center",
+      "case": "TEN",
+      "entity": "TA1_0a",
+      "component": "F12",
+      "value": 0.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "BEN",
+      "entity": "B3_1",
+      "component": "RY",
+      "value": 0.0028799999999999993,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "BEN",
+      "entity": "B3_1",
+      "component": "UZ",
+      "value": -0.005759999999999999,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "BEN",
+      "entity": "B1_0",
+      "component": "UZ",
+      "value": -0.0005813999999999999,
+      "unit": "m"
+    },
+    {
+      "result": "area_center",
+      "case": "BEN",
+      "entity": "BA1_0a",
+      "component": "M11",
+      "value": 12000.0,
+      "unit": "N*m/m"
+    },
+    {
+      "result": "area_center",
+      "case": "BEN",
+      "entity": "BA1_0b",
+      "component": "M22",
+      "value": 0.0,
+      "unit": "N*m/m"
+    },
+    {
+      "result": "area_center",
+      "case": "BEN",
+      "entity": "BA1_0a",
+      "component": "V13",
+      "value": 0.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "MIX",
+      "entity": "X3_1",
+      "component": "UX",
+      "value": 6e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "MIX",
+      "entity": "X3_2",
+      "component": "UY",
+      "value": -4.5e-06,
+      "unit": "m"
+    },
+    {
+      "result": "area_center",
+      "case": "MIX",
+      "entity": "XA0_0",
+      "component": "F11",
+      "value": 300000.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "area_center",
+      "case": "MIX",
+      "entity": "XA1_0a",
+      "component": "F11",
+      "value": 300000.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "Q",
+      "entity": "HB",
+      "component": "FZ",
+      "value": 1200.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "Q",
+      "entity": "IC",
+      "component": "FY",
+      "value": 400.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "Q",
+      "entity": "IB",
+      "component": "FZ",
+      "value": -400.0,
+      "unit": "N"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -12,7 +12,7 @@ Fecha: 2026-11-05. Estado: aceptada.
 - Las tablas sin efecto en este análisis (resultados, pantalla, datos de diseño) se listan en `IGNORED` y se cuentan en el informe.
 - Las secciones sin usar no importan: un archivo trae bibliotecas enteras.
 - Los casos que no son `LinStatic`, y las combinaciones que dependen de ellos o de otros tipos, no se importan, y se avisa.
-- Se leen barras y áreas de cuatro nudos sin malla propia (decisión 0019). Si el análisis malla un área en varios elementos, se rechaza. Los sólidos llegan después.
+- Se leen barras y áreas de tres y cuatro nudos, con la malla de análisis si el archivo la trae (decisiones 0019 y 0021). Los sólidos llegan después.
 
 El resultado todavía pasa por `validate`, así que, por ejemplo, un asiento sobre un grado de libertad libre es un error (decisión 0012).
 
@@ -44,5 +44,4 @@ Los archivos locales se han usado solo para probar la lectura, **sin comparar co
 
 - Comparar con los resultados de SAP2000, una vez aclarada la licencia.
 - Lo rechazado, según lo pidan tus modelos.
-- Malla de análisis de áreas, con reparto de sus cargas.
 - Escritura S2K (F19-003).
