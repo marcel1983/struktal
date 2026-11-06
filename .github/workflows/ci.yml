@@ -71,4 +71,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: python tools/gen_cases.py
-      - run: git diff --exit-code -- verification
+      - run: python tools/check_cases.py
