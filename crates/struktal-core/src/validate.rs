@@ -54,8 +54,8 @@ impl std::error::Error for LoadError {}
 
 /// Reads a model from JSON, checking the schema version before the body.
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
-/// behavior); missing fields already default to that, so only the version
-/// number changes.
+/// behavior); v2 → v3 adds no offsets and no constraints. Missing fields
+/// already default to that, so only the version number changes.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
     let ver = raw.get("schema_version").and_then(|v| v.as_u64()).ok_or(LoadError::MissingSchemaVersion)?;
@@ -74,6 +74,16 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .and_then(|v| v.as_array())
             .is_some_and(|secs| secs.iter().any(|s| s.get("as2").is_some() || s.get("as3").is_some()));
         if has_shear {
+            return Err(LoadError::UnsupportedSchema { found: ver });
+        }
+    }
+    if ver < 3 {
+        // Same rule for the v3 fields: never give an older file v3 semantics.
+        let has_offsets = raw
+            .get("frames")
+            .and_then(|v| v.as_array())
+            .is_some_and(|frames| frames.iter().any(|f| f.get("offsets").is_some()));
+        if has_offsets || raw.get("constraints").is_some() {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
     }
@@ -108,6 +118,14 @@ impl Snapshot {
     pub fn joint_xyz(&self, j: usize) -> [f64; 3] {
         let p = &self.model.joints[j];
         [p.x, p.y, p.z]
+    }
+
+    /// Positions of the element ends of a frame: its joints plus its offsets.
+    pub fn frame_ends(&self, f: usize) -> ([f64; 3], [f64; 3]) {
+        let (i, j, _, _) = self.frame_refs[f];
+        let o = self.model.frames[f].offsets.unwrap_or_default();
+        let (xi, xj) = (self.joint_xyz(i), self.joint_xyz(j));
+        ([0, 1, 2].map(|k| xi[k] + o.i[k]), [0, 1, 2].map(|k| xj[k] + o.j[k]))
     }
 }
 
@@ -236,17 +254,61 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
                 issues.push(issue(&e, "releases", format!("unstable release combination: {why}")));
             }
         }
+        let offsets = f.offsets.unwrap_or_default();
+        for (end, v) in [("i", offsets.i), ("j", offsets.j)] {
+            for c in v {
+                check_finite(c, &e, &format!("offsets.{end}"), &mut issues);
+            }
+        }
         if let (Some(a), Some(b)) = (ji, jj) {
             let (pa, pb) = (&m.joints[a], &m.joints[b]);
-            let len = ((pb.x - pa.x).powi(2) + (pb.y - pa.y).powi(2) + (pb.z - pa.z).powi(2)).sqrt();
+            let d = [
+                pb.x + offsets.j[0] - pa.x - offsets.i[0],
+                pb.y + offsets.j[1] - pa.y - offsets.i[1],
+                pb.z + offsets.j[2] - pa.z - offsets.i[2],
+            ];
+            let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
             if a == b || len <= len_tol {
-                issues.push(issue(&e, "i/j", format!("zero length (L = {len:e} m)")));
+                issues.push(issue(&e, "i/j", format!("zero length between element ends (L = {len:e} m)")));
             }
             connected.insert(a);
             connected.insert(b);
         }
         let mk = sk.and_then(|s| section_material.get(s).copied()).unwrap_or(usize::MAX);
         frame_refs.push((ji.unwrap_or(usize::MAX), jj.unwrap_or(usize::MAX), sk.unwrap_or(usize::MAX), mk));
+    }
+
+    index_unique("constraint", m.constraints.iter().map(|c| c.name()), &mut issues);
+    let mut constrained: HashMap<usize, &str> = HashMap::new();
+    for c in &m.constraints {
+        let e = format!("constraint {}", c.name());
+        if let Constraint::Diaphragm { joints, .. } = c
+            && joints.len() < 2
+        {
+            issues.push(issue(&e, "joints", "a diaphragm needs at least 2 joints"));
+        }
+        let tied = c.tied_components();
+        for name in c.joints() {
+            let Some(&k) = joint_index.get(name) else {
+                issues.push(issue(&e, "joints", format!("unknown joint '{name}'")));
+                continue;
+            };
+            if let Some(other) = constrained.insert(k, c.name()) {
+                issues.push(issue(&e, "joints", format!("joint '{name}' is already in constraint '{other}'")));
+            }
+            connected.insert(k);
+            let held: Vec<&str> = (0..6)
+                .filter(|&d| tied[d] && m.joints[k].restraint[d])
+                .map(|d| ["UX", "UY", "UZ", "RX", "RY", "RZ"][d])
+                .collect();
+            if !held.is_empty() {
+                issues.push(issue(
+                    &e,
+                    "joints",
+                    format!("joint '{name}' restrains {} tied by the constraint; not supported", held.join(", ")),
+                ));
+            }
+        }
     }
 
     for (k, j) in m.joints.iter().enumerate() {
@@ -405,7 +467,9 @@ mod tests {
                 section: "B".into(),
                 angle_deg: 0.0,
                 releases: None,
+                offsets: None,
             }],
+            constraints: vec![],
             load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0 }],
             joint_loads: vec![JointLoad {
                 pattern: "P".into(),
@@ -434,6 +498,8 @@ mod tests {
     fn v1_file_migrates_without_shear_deformation() {
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
         v["schema_version"] = 1.into();
+        v.as_object_mut().expect("obj").remove("constraints");
+        v["frames"][0].as_object_mut().expect("obj").remove("offsets");
         for s in v["sections"].as_array_mut().expect("sections") {
             let o = s.as_object_mut().expect("obj");
             o.remove("as2");
@@ -529,8 +595,93 @@ mod tests {
 
     #[test]
     fn future_schema_rejected() {
-        let text = model_to_json(&cantilever()).replacen("\"schema_version\": 2", "\"schema_version\": 99", 1);
+        let text = model_to_json(&cantilever()).replacen("\"schema_version\": 3", "\"schema_version\": 99", 1);
         assert!(matches!(model_from_json(&text), Err(LoadError::FutureSchema { found: 99, .. })));
+    }
+
+    fn with_diaphragm(joints: &[&str], restraint: [bool; 6]) -> Model {
+        let mut m = cantilever();
+        m.joints[1].restraint = restraint;
+        m.constraints = vec![Constraint::Diaphragm {
+            name: "D".into(),
+            axis: GlobalAxis::Z,
+            joints: joints.iter().map(|j| j.to_string()).collect(),
+        }];
+        m
+    }
+
+    #[test]
+    fn older_file_with_v3_fields_rejected_and_without_them_migrated() {
+        let plain: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
+        let mut v = plain.clone();
+        v["schema_version"] = 2.into();
+        v.as_object_mut().expect("obj").remove("constraints");
+        v["frames"][0].as_object_mut().expect("obj").remove("offsets");
+        let m = model_from_json(&v.to_string()).expect("migrates");
+        assert_eq!(m.schema_version, SCHEMA_VERSION);
+        assert!(m.constraints.is_empty() && m.frames[0].offsets.is_none());
+        let mut with_offset = v.clone();
+        with_offset["frames"][0]["offsets"] = serde_json::json!({"i": [0.0, 0.0, 1.0]});
+        assert!(matches!(model_from_json(&with_offset.to_string()), Err(LoadError::UnsupportedSchema { found: 2 })));
+        let mut with_constraint = v;
+        with_constraint["constraints"] = serde_json::json!([]);
+        assert!(matches!(
+            model_from_json(&with_constraint.to_string()),
+            Err(LoadError::UnsupportedSchema { found: 2 })
+        ));
+    }
+
+    #[test]
+    fn offsets_validated_and_converted_to_si() {
+        let mut m = cantilever();
+        m.frames[0].offsets = Some(EndOffsets { i: [f64::NAN, 0.0, 0.0], j: [0.0; 3] });
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "offsets.i"));
+        // The offsets close the whole 3 m between the joints.
+        let mut m = cantilever();
+        m.frames[0].offsets = Some(EndOffsets { i: [1.0, 0.0, 0.0], j: [-2.0, 0.0, 0.0] });
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "i/j"));
+        let mut m = cantilever();
+        m.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
+        m.materials[0].e = 200.0;
+        m.sections[0].area = 1e4;
+        m.sections[0].i33 = 1e8;
+        m.sections[0].i22 = 1e8;
+        m.sections[0].j = 2e8;
+        m.joints[1].x = 3000.0;
+        m.frames[0].offsets = Some(EndOffsets { i: [500.0, 0.0, 0.0], j: [0.0, 0.0, 250.0] });
+        let s = validate(&m).expect("ok");
+        let (xi, xj) = s.frame_ends(0);
+        assert!((xi[0] - 0.5).abs() < 1e-12 && (xj[0] - 3.0).abs() < 1e-12 && (xj[2] - 0.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn diaphragm_validation() {
+        assert!(validate(&with_diaphragm(&["2"], [false; 6])).is_err());
+        assert!(validate(&with_diaphragm(&["2", "nope"], [false; 6])).is_err());
+        // Joint 1 is fully restrained, so it holds tied components.
+        let errs = validate(&with_diaphragm(&["1", "2"], [false; 6])).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("restrains UX, UY, RZ")), "{errs:?}");
+
+        // A joint without elements is valid inside a diaphragm, and restraints
+        // on components the diaphragm does not tie are allowed.
+        let mut m = with_diaphragm(&["2", "3"], [false, false, true, false, false, false]);
+        m.joints.push(Joint { name: "3".into(), x: 1.0, y: 1.0, z: 0.0, restraint: [false; 6] });
+        assert!(validate(&m).is_ok());
+        m.constraints.push(Constraint::Diaphragm {
+            name: "E".into(),
+            axis: GlobalAxis::X,
+            joints: vec!["2".into(), "3".into()],
+        });
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("already in constraint 'D'")), "{errs:?}");
+    }
+
+    #[test]
+    fn diaphragm_ties_the_plane_of_its_axis() {
+        let tied = |axis| Constraint::Diaphragm { name: "D".into(), axis, joints: vec![] }.tied_components();
+        assert_eq!(tied(GlobalAxis::Z), [true, true, false, false, false, true]);
+        assert_eq!(tied(GlobalAxis::Y), [true, false, true, false, true, false]);
+        assert_eq!(tied(GlobalAxis::X), [false, true, true, true, false, false]);
     }
 
     #[test]

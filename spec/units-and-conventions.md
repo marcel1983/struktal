@@ -37,6 +37,14 @@ Estado: convenciones de struktal definidas y verificadas analíticamente. La cor
 - Resortes de fijación parcial: fuerza/longitud (P, V2, V3) y fuerza·longitud/rad (T, M2, M3); 0 = liberación total.
 - `end_forces_local` y las acciones en estaciones se refieren a los extremos del elemento (después del resorte): en una componente liberada sin resorte valen 0. Las reacciones y el equilibrio de nudos usan la rigidez y las cargas condensadas.
 
+## Offsets de extremo
+
+- `offsets.i/j`: vectores en ejes globales del nudo al extremo del elemento. Longitud, ejes locales, cargas de vano y estaciones se refieren al tramo flexible entre extremos. Las zonas de offset son rígidas y sin peso (decisión 0010, oracle_pending).
+
+## Diafragmas
+
+- `axis` es la normal del plano. Con normal n y r desde la referencia: u = u_ref + θ n × r en el plano, y mismo giro alrededor de n. La traslación normal y los otros dos giros siguen libres en cada nudo (decisión 0011).
+
 ## Cargas en barras
 
 - Uniforme: por unidad de longitud real del miembro, en toda la longitud. La opción proyectada es F06-009.

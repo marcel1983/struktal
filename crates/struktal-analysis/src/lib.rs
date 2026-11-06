@@ -1,5 +1,6 @@
 //! Analysis cases, results and run manifest.
 
+pub mod constraints;
 pub mod linear_static;
 pub mod results;
 pub mod status;

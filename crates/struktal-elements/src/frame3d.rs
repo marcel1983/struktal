@@ -1,6 +1,7 @@
 //! Two-node 3D frame element, Timoshenko (shear-deformable) bending in each
-//! plane when a shear area is given, Euler–Bernoulli when it is zero. No
-//! offsets, releases or geometric stiffness. See decisions 0003 and 0007.
+//! plane when a shear area is given, Euler–Bernoulli when it is zero, with
+//! optional rigid end offsets. No geometric stiffness. See decisions 0003,
+//! 0007 and 0010.
 //!
 //! Local DOF order per end: [u1, u2, u3, r1, r2, r3], end I then end J.
 //! Rotations are right-handed about local axes. They are cross-section
@@ -154,6 +155,32 @@ pub fn transformation(axes: &[Vec3; 3]) -> Mat12 {
         }
     }
     t
+}
+
+/// T R, with R the rigid kinematics from the joints to the offset element
+/// ends: u_end = u_joint + θ_joint × r, θ_end = θ_joint, for an offset r in
+/// global axes. It replaces T in every transformation, so u_local = (T R) u
+/// and forces on the joints are (T R)ᵀ f.
+pub fn offset_transformation(t: &Mat12, off_i: Vec3, off_j: Vec3) -> Mat12 {
+    let mut r = [[0.0; 12]; 12];
+    for k in 0..12 {
+        r[k][k] = 1.0;
+    }
+    for (b, o) in [(0, off_i), (6, off_j)] {
+        r[b][b + 4] = o[2];
+        r[b][b + 5] = -o[1];
+        r[b + 1][b + 3] = -o[2];
+        r[b + 1][b + 5] = o[0];
+        r[b + 2][b + 3] = o[1];
+        r[b + 2][b + 4] = -o[0];
+    }
+    let mut out = [[0.0; 12]; 12];
+    for i in 0..12 {
+        for j in 0..12 {
+            out[i][j] = (0..12).map(|m| t[i][m] * r[m][j]).sum();
+        }
+    }
+    out
 }
 
 /// Tᵀ K T
@@ -395,6 +422,53 @@ mod tests {
                 assert!(v.abs() <= 1e-6 * scale, "rigid body force {v}");
             }
         }
+    }
+
+    #[test]
+    fn offsets_keep_symmetry_and_force_free_rigid_body_modes() {
+        // Joints and offsets chosen so the element ends are not on the joint line.
+        let (pi, pj) = ([1.0, -2.0, 0.5], [4.0, 2.0, 3.0]);
+        let (oi, oj) = ([0.3, 0.1, -0.2], [-0.4, 0.25, 0.6]);
+        let xi = [pi[0] + oi[0], pi[1] + oi[1], pi[2] + oi[2]];
+        let xj = [pj[0] + oj[0], pj[1] + oj[1], pj[2] + oj[2]];
+        let t = offset_transformation(&transformation(&local_axes(xi, xj, 25.0)), oi, oj);
+        let kg = to_global(&local_stiffness(length(xi, xj), &P), &t);
+        let scale = kg.iter().flatten().fold(0.0_f64, |m, v| m.max(v.abs()));
+        for i in 0..12 {
+            for j in 0..12 {
+                assert_close(kg[i][j], kg[j][i], 1e-12 * scale);
+            }
+        }
+        // Rigid-body motions of the joints, built from the joint positions.
+        for d in 0..6 {
+            let mut w = [0.0; 3];
+            let mut u = [0.0; 12];
+            if d < 3 {
+                u[d] = 1.0;
+                u[6 + d] = 1.0;
+            } else {
+                w[d - 3] = 1.0;
+                u[..3].copy_from_slice(&cross(w, pi));
+                u[3..6].copy_from_slice(&w);
+                u[6..9].copy_from_slice(&cross(w, pj));
+                u[9..12].copy_from_slice(&w);
+            }
+            for v in mat_vec(&kg, &u) {
+                assert!(v.abs() <= 1e-6 * scale, "rigid body force {v}");
+            }
+            // No deformation either: the element ends move as the same body.
+            let ul = mat_vec(&t, &u);
+            let kl = local_stiffness(length(xi, xj), &P);
+            for v in mat_vec(&kl, &ul) {
+                assert!(v.abs() <= 1e-6 * scale, "rigid body end force {v}");
+            }
+        }
+    }
+
+    #[test]
+    fn zero_offset_is_the_plain_transformation() {
+        let t = transformation(&local_axes([0.0; 3], [2.0, 1.0, 3.0], 10.0));
+        assert_eq!(offset_transformation(&t, [0.0; 3], [0.0; 3]), t);
     }
 
     #[test]

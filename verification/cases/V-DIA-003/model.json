@@ -1,0 +1,395 @@
+{
+  "constraints": [
+    {
+      "kind": "Diaphragm",
+      "name": "DX",
+      "axis": "X",
+      "joints": [
+        "XT0",
+        "XT1",
+        "XT2",
+        "XT3"
+      ]
+    },
+    {
+      "kind": "Diaphragm",
+      "name": "DY",
+      "axis": "Y",
+      "joints": [
+        "YT0",
+        "YT1",
+        "YT2",
+        "YT3"
+      ]
+    }
+  ],
+  "schema_version": 3,
+  "title": "V-DIA-003 diaphragms normal to X and Y",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "SQ",
+      "material": "STEEL",
+      "area": 0.02,
+      "i33": 0.0002,
+      "i22": 0.0002,
+      "j": 0.0001
+    }
+  ],
+  "joints": [
+    {
+      "name": "XB0",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "XT0",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "XB1",
+      "x": 0.0,
+      "y": 5.0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "XT1",
+      "x": 3.0,
+      "y": 5.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "XB2",
+      "x": 0.0,
+      "y": 5.0,
+      "z": 2.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "XT2",
+      "x": 3.0,
+      "y": 5.0,
+      "z": 2.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "XB3",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 3.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "XT3",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "YB0",
+      "x": 40.0,
+      "y": 40.0,
+      "z": 40.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "YT0",
+      "x": 40.0,
+      "y": 43.0,
+      "z": 40.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "YB1",
+      "x": 40.0,
+      "y": 40.0,
+      "z": 45.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "YT1",
+      "x": 40.0,
+      "y": 43.0,
+      "z": 45.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "YB2",
+      "x": 42.0,
+      "y": 40.0,
+      "z": 45.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "YT2",
+      "x": 42.0,
+      "y": 43.0,
+      "z": 45.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "YB3",
+      "x": 43.0,
+      "y": 40.0,
+      "z": 40.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "YT3",
+      "x": 43.0,
+      "y": 43.0,
+      "z": 40.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "XC0",
+      "i": "XB0",
+      "j": "XT0",
+      "section": "SQ"
+    },
+    {
+      "name": "XC1",
+      "i": "XB1",
+      "j": "XT1",
+      "section": "SQ"
+    },
+    {
+      "name": "XC2",
+      "i": "XB2",
+      "j": "XT2",
+      "section": "SQ"
+    },
+    {
+      "name": "XC3",
+      "i": "XB3",
+      "j": "XT3",
+      "section": "SQ"
+    },
+    {
+      "name": "YC0",
+      "i": "YB0",
+      "j": "YT0",
+      "section": "SQ"
+    },
+    {
+      "name": "YC1",
+      "i": "YB1",
+      "j": "YT1",
+      "section": "SQ"
+    },
+    {
+      "name": "YC2",
+      "i": "YB2",
+      "j": "YT2",
+      "section": "SQ"
+    },
+    {
+      "name": "YC3",
+      "i": "YB3",
+      "j": "YT3",
+      "section": "SQ"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "L"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "L",
+      "joint": "XT0",
+      "values": [
+        0.0,
+        40000.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pattern": "L",
+      "joint": "XT2",
+      "values": [
+        0.0,
+        0.0,
+        0.0,
+        25000.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pattern": "L",
+      "joint": "YT0",
+      "values": [
+        0.0,
+        0.0,
+        40000.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pattern": "L",
+      "joint": "YT2",
+      "values": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        25000.0,
+        0.0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "L",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

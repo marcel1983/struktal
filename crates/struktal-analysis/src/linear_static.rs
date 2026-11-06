@@ -10,6 +10,7 @@ use struktal_elements::release::Condensation;
 use struktal_math::nullspace::{self, NullSpaceOptions, NullVector};
 use struktal_math::{Backend, MatrixClass, SolverError, TripletBuilder, relative_residual};
 
+use crate::constraints::DofMap;
 use crate::results::*;
 use crate::status::{CaseStatus, Completion, PhysicalStatus};
 
@@ -36,8 +37,10 @@ struct FrameData {
     cond: Option<Condensation>,
     /// Stiffness acting on joint DOFs (local axes): condensed or `k_local`.
     k_node: Mat12,
+    /// From global joint DOFs to local element-end DOFs, offsets included.
     t: Mat12,
     dofs: [usize; 12],
+    /// Position of element end I (joint plus offset).
     xi: Vec3,
     props: SectionProps,
 }
@@ -66,7 +69,7 @@ fn to_local(v: Vec3, axes: &[Vec3; 3]) -> Vec3 {
     [0, 1, 2].map(|k| axes[k][0] * v[0] + axes[k][1] * v[1] + axes[k][2] * v[2])
 }
 
-fn cross(a: Vec3, b: Vec3) -> Vec3 {
+pub(crate) fn cross(a: Vec3, b: Vec3) -> Vec3 {
     [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
 }
 
@@ -383,25 +386,19 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         messages: vec![],
     };
 
-    // Equation numbering: free DOFs in joint order.
-    let mut eq = vec![usize::MAX; 6 * nj];
-    let mut n = 0usize;
-    for (j, joint) in m.joints.iter().enumerate() {
-        for d in 0..6 {
-            if !joint.restraint[d] {
-                eq[6 * j + d] = n;
-                n += 1;
-            }
-        }
-    }
+    // Equation numbering: independent DOFs in joint order.
+    let map = DofMap::build(s);
+    let n = map.n;
+    let eq = &map.eq;
     manifest.equations = n;
 
     let frames: Result<Vec<FrameData>, String> = s
         .frame_refs
         .iter()
         .zip(&m.frames)
-        .map(|(&(i, j, sec, mat), fr)| {
-            let (xi, xj) = (s.joint_xyz(i), s.joint_xyz(j));
+        .enumerate()
+        .map(|(f, (&(i, j, sec, mat), fr))| {
+            let (xi, xj) = s.frame_ends(f);
             let length = frame3d::length(xi, xj);
             let axes = frame3d::local_axes(xi, xj, fr.angle_deg);
             let mt = &m.materials[mat];
@@ -434,6 +431,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             };
             let k_node = cond.as_ref().map_or(k_local, |c| c.k_c);
             let t = frame3d::transformation(&axes);
+            let t = fr.offsets.map_or(t, |o| frame3d::offset_transformation(&t, o.i, o.j));
             let mut dofs = [0usize; 12];
             for d in 0..6 {
                 dofs[d] = 6 * i + d;
@@ -475,18 +473,15 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     };
     for fd in &frames {
         let kg = frame3d::to_global(&fd.k_node, &fd.t);
-        for a in 0..12 {
-            let ea = eq[fd.dofs[a]];
-            if ea == usize::MAX {
-                continue;
-            }
-            for b in 0..12 {
-                let eb = eq[fd.dofs[b]];
-                if eb != usize::MAX
-                    && let Err(e) = tb.add(ea, eb, kg[a][b])
-                {
-                    manifest.messages.push(e.to_string());
-                    return RunResult { manifest, cases: vec![] };
+        for (row, &da) in kg.iter().zip(&fd.dofs) {
+            for &(ea, ca) in map.terms(da) {
+                for (&kab, &db) in row.iter().zip(&fd.dofs) {
+                    for &(eb, cb) in map.terms(db) {
+                        if let Err(e) = tb.add(ea, eb, ca * cb * kab) {
+                            manifest.messages.push(e.to_string());
+                            return RunResult { manifest, cases: vec![] };
+                        }
+                    }
                 }
             }
         }
@@ -557,17 +552,12 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         let LoadCase::LinearStatic { name, loads } = case;
         let pats: Vec<(usize, f64)> = loads.iter().map(|sp| (s.pattern_index[&sp.pattern], sp.scale)).collect();
         let cl = build_case_loads(s, &frames, &pats);
-        let rhs: Vec<f64> = (0..6 * nj).filter(|&g| eq[g] != usize::MAX).map(|g| cl.f_full[g]).collect();
+        let rhs = map.reduce(&cl.f_full);
         let t_solve = Instant::now();
         let x = factor.as_ref().map(|f| f.solve(&rhs)).unwrap_or_default();
         manifest.timings.solve_s += t_solve.elapsed().as_secs_f64();
         let residual = if n == 0 { 0.0 } else { relative_residual(&k, &x, &rhs) };
-        let mut u = vec![0.0; 6 * nj];
-        for g in 0..6 * nj {
-            if eq[g] != usize::MAX {
-                u[g] = x[eq[g]];
-            }
-        }
+        let u = map.expand(&x);
 
         // Internal nodal forces from element end forces.
         let mut internal = vec![0.0; 6 * nj];

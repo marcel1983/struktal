@@ -1,0 +1,445 @@
+{
+  "case_id": "V-DIA-002",
+  "title": "Two-storey shear building with eccentric loads on corner joints",
+  "feature_ids": [
+    "F04-005",
+    "F08"
+  ],
+  "model": "model.json",
+  "model_sha256": "4301e756309a43e261755767ef00d81ed61ba04026022350411e1312a7e3cd3d",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Shear building: storey shear and torque over storey stiffness (12 E I / H^3, G J / H), about the plan center",
+    "derivation": [
+      "drift = storey shear / sum(k)",
+      "storey twist = storey torque / sum(k r^2 + G J / H)",
+      "the plan is doubly symmetric, so translation and twist are uncoupled about its center",
+      "base moment = V H / 2"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "UX",
+      "value": 0.0016734218576195774,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "UY",
+      "value": 2.111721357063402e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "RZ",
+      "value": 0.0004148359288097887,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A2",
+      "component": "UX",
+      "value": 0.0016734218576195774,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A2",
+      "component": "UY",
+      "value": 0.002510132786429366,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A2",
+      "component": "RZ",
+      "value": 0.0004148359288097887,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A2",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A3",
+      "component": "UX",
+      "value": 1.4078142380422715e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A3",
+      "component": "UY",
+      "value": 0.002510132786429366,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A3",
+      "component": "RZ",
+      "value": 0.0004148359288097887,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A3",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A4",
+      "component": "UX",
+      "value": 1.4078142380422715e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A4",
+      "component": "UY",
+      "value": 2.111721357063402e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A4",
+      "component": "RZ",
+      "value": 0.0004148359288097887,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A4",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "UX",
+      "value": 0.002907605672969967,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "UY",
+      "value": -0.0005645335094549499,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "RZ",
+      "value": 0.0006100528364849833,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B2",
+      "component": "UX",
+      "value": 0.002907605672969967,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B2",
+      "component": "UY",
+      "value": 0.00309578350945495,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B2",
+      "component": "RZ",
+      "value": 0.0006100528364849833,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B2",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B3",
+      "component": "UX",
+      "value": 0.0004673943270300336,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B3",
+      "component": "UY",
+      "value": 0.00309578350945495,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B3",
+      "component": "RZ",
+      "value": 0.0006100528364849833,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B3",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B4",
+      "component": "UX",
+      "value": 0.0004673943270300336,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B4",
+      "component": "UY",
+      "value": -0.0005645335094549499,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B4",
+      "component": "RZ",
+      "value": 0.0006100528364849833,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B4",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G1",
+      "component": "FX",
+      "value": -29749.72191323693,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G1",
+      "component": "FY",
+      "value": -187.70856507230238,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G1",
+      "component": "MY",
+      "value": -44624.582869855396,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G1",
+      "component": "MX",
+      "value": 281.5628476084536,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G1",
+      "component": "MZ",
+      "value": -1063.681868743048,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G2",
+      "component": "FX",
+      "value": -29749.72191323693,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G2",
+      "component": "FY",
+      "value": -22312.291434927698,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G2",
+      "component": "MY",
+      "value": -44624.582869855396,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G2",
+      "component": "MX",
+      "value": 33468.43715239155,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G2",
+      "component": "MZ",
+      "value": -1063.681868743048,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G3",
+      "component": "FX",
+      "value": -250.27808676307046,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G3",
+      "component": "FY",
+      "value": -22312.291434927698,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G3",
+      "component": "MY",
+      "value": -375.4171301446057,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G3",
+      "component": "MX",
+      "value": 33468.43715239155,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G3",
+      "component": "MZ",
+      "value": -1063.681868743048,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G4",
+      "component": "FX",
+      "value": -250.27808676307046,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G4",
+      "component": "FY",
+      "value": -187.70856507230238,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G4",
+      "component": "MY",
+      "value": -375.4171301446057,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G4",
+      "component": "MX",
+      "value": 281.5628476084536,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "G4",
+      "component": "MZ",
+      "value": -1063.681868743048,
+      "unit": "N*m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

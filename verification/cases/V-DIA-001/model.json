@@ -1,0 +1,247 @@
+{
+  "constraints": [
+    {
+      "kind": "Diaphragm",
+      "name": "D1",
+      "axis": "Z",
+      "joints": [
+        "M",
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ]
+    }
+  ],
+  "schema_version": 3,
+  "title": "V-DIA-001 rigid floor on four columns",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "C1",
+      "material": "STEEL",
+      "area": 0.02,
+      "i33": 0.0002,
+      "i22": 0.0001,
+      "j": 0.0001
+    },
+    {
+      "name": "C2",
+      "material": "STEEL",
+      "area": 0.02,
+      "i33": 0.0001,
+      "i22": 0.0003,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "M",
+      "x": 2.5,
+      "y": 1.5,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "B1",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B2",
+      "x": 6.0,
+      "y": 0.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B3",
+      "x": 6.0,
+      "y": 4.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B4",
+      "x": 0.0,
+      "y": 4.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "T1",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T2",
+      "x": 6.0,
+      "y": 0.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T3",
+      "x": 6.0,
+      "y": 4.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "T4",
+      "x": 0.0,
+      "y": 4.0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "C1",
+      "i": "B1",
+      "j": "T1",
+      "section": "C1"
+    },
+    {
+      "name": "C2",
+      "i": "B2",
+      "j": "T2",
+      "section": "C2"
+    },
+    {
+      "name": "C3",
+      "i": "B3",
+      "j": "T3",
+      "section": "C1"
+    },
+    {
+      "name": "C4",
+      "i": "B4",
+      "j": "T4",
+      "section": "C2"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "L"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "L",
+      "joint": "M",
+      "values": [
+        80000.0,
+        0,
+        0,
+        0,
+        0,
+        50000.0
+      ]
+    },
+    {
+      "pattern": "L",
+      "joint": "T3",
+      "values": [
+        0,
+        -30000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "L",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

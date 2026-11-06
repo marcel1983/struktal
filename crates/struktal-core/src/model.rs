@@ -10,7 +10,9 @@ use crate::units::{Dim, UnitSystem};
 
 /// v2 (2026-10-30): shear areas `as2`, `as3` on frame sections. v1 files are
 /// migrated with both set to 0, which keeps their v1 meaning.
-pub const SCHEMA_VERSION: u32 = 2;
+/// v3 (2026-11-05): rigid end offsets on frames and joint constraints. Older
+/// files are migrated with neither (decisions 0010 and 0011).
+pub const SCHEMA_VERSION: u32 = 3;
 
 pub type Name = String;
 
@@ -27,6 +29,8 @@ pub struct Model {
     pub joints: Vec<Joint>,
     #[serde(default)]
     pub frames: Vec<Frame>,
+    #[serde(default)]
+    pub constraints: Vec<Constraint>,
     #[serde(default)]
     pub load_patterns: Vec<LoadPattern>,
     #[serde(default)]
@@ -101,6 +105,81 @@ pub struct Frame {
     /// End releases and partial-fixity springs (decision 0008).
     #[serde(default)]
     pub releases: Option<EndReleases>,
+    /// Rigid end offsets (decision 0010).
+    #[serde(default)]
+    pub offsets: Option<EndOffsets>,
+}
+
+/// Vectors in global axes [length] from joints I and J to the corresponding
+/// element ends. The flexible element, its local axes, its length and its
+/// span loads lie between the two offset ends; the zones joint-to-end are
+/// rigid and weightless.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EndOffsets {
+    #[serde(default)]
+    pub i: [f64; 3],
+    #[serde(default)]
+    pub j: [f64; 3],
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GlobalAxis {
+    X,
+    Y,
+    #[default]
+    Z,
+}
+
+impl GlobalAxis {
+    pub fn index(self) -> usize {
+        match self {
+            GlobalAxis::X => 0,
+            GlobalAxis::Y => 1,
+            GlobalAxis::Z => 2,
+        }
+    }
+}
+
+/// Kinematic joint constraints, imposed by exact elimination (decision 0011).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", deny_unknown_fields)]
+pub enum Constraint {
+    /// Rigid in-plane motion normal to `axis`. The first joint is the
+    /// internal reference; results do not depend on the order.
+    Diaphragm {
+        name: Name,
+        #[serde(default)]
+        axis: GlobalAxis,
+        joints: Vec<Name>,
+    },
+}
+
+impl Constraint {
+    pub fn name(&self) -> &str {
+        match self {
+            Constraint::Diaphragm { name, .. } => name,
+        }
+    }
+
+    pub fn joints(&self) -> &[Name] {
+        match self {
+            Constraint::Diaphragm { joints, .. } => joints,
+        }
+    }
+
+    /// Joint components tied by the constraint [UX, UY, UZ, RX, RY, RZ].
+    pub fn tied_components(&self) -> [bool; 6] {
+        match self {
+            Constraint::Diaphragm { axis, .. } => {
+                let n = axis.index();
+                let mut c = [true, true, true, false, false, false];
+                c[n] = false;
+                c[3 + n] = true;
+                c
+            }
+        }
+    }
 }
 
 /// Releases in local components [P, V2, V3, T, M2, M3] (= local DOF order
@@ -290,6 +369,12 @@ impl Model {
                     let dim = if c < 3 { Dim::FORCE_PER_LENGTH } else { Dim::MOMENT };
                     r.i_springs[c] *= u.factor(dim);
                     r.j_springs[c] *= u.factor(dim);
+                }
+            }
+            if let Some(o) = &mut f.offsets {
+                for k in 0..3 {
+                    o.i[k] *= l;
+                    o.j[k] *= l;
                 }
             }
         }

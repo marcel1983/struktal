@@ -1,0 +1,255 @@
+{
+  "case_id": "V-OFF-001",
+  "title": "Rigid end offsets: tip arm, plan rotation, shear, eccentric axial load",
+  "feature_ids": [
+    "F04-004",
+    "F02-003",
+    "F08",
+    "F18"
+  ],
+  "model": "model.json",
+  "model_sha256": "530da814ab0488f0dea4bf2c40c63ea97a2380537ef64f8761b0e9ef38a89e61",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Cantilever under end force and moment, plus rigid-arm kinematics u_joint = u_end + theta x r",
+    "derivation": [
+      "d_end = P L^3/(3 E I) + P a L^2/(2 E I) [+ P L/(G As)]",
+      "theta = P L^2/(2 E I) + P a L/(E I)",
+      "d_joint = d_end + theta a",
+      "eccentric: N = P, My = -e P, u_joint = P L/(E A) + e^2 P L/(E I), and the support moment about the joint line is 0"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "TIP",
+      "entity": "T1",
+      "component": "UZ",
+      "value": -0.007124999999999999,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "TIP",
+      "entity": "T1",
+      "component": "RY",
+      "value": 0.003,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "TIP",
+      "entity": "T0",
+      "component": "FZ",
+      "value": 10000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "TIP",
+      "entity": "T0",
+      "component": "MY",
+      "value": -35000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "TIP",
+      "entity": "FT",
+      "component": "M3",
+      "value": -35000.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "TIP",
+      "entity": "FT",
+      "component": "M3",
+      "value": -20000.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "TIP",
+      "entity": "FT",
+      "component": "M3",
+      "value": -5000.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "frame_station",
+      "case": "TIP",
+      "entity": "FT",
+      "component": "V2",
+      "value": -10000.0,
+      "unit": "N",
+      "rel": 0.5
+    },
+    {
+      "result": "external_work",
+      "case": "TIP",
+      "entity": "",
+      "component": "",
+      "value": 35.625,
+      "unit": "J"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "ROT",
+      "entity": "R1",
+      "component": "UZ",
+      "value": -0.007124999999999999,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "ROT",
+      "entity": "R1",
+      "component": "RX",
+      "value": -0.0021213203435596424,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "ROT",
+      "entity": "R1",
+      "component": "RY",
+      "value": 0.0021213203435596424,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ROT",
+      "entity": "R0",
+      "component": "MX",
+      "value": 24748.737341529162,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ROT",
+      "entity": "R0",
+      "component": "MY",
+      "value": -24748.737341529162,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "TIM",
+      "entity": "S1",
+      "component": "UZ",
+      "value": -0.0072225,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "TIM",
+      "entity": "S1",
+      "component": "RY",
+      "value": 0.003,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "ECC",
+      "entity": "E1",
+      "component": "UX",
+      "value": 0.000255,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "ECC",
+      "entity": "E1",
+      "component": "UZ",
+      "value": 0.0009,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "ECC",
+      "entity": "E1",
+      "component": "RY",
+      "value": -0.0006,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ECC",
+      "entity": "E0",
+      "component": "FX",
+      "value": -10000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ECC",
+      "entity": "E0",
+      "component": "MY",
+      "value": 0.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "ECC",
+      "entity": "E0",
+      "component": "FZ",
+      "value": 0.0,
+      "unit": "N"
+    },
+    {
+      "result": "frame_station",
+      "case": "ECC",
+      "entity": "FE",
+      "component": "P",
+      "value": 10000.0,
+      "unit": "N",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "ECC",
+      "entity": "FE",
+      "component": "M3",
+      "value": 4000.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "ECC",
+      "entity": "FE",
+      "component": "M3",
+      "value": 4000.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "frame_station",
+      "case": "ECC",
+      "entity": "FE",
+      "component": "V2",
+      "value": 0.0,
+      "unit": "N",
+      "rel": 0.5
+    },
+    {
+      "result": "external_work",
+      "case": "ECC",
+      "entity": "",
+      "component": "",
+      "value": 1.2750000000000001,
+      "unit": "J"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

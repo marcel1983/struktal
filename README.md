@@ -2,7 +2,7 @@
 
 Motor de elementos finitos en Rust con el objetivo, **todavía no verificado**, de cubrir el perfil `sap2000-ultimate-27.1.0-target` (ver `spec/sap_profile.yaml`).
 
-La versión 0.1.0 es un subconjunto: análisis estático lineal de pórticos 3D Euler–Bernoulli con diagnóstico de mecanismos. No es equivalente a SAP2000. Cobertura y discrepancias en `docs/compatibility-report.md`; estado para retomar el trabajo en `docs/agent-state.md`.
+La versión 0.1.0 es un subconjunto: análisis estático lineal de pórticos 3D (Timoshenko, o Euler–Bernoulli si el área de cortante es 0) con liberaciones, offsets rígidos, diafragmas y diagnóstico de mecanismos. No es equivalente a SAP2000. Cobertura y discrepancias en `docs/compatibility-report.md`; estado para retomar el trabajo en `docs/agent-state.md`.
 
 ## Uso
 
@@ -21,10 +21,10 @@ Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 en
 
 | Ruta | Contenido |
 |---|---|
-| `crates/struktal-core` | Modelo canónico v1, unidades, validación, hash de snapshot |
+| `crates/struktal-core` | Modelo canónico (esquema v3, migra v1 y v2), unidades, validación, hash de snapshot |
 | `crates/struktal-math` | Tripletas/CSC, contrato de solver; backends `faer-sparse-ldlt` (por defecto) y `skyline-ldlt` (referencia) |
-| `crates/struktal-elements` | Barra 3D Euler–Bernoulli, ejes locales, cargas equivalentes, acciones en estaciones |
-| `crates/struktal-analysis` | Estática lineal, combinaciones, resultados, manifiesto, estados por caso |
+| `crates/struktal-elements` | Barra 3D con cortante, liberaciones, offsets, ejes locales, cargas equivalentes, acciones en estaciones |
+| `crates/struktal-analysis` | Estática lineal, restricciones por eliminación, combinaciones, resultados, manifiesto, estados por caso |
 | `crates/struktal-cli` | Binario `struktal` y comparador de verificación |
 | `spec/` | Perfil, inventario de requisitos, convenciones, cobertura S2K/API, capacidades de solver |
 | `verification/` | Casos con referencia analítica independiente, tolerancias, oráculos externos |

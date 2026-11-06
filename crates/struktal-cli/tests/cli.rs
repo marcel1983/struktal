@@ -120,6 +120,57 @@ fn unstable_release_combination_is_input_error() {
     assert!(err.contains("frame H1 / releases: unstable release combination: V2 released at both ends"), "{err}");
 }
 
+/// Displacements of every joint, by name, from a `solve` run.
+fn solved_displacements(model: &Path) -> std::collections::HashMap<String, Vec<f64>> {
+    let out = bin().arg("solve").arg(model).output().expect("run");
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("json");
+    v["cases"][0]["joints"]
+        .as_array()
+        .expect("joints")
+        .iter()
+        .map(|j| {
+            let d = j["displacement"].as_array().expect("disp").iter().map(|x| x.as_f64().expect("num")).collect();
+            (j["joint"].as_str().expect("name").to_string(), d)
+        })
+        .collect()
+}
+
+#[test]
+fn diaphragm_results_do_not_depend_on_the_reference_joint() {
+    let dir = copy_case("V-DIA-001", "reference");
+    let model = dir.join("model.json");
+    let base = solved_displacements(&model);
+    let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&model).expect("read")).expect("json");
+    v["constraints"][0]["joints"].as_array_mut().expect("joints").reverse();
+    std::fs::write(&model, serde_json::to_string_pretty(&v).expect("ser")).expect("write");
+    let other = solved_displacements(&model);
+    assert_eq!(base.len(), other.len());
+    for (name, a) in &base {
+        for (x, y) in a.iter().zip(&other[name]) {
+            assert!((x - y).abs() <= 1e-10 * x.abs().max(1e-6), "joint {name}: {x} vs {y}");
+        }
+    }
+}
+
+#[test]
+fn restraint_on_a_tied_component_is_input_error() {
+    let dir = copy_case("V-DIA-001", "restrained");
+    let model = dir.join("model.json");
+    let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&model).expect("read")).expect("json");
+    let name = v["constraints"][0]["joints"][1].clone();
+    for j in v["joints"].as_array_mut().expect("joints") {
+        if j["name"] == name {
+            j["restraint"][0] = true.into();
+        }
+    }
+    std::fs::write(&model, serde_json::to_string_pretty(&v).expect("ser")).expect("write");
+    let out = bin().arg("validate").arg(&model).output().expect("run");
+    assert_eq!(out.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("constraint D1 / joints") && err.contains("restrains UX"), "{err}");
+}
+
 #[test]
 fn future_schema_rejected() {
     let dir = copy_case("V-LIN-001", "future");

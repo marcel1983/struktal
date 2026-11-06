@@ -1,11 +1,12 @@
 # Estado del agente (para retomar sin el contexto de la conversación)
 
-Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBILIDAD_SAP2000.md` v1 (subida por el usuario, no incluida en el repo).
+Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBILIDAD_SAP2000.md` v1 (subida por el usuario, no incluida en el repo).
 
 ## Repositorio
 
-- Ruta: `struktal/`. Esquema de modelo v2 (v1 se migra). Git local inicializado, sin remoto. SHA: ver `git log -1`.
-- Toolchain: rustc/cargo 1.97.0. Plataforma probada: Linux x86_64. Windows: no probado.
+- Remoto público: https://github.com/marcel1983/struktal. Esquema de modelo v3 (v1 y v2 se migran). SHA: ver `git log -1`.
+- Toolchain: rustc/cargo 1.97.0. Plataformas probadas: Linux x86_64 y Windows 10 x86_64 (MSVC); benchmarks solo en Linux.
+- Proyecto anterior del usuario, fuente de lo que se porta: PAS (fuera del repo). Portar con casos analíticos propios, sin archivos de SAP2000 ni afirmar como verificado lo que PAS afirma; ver decisiones 0010 y 0011.
 
 ## Entregas
 
@@ -16,7 +17,7 @@ Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 | P02 | Parcial. Tripletas→CSC determinista; backends `faer-sparse-ldlt` (por defecto, AMD, supernodal) y `skyline-ldlt` (referencia) tras el mismo contrato; residuo; presupuesto de memoria antes de reservar; espacio nulo verificado con cotas y hueco espectral (F08-007). Falta: backend para indefinidas (MUMPS u otro), ensamblaje simbólico reutilizable. | `struktal-math`, decisiones 0002, 0005 y 0006 |
 | P03 | No iniciado (no hay mallado ni subdivisión). | — |
 | P04 | Parcial. Barra 3D Timoshenko/Euler–Bernoulli (As2, As3; decisión 0007), sección general, cargas nodales/uniformes/puntuales/peso propio con fuerzas de empotramiento exactas, suma lineal. Falta: secciones paramétricas (y As automático) y variables, cargas trapezoidales/térmicas, envolventes, importación S2K mínima. | `struktal-elements`, `struktal-analysis`, V-LIN-001..005 |
-| P05 | Parcial: liberaciones y fijación parcial con condensación de K y cargas, combinaciones inestables rechazadas (decisión 0008). Falta: offsets/zonas rígidas, restricciones (equalDOF, diafragmas), masas. | `struktal-elements/src/release.rs`, V-REL-001/002, V-MECH-006 |
+| P05 | Parcial: liberaciones y fijación parcial (decisión 0008); offsets rígidos vectoriales (decisión 0010); diafragmas por eliminación exacta (decisión 0011). Falta: puntos cardinales y zonas rígidas por factor, restricciones body/equal/local, masas. | `release.rs`, `frame3d::offset_transformation`, `struktal-analysis/src/constraints.rs`, V-REL-*, V-OFF-*, V-DIA-*, V-MECH-006/007 |
 | P06–P16 | No iniciados. | `spec/features.csv` |
 
 ## Último resultado de pruebas (ejecutado)
@@ -29,12 +30,12 @@ Actualizado: 2026-10-29. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 ## Decisiones pendientes
 
-1. Backend para matrices indefinidas (P-Delta, pandeo, multiplicadores): MUMPS por FFI u otra opción; faer LBLᵀ intranodal descartado.
+1. Backend para matrices indefinidas (pandeo, multiplicadores): MUMPS por FFI u otra opción; faer LBLᵀ intranodal descartado. Los diafragmas ya no lo necesitan (decisión 0011).
 2. Convención de signos de salida compatible con SAP2000: requiere oráculo.
 
 ## Siguiente paso concreto
 
-1. P05: offsets y zonas rígidas (F04-004), con transformación cinemática y brazos; después restricciones (F04-005) y masas (F07).
+1. P05: restricciones body/equal con la misma eliminación (`DofMap`), resortes de nudo (F04-002) y asientos (F04-006); después masas (F07).
 2. P13 mínimo: parser S2K con AST para las tablas de `spec/s2k-table-coverage.csv`, en modo estricto.
 
 ## Comandos de reproducción

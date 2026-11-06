@@ -1,0 +1,113 @@
+{
+  "case_id": "V-OFF-002",
+  "title": "Offsets with span load: clamped and simply supported flexible length",
+  "feature_ids": [
+    "F04-004",
+    "F04-003",
+    "F06-003"
+  ],
+  "model": "model.json",
+  "model_sha256": "d31f6400bbe3b8d1e4783ddd092e0974cf596f549a0c44df4c6c8b7cad5002a4",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Fixed-end and simply supported beam of length L, with rigid arms a to the supports",
+    "derivation": [
+      "R = q L/2",
+      "clamped: M_end = q L^2/12, M_mid = q L^2/24, M_support = M_end + R a",
+      "released: M_end = 0, M_mid = q L^2/8, M_support = R a"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "FZ",
+      "value": 24000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "MY",
+      "value": -30400.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B",
+      "component": "MY",
+      "value": 30400.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "G1",
+      "component": "M3",
+      "value": -16000.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "G1",
+      "component": "M3",
+      "value": 8000.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "C",
+      "component": "FZ",
+      "value": 24000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "C",
+      "component": "MY",
+      "value": -14400.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "D",
+      "component": "MY",
+      "value": 14400.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "G2",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "G2",
+      "component": "M3",
+      "value": 24000.0,
+      "unit": "N*m",
+      "rel": 0.5
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

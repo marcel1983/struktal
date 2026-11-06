@@ -1,0 +1,475 @@
+{
+  "case_id": "V-DIA-003",
+  "title": "Rigid floors normal to X and to Y: same closed form as the Z case",
+  "feature_ids": [
+    "F04-005"
+  ],
+  "model": "model.json",
+  "model_sha256": "2ef495edb11d69a32622cd2f84034b72a94863d56194423b007482de5ba2608a",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Three-DOF rigid floor with axes (a, b, n) right-handed; square section, so local axes do not matter",
+    "derivation": [
+      "u_a = ua - theta b, u_b = ub + theta a",
+      "k = 3 E I / H^3, kt = G J / H",
+      "reference is the first joint, with a = b = 0"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT0",
+      "component": "UY",
+      "value": 0.0028693534726143425,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT0",
+      "component": "UZ",
+      "value": -0.0012387069452286844,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT0",
+      "component": "RX",
+      "value": 0.0004954827780914737,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT0",
+      "component": "UX",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB0",
+      "component": "FY",
+      "value": -12752.682100508187,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB0",
+      "component": "FZ",
+      "value": 5505.364201016375,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB0",
+      "component": "MX",
+      "value": -1270.4686617730094,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT1",
+      "component": "UY",
+      "value": 0.0028693534726143425,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT1",
+      "component": "UZ",
+      "value": 0.0012387069452286844,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT1",
+      "component": "RX",
+      "value": 0.0004954827780914737,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT1",
+      "component": "UX",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB1",
+      "component": "FY",
+      "value": -12752.682100508187,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB1",
+      "component": "FZ",
+      "value": -5505.364201016375,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB1",
+      "component": "MX",
+      "value": -1270.4686617730094,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT2",
+      "component": "UY",
+      "value": 0.001878387916431395,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT2",
+      "component": "UZ",
+      "value": 0.0012387069452286844,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT2",
+      "component": "RX",
+      "value": 0.0004954827780914737,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT2",
+      "component": "UX",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB2",
+      "component": "FY",
+      "value": -8348.390739695087,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB2",
+      "component": "FZ",
+      "value": -5505.364201016375,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB2",
+      "component": "MX",
+      "value": -1270.4686617730094,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT3",
+      "component": "UY",
+      "value": 0.0013829051383399214,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT3",
+      "component": "UZ",
+      "value": -0.0012387069452286844,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT3",
+      "component": "RX",
+      "value": 0.0004954827780914737,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "XT3",
+      "component": "UX",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB3",
+      "component": "FY",
+      "value": -6146.245059288539,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB3",
+      "component": "FZ",
+      "value": 5505.364201016375,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "XB3",
+      "component": "MX",
+      "value": -1270.4686617730094,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT0",
+      "component": "UZ",
+      "value": 0.0028693534726143425,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT0",
+      "component": "UX",
+      "value": -0.0012387069452286844,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT0",
+      "component": "RY",
+      "value": 0.0004954827780914737,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT0",
+      "component": "UY",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB0",
+      "component": "FZ",
+      "value": -12752.682100508187,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB0",
+      "component": "FX",
+      "value": 5505.364201016375,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB0",
+      "component": "MY",
+      "value": -1270.4686617730094,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT1",
+      "component": "UZ",
+      "value": 0.0028693534726143425,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT1",
+      "component": "UX",
+      "value": 0.0012387069452286844,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT1",
+      "component": "RY",
+      "value": 0.0004954827780914737,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT1",
+      "component": "UY",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB1",
+      "component": "FZ",
+      "value": -12752.682100508187,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB1",
+      "component": "FX",
+      "value": -5505.364201016375,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB1",
+      "component": "MY",
+      "value": -1270.4686617730094,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT2",
+      "component": "UZ",
+      "value": 0.001878387916431395,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT2",
+      "component": "UX",
+      "value": 0.0012387069452286844,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT2",
+      "component": "RY",
+      "value": 0.0004954827780914737,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT2",
+      "component": "UY",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB2",
+      "component": "FZ",
+      "value": -8348.390739695087,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB2",
+      "component": "FX",
+      "value": -5505.364201016375,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB2",
+      "component": "MY",
+      "value": -1270.4686617730094,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT3",
+      "component": "UZ",
+      "value": 0.0013829051383399214,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT3",
+      "component": "UX",
+      "value": -0.0012387069452286844,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT3",
+      "component": "RY",
+      "value": 0.0004954827780914737,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "YT3",
+      "component": "UY",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB3",
+      "component": "FZ",
+      "value": -6146.245059288539,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB3",
+      "component": "FX",
+      "value": 5505.364201016375,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "YB3",
+      "component": "MY",
+      "value": -1270.4686617730094,
+      "unit": "N*m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

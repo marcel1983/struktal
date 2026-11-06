@@ -1,0 +1,34 @@
+{
+  "case_id": "V-MECH-007",
+  "title": "Rigid floor on columns pinned at the base: sway mechanism",
+  "feature_ids": [
+    "F04-005",
+    "F04-003",
+    "F08",
+    "stability"
+  ],
+  "model": "model.json",
+  "model_sha256": "8424092a532fe113aa5724ee3b4c68816ccca05d5726df966b50b41911a8a54a",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Pinned-base bars rotate rigidly; the floor translates in X and Y, its rotation is held by column torsion",
+    "derivation": [
+      "nullity(K) = 2"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "nullity = 2 (exact)"
+    }
+  ],
+  "expected": [],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}
