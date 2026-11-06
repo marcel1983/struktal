@@ -1,0 +1,30 @@
+name: Discrepancia con SAP2000
+description: Diferencia entre Struktal y una ejecución real de SAP2000.
+labels: [compatibilidad, oracle]
+body:
+  - type: markdown
+    attributes:
+      value: "Solo resultados de una instalación real, con su build. No se aceptan cifras de memoria ni capturas redondeadas como única referencia (guía §10)."
+  - type: input
+    id: build
+    attributes:
+      label: SAP2000 versión y build exacto
+      placeholder: "27.1.0 build ..."
+    validations: {required: true}
+  - type: textarea
+    id: model
+    attributes:
+      label: Modelo y opciones
+      description: Archivo .s2k o descripción completa, con unidades y opciones de análisis no predeterminadas.
+    validations: {required: true}
+  - type: textarea
+    id: diff
+    attributes:
+      label: Magnitudes que difieren
+      description: Entidad, componente, valor SAP2000, valor Struktal, unidades.
+    validations: {required: true}
+  - type: dropdown
+    id: class
+    attributes:
+      label: Clasificación preliminar (guía §10.1)
+      options: [entrada, formulación, discretización, algoritmo, postproceso, no sé]

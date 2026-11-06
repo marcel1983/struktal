@@ -16,7 +16,7 @@ engine:
   baseline_precision: f64
   target_platform: x86_64-pc-windows-msvc
   development_platforms: [linux-x86_64]   # windows-x86_64 aún no probado
-  toolchain: rust 1.97.0 (rust-toolchain.toml), edition 2024, MSRV 1.85
+  toolchain: rust 1.97.0 (rust-toolchain.toml), edition 2024, MSRV 1.88 (comprobado)
 compatibility:
   model_interchange: [s2k, "$2k"]         # no implementado (F19-001..003)
   direct_sdb_reader: unverified

@@ -1,0 +1,15 @@
+name: Requisito / función
+description: Propuesta de requisito del inventario (spec/features.csv).
+labels: [requisito]
+body:
+  - type: input
+    id: feature
+    attributes:
+      label: ID del inventario
+      placeholder: "F04-004"
+  - type: textarea
+    id: req
+    attributes:
+      label: Requisito concreto y criterio de aceptación
+      description: Qué debe hacer, con qué referencia independiente se verificará y con qué tolerancia.
+    validations: {required: true}
