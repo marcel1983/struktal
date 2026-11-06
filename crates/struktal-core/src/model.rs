@@ -50,6 +50,8 @@ pub struct Model {
     pub frame_loads: Vec<FrameLoad>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub area_loads: Vec<AreaLoad>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub response_spectra: Vec<SpectrumFunction>,
     #[serde(default)]
     pub load_cases: Vec<LoadCase>,
     #[serde(default)]
@@ -70,6 +72,17 @@ pub struct Material {
     /// Weight per unit volume [force/length³], used by self-weight.
     #[serde(default)]
     pub unit_weight: f64,
+    /// Mass per unit volume [force·s²/length⁴], used by modal analysis.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub mass_density: f64,
+}
+
+fn is_zero(v: &f64) -> bool {
+    *v == 0.0
+}
+
+fn all_zero(v: &[f64; 6]) -> bool {
+    v.iter().all(|c| *c == 0.0)
 }
 
 /// General frame section. Axis naming follows SAP2000: I33 is the inertia
@@ -150,6 +163,10 @@ pub struct Joint {
     /// Units: force/length for translations, force·length/rad for rotations.
     #[serde(default)]
     pub springs: [f64; 6],
+    /// Lumped mass [MX, MY, MZ, MMIX, MMIY, MMIZ] in global axes. Units:
+    /// force·s²/length for translations, force·length·s² for rotations.
+    #[serde(default, skip_serializing_if = "all_zero")]
+    pub added_mass: [f64; 6],
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -466,16 +483,60 @@ pub struct ScaledPattern {
     pub scale: f64,
 }
 
+/// Spectral acceleration against period [s], with periods strictly increasing.
+/// Accelerations are multiplied by the `scale` of the case that uses it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpectrumFunction {
+    pub name: Name,
+    pub points: Vec<[f64; 2]>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModalCombination {
+    #[default]
+    Cqc,
+    Srss,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 pub enum LoadCase {
-    LinearStatic { name: Name, loads: Vec<ScaledPattern> },
+    LinearStatic {
+        name: Name,
+        loads: Vec<ScaledPattern>,
+    },
+    /// Natural modes (decision 0020).
+    Modal {
+        name: Name,
+        modes: u32,
+    },
+    /// Base acceleration along a global axis, on the modes of a modal case.
+    /// `scale` turns the function values into length/s² in the model's units.
+    ResponseSpectrum {
+        name: Name,
+        modal_case: Name,
+        function: Name,
+        direction: GlobalAxis,
+        scale: f64,
+        #[serde(default)]
+        combination: ModalCombination,
+        /// Modal damping ratio, used by CQC.
+        #[serde(default = "LoadCase::default_damping")]
+        damping: f64,
+    },
 }
 
 impl LoadCase {
+    fn default_damping() -> f64 {
+        0.05
+    }
+
     pub fn name(&self) -> &str {
         match self {
-            LoadCase::LinearStatic { name, .. } => name,
+            LoadCase::LinearStatic { name, .. }
+            | LoadCase::Modal { name, .. }
+            | LoadCase::ResponseSpectrum { name, .. } => name,
         }
     }
 }
@@ -530,6 +591,13 @@ impl Model {
             mat.e *= u.factor(Dim::STRESS);
             mat.g = mat.g.map(|g| g * u.factor(Dim::STRESS));
             mat.unit_weight *= u.factor(Dim::FORCE_PER_VOLUME);
+            // F s²/L⁴: the second is not converted.
+            mat.mass_density *= u.factor(Dim::FORCE_PER_VOLUME) / l;
+        }
+        for c in &mut m.load_cases {
+            if let LoadCase::ResponseSpectrum { scale, .. } = c {
+                *scale *= l;
+            }
         }
         for s in &mut m.sections {
             s.area *= u.factor(Dim::AREA);
@@ -556,6 +624,9 @@ impl Model {
             for k in 0..3 {
                 j.springs[k] *= u.factor(Dim::FORCE_PER_LENGTH);
                 j.springs[k + 3] *= u.factor(Dim::MOMENT);
+                // F s²/L and F L s².
+                j.added_mass[k] *= u.factor(Dim::FORCE_PER_LENGTH);
+                j.added_mass[k + 3] *= u.factor(Dim::MOMENT);
             }
         }
         for f in &mut m.frames {

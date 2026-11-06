@@ -73,6 +73,7 @@ def load_model(path):
         mat["e"] *= stress
         mat["g"] = mat["g"] * stress if mat.get("g") is not None else mat["e"] / (2 * (1 + mat["nu"]))
         mat["unit_weight"] = mat.get("unit_weight", 0.0) * f / l**3
+        mat["mass_density"] = mat.get("mass_density", 0.0) * f / l**4
     for s in m["sections"]:
         if s.get("shape"):
             raise SystemExit("parametric sections are not translated: their properties would only repeat the same formulas")
@@ -88,6 +89,8 @@ def load_model(path):
         sp = j.get("springs") or [0.0] * 6
         j["springs"] = [v * f / l for v in sp[:3]] + [v * f * l for v in sp[3:]]
         j["xyz"] = [j["x"], j["y"], j["z"]]
+        am = j.get("added_mass") or [0.0] * 6
+        j["added_mass"] = [v * f / l for v in am[:3]] + [v * f * l for v in am[3:]]
     by_joint = {j["name"]: j for j in m["joints"]}
     by_section = {s["name"]: s for s in m["sections"]}
     by_material = {x["name"]: x for x in m["materials"]}
@@ -237,11 +240,25 @@ def combine(results, m):
             results[c["name"]] = {"status": "ok", "joints": joints}
 
 
-def main(engine, version, solve_case):
+def main(engine, version, solve_case, solve_modes=None):
     """Usage: runner.py model.json output.json. Engines also print to stdout."""
     m = load_model(sys.argv[1])
     results = {}
     for case in m.get("load_cases", []):
+        if case["type"] == "Modal":
+            if solve_modes is None:
+                results[case["name"]] = {"status": "skipped", "reason": "modes are not translated for this engine"}
+                continue
+            try:
+                results[case["name"]] = {"status": "ok", "periods": solve_modes(m, case["modes"]), "joints": {}}
+            except Unsupported as e:
+                results[case["name"]] = {"status": "unsupported", "reason": str(e)}
+            except Exception as e:  # noqa: BLE001
+                results[case["name"]] = {"status": "failed", "reason": f"{type(e).__name__}: {e}"[:300]}
+            continue
+        if case["type"] != "LinearStatic":
+            results[case["name"]] = {"status": "skipped", "reason": f"{case['type']} is not compared"}
+            continue
         try:
             joints = solve_case(m, case_loads(m, case))
             results[case["name"]] = {"status": "ok", "joints": joints}

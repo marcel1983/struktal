@@ -2,6 +2,7 @@
 
 pub mod areas;
 pub mod constraints;
+mod dynamics;
 pub mod linear_static;
 pub mod mesh;
 pub mod results;

@@ -126,6 +126,15 @@ def main():
                     state, detail = "", ""
                     if r["status"] == "unsupported" or r["status"] == "skipped":
                         state, detail = "n/a", r["reason"]
+                    elif "periods" in r and s is not None and s.get("modal"):
+                        ours = [q["period"] for q in s["modal"]["modes"]]
+                        pairs = list(zip(ours, r["periods"]))
+                        bad = [f"mode {k + 1}: struktal {a:.8e}, engine {b:.8e}" for k, (a, b) in enumerate(pairs)
+                               if abs(a - b) > 1e-6 * max(abs(a), abs(b))]
+                        state = "DIFF" if bad else "match"
+                        any_diff = any_diff or bool(bad)
+                        worst = max((abs(a - b) / max(abs(a), abs(b)) for a, b in pairs), default=0.0)
+                        detail = f"{len(pairs)} periods, worst relative difference {worst:.2g}" + ("; " + "; ".join(bad[:3]) if bad else "")
                     elif s is None or s["status"]["completion"] != "complete":
                         # Struktal stopped, e.g. a mechanism: did the engine stop too?
                         state = "both-stop" if r["status"] == "failed" else "ONLY-ST"

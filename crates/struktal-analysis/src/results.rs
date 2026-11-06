@@ -127,9 +127,39 @@ pub struct CaseResult {
     pub checks: Option<Checks>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub areas: Vec<AreaResult>,
+    /// Present in modal cases.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modal: Option<ModalResult>,
     /// Present in envelopes, which have no `joints` or `frames` of their own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub envelope: Option<Envelope>,
+}
+
+/// Natural modes (decision 0020). Components [X, Y, Z] are the global directions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModalResult {
+    /// Mass that moves with a unit base translation, per direction.
+    pub total_mass: [f64; 3],
+    pub modes: Vec<ModeResult>,
+    pub iterations: usize,
+    /// Rayleigh quotient of a vector kept clear of the modes found: below the
+    /// highest eigenvalue, a mode would have been missed.
+    pub missed_mode_probe: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModeResult {
+    pub period: f64,
+    pub frequency: f64,
+    pub omega: f64,
+    /// Γ = φᵀ M r, with φ M-normalized.
+    pub participation: [f64; 3],
+    /// Γ² over the total mass.
+    pub mass_ratio: [f64; 3],
+    pub cumulative_mass_ratio: [f64; 3],
+    pub residual: f64,
+    /// M-normalized, one vector per joint, in the order of `joints`.
+    pub shape: Vec<[f64; 6]>,
 }
 
 pub const AREA_COMPONENTS: [&str; 8] = ["F11", "F22", "F12", "M11", "M22", "M12", "V13", "V23"];

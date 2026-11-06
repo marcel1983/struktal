@@ -1,0 +1,78 @@
+{
+  "case_id": "V-MOD-002",
+  "title": "Modes: two-storey shear building on rigid diaphragms",
+  "feature_ids": [
+    "F09-001",
+    "F09-003",
+    "F07-001",
+    "F04-005"
+  ],
+  "model": "model.json",
+  "model_sha256": "13a4f4e13973ae52968ac5b0f20ba9461c1919d9114b7b8435dc8f430d4862c2",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "2 x 2 shear frame per plan direction and in torsion: K = k [[2, -1], [-1, 1]], M = diag(m1, m2)",
+    "derivation": [
+      "m1 m2 l^2 - k (2 m2 + m1) l + k^2 = 0",
+      "translation: k = 4 x 12 E I/H^3; square columns, so X and Y repeat",
+      "torsion about the plan center: k = sum(12 E I r^2/H^3 + G J/H), m = sum(m_i r^2), since the corner masses have polar inertia"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "1",
+      "component": "",
+      "value": 0.09247312734244205,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "2",
+      "component": "",
+      "value": 0.09247312734244205,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "3",
+      "component": "",
+      "value": 0.09196437713700828,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "4",
+      "component": "",
+      "value": 0.03796966125226127,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "5",
+      "component": "",
+      "value": 0.03796966125226127,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "6",
+      "component": "",
+      "value": 0.03776076734418779,
+      "unit": "s"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "case_id": "V-MOD-003",
+  "title": "First period of a simply supported beam with distributed mass, 16 pieces",
+  "feature_ids": [
+    "F09-001",
+    "F07-002",
+    "F01-006"
+  ],
+  "model": "model.json",
+  "model_sha256": "ce6cd96e2e21752e449a6b0573d681945230380503377b6dcb8d87da9036291d",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-mesh-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "omega_1 = (pi/L)^2 sqrt(E I/(rho A)); lumped masses converge to it with the mesh",
+    "derivation": [
+      "T = 2 L^2/pi sqrt(rho A/(E I))",
+      "tolerance of the mesh: 0.5 %"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "1",
+      "component": "",
+      "value": 0.08071977217958771,
+      "unit": "s"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

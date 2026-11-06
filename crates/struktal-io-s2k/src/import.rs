@@ -230,7 +230,8 @@ impl Importer<'_> {
             // would need G, so it is made invalid only if a section uses it.
             let nu = self.opt_num(T, row, "U12").unwrap_or(0.0);
             let unit_weight = self.num_or(T, row, "UnitWeight", 0.0);
-            out.push(Material { name, e, nu, g, unit_weight });
+            let mass_density = self.num_or(T, row, "UnitMass", 0.0);
+            out.push(Material { name, e, nu, g, unit_weight, mass_density });
         }
         out
     }
@@ -311,6 +312,7 @@ impl Importer<'_> {
                 z: xyz[2],
                 restraint: active.map(|a| !a),
                 springs: [0.0; 6],
+                added_mass: [0.0; 6],
             });
         }
 
@@ -985,6 +987,7 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
         joint_displacements: Vec::new(),
         frame_loads: Vec::new(),
         area_loads: Vec::new(),
+        response_spectra: Vec::new(),
         load_cases: Vec::new(),
         combinations: Vec::new(),
     };
@@ -1041,7 +1044,7 @@ mod tests {
         assert_eq!(m.joints[1].x, 100.0);
         assert!(im.ignored_tables.contains(&"GRID LINES".to_string()));
         assert!(im.notes.iter().any(|n| n.contains("MODAL")), "{:?}", im.notes);
-        let LoadCase::LinearStatic { loads, .. } = &m.load_cases[0];
+        let LoadCase::LinearStatic { loads, .. } = &m.load_cases[0] else { panic!("static case") };
         assert_eq!(loads[0].scale, 2.0);
         struktal_core::validate(m).expect("valid model");
     }

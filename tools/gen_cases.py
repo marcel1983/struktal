@@ -22,7 +22,7 @@ E, NU = 200e9, 0.3
 
 def model(title, joints, frames, sections, patterns, joint_loads=(), frame_loads=(), cases=None,
           combos=(), units=None, materials=None, schema=1, constraints=(), imposed=(),
-          area_sections=(), areas=(), area_loads=()):
+          area_sections=(), areas=(), area_loads=(), spectra=()):
     # Cases created before schema v2 stay at v1 on purpose: they exercise the
     # v1 -> v2 migration end to end (decision 0007).
     extra = {"constraints": list(constraints)} if constraints else {}
@@ -30,6 +30,8 @@ def model(title, joints, frames, sections, patterns, joint_loads=(), frame_loads
         extra["joint_displacements"] = list(imposed)
     if areas:
         extra.update(area_sections=list(area_sections), areas=list(areas), area_loads=list(area_loads))
+    if spectra:
+        extra["response_spectra"] = list(spectra)
     return {
         **extra,
         "schema_version": schema,
@@ -1700,5 +1702,159 @@ write("V-SHELL-005", "Scordelis-Lo roof, quarter model, mesh 16 x 16", ["F03-001
     "derivation": ["reference from a converged solution, not a closed form", "tolerance of the mesh: 1 %"]}, [
     exp("joint_displacement", "LC1", f"R{Nr}_{Nr}", "UZ", -0.3024, "m"),
 ], tol=MESH_TOL)
+
+# ---------------------------------------------------------------- modes
+MOD_TOL = "modes-closed-form-v1"
+
+
+def JM(name, x, y, z, r=None, mass=None):
+    d = J(name, x, y, z, r)
+    if mass:
+        d["added_mass"] = mass
+    return d
+
+
+# Cantilever with a tip mass: one translation in each bending plane, and a third
+# period, axial. Massless beam, so each period is a closed form.
+Lt_, Mt_ = 3.0, 500.0
+KB = dict(SEC, name="B")
+Tz = 2 * math.pi * math.sqrt(Mt_ * Lt_**3 / (3 * E * I))
+Tx = 2 * math.pi * math.sqrt(Mt_ * Lt_ / (E * A))
+# Two-storey shear building on rigid floors: 2 x 2 in each plan direction.
+Hb, mb1, mb2 = 3.0, 8_000.0, 5_000.0
+kb_x = 4 * 12 * E * C1["i33"] / Hb**3
+FL = [False, False, True, True, True, False]
+plan2 = [(0.0, 0.0), (6.0, 0.0), (6.0, 4.0), (0.0, 4.0)]
+
+
+def two_dof(k_, m1, m2):
+    """Shear frame with equal storeys: closed-form roots of the 2 x 2 problem."""
+    a, b, c = m1 * m2, -(2 * k_ * m2 + k_ * m1), k_ * k_
+    disc = math.sqrt(b * b - 4 * a * c)
+    return (-b - disc) / (2 * a), (-b + disc) / (2 * a)
+
+
+l1, l2 = two_dof(kb_x, mb1, mb2)
+jj_m = [J(f"G{k_}", x_, y_, 0, FIX) for k_, (x_, y_) in enumerate(plan2)]
+jj_m += [JM(f"A{k_}", x_, y_, Hb, FL, [mb1 / 4, mb1 / 4, 0, 0, 0, 0]) for k_, (x_, y_) in enumerate(plan2)]
+jj_m += [JM(f"B{k_}", x_, y_, 2 * Hb, FL, [mb2 / 4, mb2 / 4, 0, 0, 0, 0]) for k_, (x_, y_) in enumerate(plan2)]
+ff_m = [{"name": f"C{lv}{k_}", "i": f"{b_}{k_}", "j": f"{lv}{k_}", "section": "SQ"} for lv, b_ in (("A", "G"), ("B", "A")) for k_ in range(4)]
+kb_sq = 4 * 12 * E * SQ["i33"] / Hb**3
+l1, l2 = two_dof(kb_sq, mb1, mb2)
+# Translation modes in X and Y are equal here (square columns): check by mass
+# ratio with their sum. Shape of mode 1: (a, 1) with a = (k2) / (k1 + k2 - m1 l).
+write("V-MOD-001", "Modes: cantilever with tip mass", ["F09-001", "F07-001"], model(
+    "V-MOD-001 tip mass",
+    [J("A", 0, 0, 0, FIX), JM("B", Lt_, 0, 0, None, [Mt_, 0, Mt_, 0, 0, 0])],
+    [{"name": "F1", "i": "A", "j": "B", "section": "B"}],
+    [KB], [], cases=[{"type": "LinearStatic", "name": "NONE", "loads": []}, {"type": "Modal", "name": "M", "modes": 2}],
+    schema=5,
+), {"kind": "analytical", "source": "One mass on a massless cantilever; mass on two DOFs, so exactly two modes exist",
+    "derivation": ["T = 2 pi sqrt(M L^3/(3 E I)) in bending", "T = 2 pi sqrt(M L/(E A)) axially, with mass only in X and Z: bending in Z and axial X"]}, [
+    exp("modal_period", "M", "1", "", Tz, "s"),
+    exp("modal_period", "M", "2", "", Tx, "s"),
+    exp("modal_mass_ratio", "M", "1", "Z", 1.0, "1"),
+    exp("modal_mass_ratio", "M", "2", "X", 1.0, "1"),
+], tol=MOD_TOL)
+write("V-MOD-002", "Modes: two-storey shear building on rigid diaphragms", ["F09-001", "F09-003", "F07-001", "F04-005"], model(
+    "V-MOD-002 shear building",
+    jj_m, ff_m, [SQ], [], cases=[{"type": "Modal", "name": "M", "modes": 6}], schema=5,
+    constraints=[{"kind": "Diaphragm", "name": "FA", "joints": [f"A{k_}" for k_ in range(4)]},
+                 {"kind": "Diaphragm", "name": "FB", "joints": [f"B{k_}" for k_ in range(4)]}],
+), {"kind": "analytical", "source": "2 x 2 shear frame per plan direction and in torsion: K = k [[2, -1], [-1, 1]], M = diag(m1, m2)",
+    "derivation": ["m1 m2 l^2 - k (2 m2 + m1) l + k^2 = 0", "translation: k = 4 x 12 E I/H^3; square columns, so X and Y repeat",
+                   "torsion about the plan center: k = sum(12 E I r^2/H^3 + G J/H), m = sum(m_i r^2), since the corner masses have polar inertia"]},
+    [exp("modal_period", "M", str(k_ + 1), "", T_, "s") for k_, T_ in enumerate(sorted(
+        [2 * math.pi / math.sqrt(v) for v in (l1, l1, l2, l2, *two_dof(
+            4 * (12 * E * SQ["i33"] / Hb**3 * (3.0**2 + 2.0**2) + G * SQ["j"] / Hb), mb1 * 13.0, mb2 * 13.0))],
+        reverse=True))], tol=MOD_TOL)
+
+# Simply supported beam with distributed mass: frames and shells, by subdivision.
+Lm5, rho5 = 8.0, 7850.0
+MAT_M = [{"name": "STEEL", "e": E, "nu": NU, "unit_weight": 0.0, "mass_density": rho5}]
+T1b = 2 / math.pi * Lm5**2 * math.sqrt(rho5 * A / (E * I))
+write("V-MOD-003", "First period of a simply supported beam with distributed mass, 16 pieces", ["F09-001", "F07-002", "F01-006"], model(
+    "V-MOD-003 distributed mass",
+    [J("A", 0, 0, 0, [True, True, True, True, False, True]), J("B", Lm5, 0, 0, [False, True, True, False, False, True])],
+    [{"name": "F1", "i": "A", "j": "B", "section": "B", "auto_mesh": {"segments": 16}}],
+    [SEC], [], materials=MAT_M, cases=[{"type": "Modal", "name": "M", "modes": 1}], schema=5,
+), {"kind": "analytical", "source": "omega_1 = (pi/L)^2 sqrt(E I/(rho A)); lumped masses converge to it with the mesh",
+    "derivation": ["T = 2 L^2/pi sqrt(rho A/(E I))", "tolerance of the mesh: 0.5 %"]}, [
+    exp("modal_period", "M", "1", "", T1b, "s"),
+], tol="modes-mesh-v1")
+
+# Spectrum on one mode: u = Sa/w^2, V = M Sa, M_base = V L. And two modes, with
+# both combinations: u_i = phi_i Gamma_i Sa_i/w_i^2.
+Sf = [[0.0, 2.0], [1.0, 4.0], [5.0, 4.0]]
+sc_s = 9.80665
+fn_s = {"name": "F", "points": Sf}
+
+
+def sa_of(T_):
+    return sc_s * (2.0 + 2.0 * T_ if T_ <= 1.0 else 4.0)
+
+
+# Tip-mass mode: one DOF.
+Tt_ = Tz
+wt_ = 2 * math.pi / Tt_
+at_ = sa_of(Tt_)
+# Two-storey frame: X modes, closed form. Columns with I33 != I22, so that the X
+# and Y modes do not repeat: SRSS is not invariant within a repeated pair.
+kb_sq = 4 * 12 * E * C1["i33"] / Hb**3
+l1, l2 = two_dof(kb_sq, mb1, mb2)
+ff_s = [dict(f_, section="C1") for f_ in ff_m]
+vals_w = [math.sqrt(l1), math.sqrt(l2)]
+
+
+def mode_shape(l_):
+    # K x = l M x, with k = kb_sq: first row (2 k - l m1) a = k b. Normalized in M.
+    a_, b_ = kb_sq, 2 * kb_sq - l_ * mb1
+    n_ = math.sqrt(mb1 * a_**2 + mb2 * b_**2)
+    return a_ / n_, b_ / n_
+
+
+phi1, phi2 = mode_shape(l1), mode_shape(l2)
+gam = [mb1 * p_[0] + mb2 * p_[1] for p_ in (phi1, phi2)]
+Ts = [2 * math.pi / w_ for w_ in vals_w]
+Sas = [sa_of(T_) for T_ in Ts]
+u1m = [p_[0] * g_ * s_ / w_**2 for p_, g_, s_, w_ in zip((phi1, phi2), gam, Sas, vals_w)]
+u2m = [p_[1] * g_ * s_ / w_**2 for p_, g_, s_, w_ in zip((phi1, phi2), gam, Sas, vals_w)]
+z5 = 0.05
+
+
+def rho_cqc(a_, b_):
+    r = a_ / b_
+    return 8 * z5**2 * (1 + r) * r**1.5 / ((1 - r**2)**2 + 4 * z5**2 * r * (1 + r)**2)
+
+
+r12 = rho_cqc(vals_w[0], vals_w[1])
+srss = lambda v: math.sqrt(v[0]**2 + v[1]**2)
+cqc = lambda v: math.sqrt(v[0]**2 + v[1]**2 + 2 * r12 * v[0] * v[1])
+base_x = [g_ * s_ * p_ for g_, s_, p_ in zip(gam, Sas, (1, 1))]
+kc_ = kb_sq / 4
+write("V-SPEC-001", "Response spectrum: one mode, and two modes with SRSS and CQC", ["F10-001", "F10-002", "F09-003"], model(
+    "V-SPEC-001 response spectrum",
+    jj_m + [J("C0", 40, 0, 0, FIX), JM("C1", 40 + Lt_, 0, 0, None, [0, 0, Mt_, 0, 0, 0])],
+    ff_s + [{"name": "CANT", "i": "C0", "j": "C1", "section": "B"}],
+    [C1, KB], [],
+    cases=[{"type": "Modal", "name": "M", "modes": 7},
+           {"type": "ResponseSpectrum", "name": "RX", "modal_case": "M", "function": "F", "direction": "X", "scale": sc_s, "combination": "Srss", "damping": z5},
+           {"type": "ResponseSpectrum", "name": "RXC", "modal_case": "M", "function": "F", "direction": "X", "scale": sc_s, "combination": "Cqc", "damping": z5},
+           {"type": "ResponseSpectrum", "name": "RZ", "modal_case": "M", "function": "F", "direction": "Z", "scale": sc_s, "combination": "Srss", "damping": z5}],
+    schema=5, spectra=[fn_s],
+    constraints=[{"kind": "Diaphragm", "name": "FA", "joints": [f"A{k_}" for k_ in range(4)]},
+                 {"kind": "Diaphragm", "name": "FB", "joints": [f"B{k_}" for k_ in range(4)]}],
+), {"kind": "analytical", "source": "Modal superposition of the closed-form modes; CQC with Der Kiureghian's rho",
+    "derivation": ["u_i = phi_i Gamma_i Sa(T_i)/w_i^2", "V_i = Gamma_i^2 Sa(T_i)", "combined by SRSS, or by CQC with rho_12",
+                   "one mode: u = Sa/w^2, V = M Sa, M_base = V L"]}, [
+    exp("joint_displacement", "RX", "A0", "UX", srss(u1m), "m"),
+    exp("joint_displacement", "RX", "B0", "UX", srss(u2m), "m"),
+    exp("joint_displacement", "RXC", "A0", "UX", cqc(u1m), "m"),
+    exp("joint_displacement", "RXC", "B0", "UX", cqc(u2m), "m"),
+    exp("joint_displacement", "RZ", "C1", "UZ", at_ / wt_**2, "m"),
+    exp("joint_reaction", "RZ", "C0", "FZ", Mt_ * at_, "N"),
+    exp("joint_reaction", "RZ", "C0", "MY", Mt_ * at_ * Lt_, "N*m"),
+    exp("frame_station", "RZ", "CANT", "M3", Mt_ * at_ * Lt_, "N*m", 0.0),
+], tol=MOD_TOL)
 
 print("cases written to", ROOT)

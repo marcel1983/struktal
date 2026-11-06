@@ -182,6 +182,7 @@ pub fn expand(s: &Snapshot) -> Result<(Option<Snapshot>, Mesh), String> {
                         z: xi[2] + rel * (xj[2] - xi[2]),
                         restraint: [false; 6],
                         springs: [0.0; 6],
+                        added_mass: [0.0; 6],
                     });
                     name
                 }

@@ -161,6 +161,17 @@ fn lookup(r: &RunResult, e: &Expected) -> Result<f64, String> {
             Ok(st.actions[comp(&STATION_COMPONENTS)?])
         }
         "external_work" => c.checks.as_ref().map(|k| k.external_work).ok_or_else(|| "no checks in case".into()),
+        "modal_period" | "modal_mass_ratio" => {
+            let modal = c.modal.as_ref().ok_or("case has no modes")?;
+            let n: usize = e.entity.parse().map_err(|_| format!("mode number, got '{}'", e.entity))?;
+            let mode = modal.modes.get(n.wrapping_sub(1)).ok_or_else(|| format!("no mode {n}"))?;
+            if e.result == "modal_period" {
+                Ok(mode.period)
+            } else {
+                Ok(mode.mass_ratio
+                    [["X", "Y", "Z"].iter().position(|a| *a == e.component).ok_or("component X, Y or Z")?])
+            }
+        }
         "area_center" => {
             let a = c
                 .areas

@@ -357,7 +357,7 @@ fn capabilities_declares_unsupported_families() {
     assert!(out.status.success());
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("json");
     let ns = v["not_supported"].as_array().expect("array");
-    assert!(ns.iter().any(|x| x == "modal"));
+    assert!(ns.iter().any(|x| x == "time_history"));
     let backends = v["solver_backends"].as_array().expect("array");
     assert_eq!(backends.len(), 2);
     for b in backends {

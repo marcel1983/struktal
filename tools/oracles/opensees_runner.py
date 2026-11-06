@@ -1,6 +1,7 @@
 """Solves a Struktal model with OpenSeesPy. External reference only: no OpenSees code
 is used by the engine. Needs Python 3.12 with openseespy 3.8 (decision 0013)."""
 import importlib.metadata
+import math
 import sys
 from pathlib import Path
 
@@ -27,6 +28,29 @@ def check_supported(m):
             # Its transformation has no offset terms: the offset shortens the
             # element, with no rigid arm. Probed: MY = -P L instead of -P (L + a).
             raise Unsupported(f"frame {fr['name']}: ElasticTimoshenkoBeam ignores the arm of joint offsets")
+
+
+def solve_modes(m, modes):
+    """Periods with the same lumped masses as Struktal: half of each bar at each end."""
+    if m.get("areas"):
+        raise Unsupported("modes of shells are not translated")
+    if any((fr.get("auto_mesh") or {}).get("segments", 1) > 1 for fr in m["frames"]):
+        # Subdivision does not change static results, but it does place the masses.
+        raise Unsupported("this translator does not subdivide frames, which moves the lumped masses")
+    empty = {"joints": {}, "imposed": {}, "frames": {fr["name"]: {"uniform": [0.0] * 3, "points": [], "segments": [], "moments": [], "moment_segments": []} for fr in m["frames"]}}
+    solve_case(m, empty)
+    tags = {j["name"]: k + 1 for k, j in enumerate(m["joints"])}
+    lumped = {j["name"]: list(j["added_mass"]) for j in m["joints"]}
+    for fr in m["frames"]:
+        half = 0.5 * fr["mat"]["mass_density"] * fr["sec"]["area"] * fr["length"]
+        for end in (fr["i"], fr["j"]):
+            for d in range(3):
+                lumped[end][d] += half
+    for name, mass in lumped.items():
+        if any(mass):
+            ops.mass(tags[name], *mass)
+    values = ops.eigen("-fullGenLapack", modes)
+    return [2 * math.pi / math.sqrt(v) for v in values]
 
 
 def solve_case(m, loads):
@@ -167,4 +191,4 @@ def solve_case(m, loads):
 
 
 if __name__ == "__main__":
-    main("OpenSeesPy", importlib.metadata.version("openseespy"), solve_case)
+    main("OpenSeesPy", importlib.metadata.version("openseespy"), solve_case, solve_modes)

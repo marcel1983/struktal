@@ -26,5 +26,19 @@
     "atol": { "m": 1e-11, "rad": 1e-11, "N": 1e-5, "N*m": 1e-5, "J": 1e-8, "N/m": 1e-3, "N*m/m": 1e-3 },
     "residual_max": 1e-9,
     "equilibrium_max": 1e-9
+  },
+  "modes-closed-form-v1": {
+    "description": "Modes and spectra against closed forms. Tighter than the iteration needs: its convergence is 1e-11 on eigenvalues.",
+    "rtol": 1e-7,
+    "atol": { "m": 1e-11, "rad": 1e-11, "N": 1e-5, "N*m": 1e-5, "s": 1e-10, "1": 1e-9 },
+    "residual_max": 1e-9,
+    "equilibrium_max": 1e-9
+  },
+  "modes-mesh-v1": {
+    "description": "A lumped-mass period against the continuous beam at a stated mesh: the error of that mesh.",
+    "rtol": 0.005,
+    "atol": { "s": 1e-10, "1": 1e-9 },
+    "residual_max": 1e-9,
+    "equilibrium_max": 1e-9
   }
 }

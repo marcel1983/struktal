@@ -1,0 +1,59 @@
+{
+  "case_id": "V-MOD-001",
+  "title": "Modes: cantilever with tip mass",
+  "feature_ids": [
+    "F09-001",
+    "F07-001"
+  ],
+  "model": "model.json",
+  "model_sha256": "94d4954eccfb8e9b18e400458f956a6efe5f45c3eddf708f7cbe66e1b1dcb170",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "One mass on a massless cantilever; mass on two DOFs, so exactly two modes exist",
+    "derivation": [
+      "T = 2 pi sqrt(M L^3/(3 E I)) in bending",
+      "T = 2 pi sqrt(M L/(E A)) axially, with mass only in X and Z: bending in Z and axial X"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "1",
+      "component": "",
+      "value": 0.09424777960769379,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "2",
+      "component": "",
+      "value": 0.005441398092702654,
+      "unit": "s"
+    },
+    {
+      "result": "modal_mass_ratio",
+      "case": "M",
+      "entity": "1",
+      "component": "Z",
+      "value": 1.0,
+      "unit": "1"
+    },
+    {
+      "result": "modal_mass_ratio",
+      "case": "M",
+      "entity": "2",
+      "component": "X",
+      "value": 1.0,
+      "unit": "1"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -12,6 +12,7 @@ use struktal_math::{Backend, MatrixClass, SolverError, TripletBuilder, relative_
 
 use crate::areas::{self, AreaData};
 use crate::constraints::DofMap;
+use crate::dynamics;
 use crate::results::*;
 use crate::status::{CaseStatus, Completion, PhysicalStatus};
 
@@ -30,8 +31,18 @@ impl Default for Options {
     }
 }
 
-struct FrameData {
-    length: f64,
+/// Results of one displacement field.
+pub(crate) struct Response {
+    pub joints: Vec<JointResult>,
+    pub frames: Vec<FrameResult>,
+    pub areas: Vec<AreaResult>,
+    reaction_res: [f64; 6],
+    gross: [f64; 2],
+    reaction_work: f64,
+}
+
+pub(crate) struct FrameData {
+    pub(crate) length: f64,
     axes: [Vec3; 3],
     k_local: Mat12,
     /// End-release condensation; `None` for a fully connected member.
@@ -40,7 +51,7 @@ struct FrameData {
     k_node: Mat12,
     /// From global joint DOFs to local element-end DOFs, offsets included.
     t: Mat12,
-    dofs: [usize; 12],
+    pub(crate) dofs: [usize; 12],
     /// Position of element end I (joint plus offset).
     xi: Vec3,
     props: SectionProps,
@@ -488,6 +499,7 @@ fn failed_case(name: &str, kind: &str, c: Completion, p: PhysicalStatus, message
         frames: vec![],
         checks: None,
         areas: vec![],
+        modal: None,
         envelope: None,
     }
 }
@@ -784,22 +796,9 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         .fold(0.0, f64::max)
         .max(1.0);
 
-    for case in &m.load_cases {
-        let LoadCase::LinearStatic { name, loads } = case;
-        let pats: Vec<(usize, f64)> = loads.iter().map(|sp| (s.pattern_index[&sp.pattern], sp.scale)).collect();
-        let cl = build_case_loads(s, &frames, &area_data, &pats);
-        let rhs = map.reduce(&effective_loads(s, &frames, &area_data, &cl));
-        let t_solve = Instant::now();
-        let x = factor.as_ref().map(|f| f.solve(&rhs)).unwrap_or_default();
-        manifest.timings.solve_s += t_solve.elapsed().as_secs_f64();
-        let residual = if n == 0 { 0.0 } else { relative_residual(&k, &x, &rhs) };
-        let mut u = map.expand(&x);
-        for (j, joint) in m.joints.iter().enumerate() {
-            for d in (0..6).filter(|&d| joint.restraint[d]) {
-                u[6 * j + d] = cl.imposed[6 * j + d];
-            }
-        }
-
+    // What a displacement field gives: joint results with reactions, frame and
+    // area results. Used by static cases and, mode by mode, by spectra.
+    let respond = |cl: &CaseLoads, u: &[f64]| -> Response {
         // Internal nodal forces from element end forces.
         let mut internal = vec![0.0; 6 * nj];
         let mut piece_ends = Vec::with_capacity(frames.len());
@@ -902,6 +901,67 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                 }
             })
             .collect();
+        Response { joints, frames: frame_results, areas: area_results, reaction_res, gross, reaction_work }
+    };
+
+    let dynamic = m.load_cases.iter().any(|c| !matches!(c, LoadCase::LinearStatic { .. }));
+    let mass = dynamic.then(|| dynamics::assemble_mass(s, &map, &frames, &area_data));
+    let no_loads = build_case_loads(s, &frames, &area_data, &[]);
+    let mut modal_cache: HashMap<&str, dynamics::Solved> = HashMap::new();
+
+    for case in &m.load_cases {
+        let (name, loads) = match case {
+            LoadCase::LinearStatic { name, loads } => (name, loads),
+            LoadCase::Modal { name, modes } => {
+                let cr = dynamics::modal_case(name, *modes as usize, s, &map, &k, factor.as_ref(), mass.as_ref());
+                if let Ok(solved) = &cr.1 {
+                    modal_cache.insert(name, solved.clone());
+                }
+                out.push(cr.0);
+                continue;
+            }
+            LoadCase::ResponseSpectrum { name, modal_case, function, direction, scale, combination, damping } => {
+                let f = m.response_spectra.iter().find(|f| f.name == *function).expect("validated function");
+                let cr = match modal_cache.get(modal_case.as_str()) {
+                    None => failed_case(
+                        name,
+                        "response_spectrum",
+                        Completion::Error,
+                        PhysicalStatus::Indeterminate,
+                        vec![format!("modal case '{modal_case}' has no result, or comes later in load_cases")],
+                    ),
+                    Some(solved) => {
+                        let set = dynamics::SpectrumSet {
+                            f,
+                            axis: direction.index(),
+                            scale: *scale,
+                            combination: *combination,
+                            damping: *damping,
+                        };
+                        let (per_mode, used, cover) =
+                            dynamics::modal_responses(solved, &set, &map, |u| respond(&no_loads, u));
+                        dynamics::combine_response(name, &per_mode, &used, cover, &set)
+                    }
+                };
+                out.push(cr);
+                continue;
+            }
+        };
+        let pats: Vec<(usize, f64)> = loads.iter().map(|sp| (s.pattern_index[&sp.pattern], sp.scale)).collect();
+        let cl = build_case_loads(s, &frames, &area_data, &pats);
+        let rhs = map.reduce(&effective_loads(s, &frames, &area_data, &cl));
+        let t_solve = Instant::now();
+        let x = factor.as_ref().map(|f| f.solve(&rhs)).unwrap_or_default();
+        manifest.timings.solve_s += t_solve.elapsed().as_secs_f64();
+        let residual = if n == 0 { 0.0 } else { relative_residual(&k, &x, &rhs) };
+        let mut u = map.expand(&x);
+        for (j, joint) in m.joints.iter().enumerate() {
+            for d in (0..6).filter(|&d| joint.restraint[d]) {
+                u[6 * j + d] = cl.imposed[6 * j + d];
+            }
+        }
+        let Response { joints, frames: frame_results, areas: area_results, reaction_res, gross, reaction_work } =
+            respond(&cl, &u);
 
         let fmag = cl.resultant[..3].iter().chain(&reaction_res[..3]).fold(gross[0], |a, v| a.max(v.abs()));
         let mmag = cl.resultant[3..].iter().chain(&reaction_res[3..]).fold(gross[1], |a, v| a.max(v.abs()));
@@ -932,6 +992,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             frames: frame_results,
             checks: Some(checks),
             areas: area_results,
+            modal: None,
             envelope: None,
         };
         by_name.insert(name.clone(), cr.clone());
@@ -1049,6 +1110,7 @@ fn combine(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
         frames,
         checks: None,
         areas,
+        modal: None,
         envelope: None,
     }
 }
@@ -1138,6 +1200,7 @@ fn envelope(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
         frames: vec![],
         checks: None,
         areas: vec![],
+        modal: None,
         envelope: Some(Envelope { joints, frames }),
     }
 }

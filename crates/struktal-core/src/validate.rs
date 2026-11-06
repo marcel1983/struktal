@@ -108,7 +108,19 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .and_then(|v| v.as_array())
             .is_some_and(|secs| secs.iter().any(|s| s.get("shape").is_some() || s.get("neglect_shear").is_some()));
         let has_areas = ["area_sections", "areas", "area_loads"].iter().any(|k| raw.get(*k).is_some());
-        if has_auto_mesh || has_envelope || has_shape || has_areas {
+        let has_dynamics = raw.get("response_spectra").is_some()
+            || raw.get("load_cases").and_then(|v| v.as_array()).is_some_and(|cases| {
+                cases.iter().any(|c| c.get("type").and_then(|t| t.as_str()) != Some("LinearStatic"))
+            })
+            || raw
+                .get("materials")
+                .and_then(|v| v.as_array())
+                .is_some_and(|ms| ms.iter().any(|x| x.get("mass_density").is_some()))
+            || raw
+                .get("joints")
+                .and_then(|v| v.as_array())
+                .is_some_and(|js| js.iter().any(|x| x.get("added_mass").is_some()));
+        if has_auto_mesh || has_envelope || has_shape || has_areas || has_dynamics {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
     }
@@ -226,6 +238,67 @@ fn derive_section_properties(m: &mut Model, issues: &mut Vec<Issue>) {
         (s.area, s.i33, s.i22, s.j) = (p.area, p.i33, p.i22, p.j);
         (s.as2, s.as3) = if s.neglect_shear { (0.0, 0.0) } else { (p.as2, p.as3) };
         s.neglect_shear = false;
+    }
+}
+
+fn check_mass_and_spectra(m: &Model, issues: &mut Vec<Issue>) {
+    for mat in &m.materials {
+        if !mat.mass_density.is_finite() || mat.mass_density < 0.0 {
+            issues.push(issue(format!("material {}", mat.name), "mass_density", "must be finite and >= 0"));
+        }
+    }
+    for j in &m.joints {
+        if j.added_mass.iter().any(|v| !v.is_finite() || *v < 0.0) {
+            issues.push(issue(format!("joint {}", j.name), "added_mass", "must be finite and >= 0"));
+        }
+    }
+    let functions = index_unique("response spectrum", m.response_spectra.iter().map(|f| f.name.as_str()), issues);
+    for f in &m.response_spectra {
+        let e = format!("response spectrum {}", f.name);
+        if f.points.is_empty() {
+            issues.push(issue(&e, "points", "needs at least one point"));
+        }
+        if f.points.iter().flatten().any(|v| !v.is_finite()) || f.points.iter().any(|p| p[0] < 0.0) {
+            issues.push(issue(&e, "points", "periods must be >= 0, and all values finite"));
+        }
+        if f.points.windows(2).any(|w| w[1][0] <= w[0][0]) {
+            issues.push(issue(&e, "points", "periods must be strictly increasing"));
+        }
+    }
+    for c in &m.load_cases {
+        match c {
+            LoadCase::LinearStatic { .. } => {}
+            LoadCase::Modal { name, modes } => {
+                if *modes == 0 {
+                    issues.push(issue(format!("load case {name}"), "modes", "must be at least 1"));
+                }
+            }
+            LoadCase::ResponseSpectrum { name, modal_case, function, scale, damping, .. } => {
+                let e = format!("load case {name}");
+                if !m.load_cases.iter().any(|o| o.name() == modal_case && matches!(o, LoadCase::Modal { .. })) {
+                    issues.push(issue(&e, "modal_case", format!("'{modal_case}' is not a modal case")));
+                }
+                if !functions.contains_key(function) {
+                    issues.push(issue(&e, "function", format!("unknown response spectrum '{function}'")));
+                }
+                check_finite(*scale, &e, "scale", issues);
+                if !(0.0..1.0).contains(damping) {
+                    issues.push(issue(&e, "damping", format!("must be in [0, 1), got {damping}")));
+                }
+            }
+        }
+    }
+    // Neither modes nor a spectrum, which has no sign, can enter a combination.
+    for combo in &m.combinations {
+        for t in combo.terms() {
+            if m.load_cases.iter().any(|c| c.name() == t.case && !matches!(c, LoadCase::LinearStatic { .. })) {
+                issues.push(issue(
+                    format!("combination {}", combo.name()),
+                    "cases",
+                    format!("'{}' is not a static case: combining it is not supported yet", t.case),
+                ));
+            }
+        }
     }
 }
 
@@ -586,8 +659,9 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
             }
         }
     }
+    check_mass_and_spectra(&m, &mut issues);
     for c in &m.load_cases {
-        let LoadCase::LinearStatic { name, loads } = c;
+        let LoadCase::LinearStatic { name, loads } = c else { continue };
         for sp in loads {
             if !pattern_index.contains_key(&sp.pattern) {
                 issues.push(issue(
@@ -679,7 +753,14 @@ mod tests {
             schema_version: SCHEMA_VERSION,
             title: "t".into(),
             units: UnitSystem::default(),
-            materials: vec![Material { name: "S".into(), e: 200e9, nu: 0.3, g: None, unit_weight: 0.0 }],
+            materials: vec![Material {
+                name: "S".into(),
+                e: 200e9,
+                nu: 0.3,
+                g: None,
+                unit_weight: 0.0,
+                mass_density: 0.0,
+            }],
             sections: vec![FrameSection {
                 name: "B".into(),
                 material: "S".into(),
@@ -693,8 +774,24 @@ mod tests {
                 as3: 0.0,
             }],
             joints: vec![
-                Joint { name: "1".into(), x: 0.0, y: 0.0, z: 0.0, restraint: [true; 6], springs: [0.0; 6] },
-                Joint { name: "2".into(), x: 3.0, y: 0.0, z: 0.0, restraint: [false; 6], springs: [0.0; 6] },
+                Joint {
+                    name: "1".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    restraint: [true; 6],
+                    springs: [0.0; 6],
+                    added_mass: [0.0; 6],
+                },
+                Joint {
+                    name: "2".into(),
+                    x: 3.0,
+                    y: 0.0,
+                    z: 0.0,
+                    restraint: [false; 6],
+                    springs: [0.0; 6],
+                    added_mass: [0.0; 6],
+                },
             ],
             frames: vec![Frame {
                 name: "F1".into(),
@@ -709,6 +806,7 @@ mod tests {
             area_sections: vec![],
             areas: vec![],
             area_loads: vec![],
+            response_spectra: vec![],
             constraints: vec![],
             load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0 }],
             joint_loads: vec![JointLoad {
@@ -918,7 +1016,15 @@ mod tests {
         // A joint without elements is valid inside a diaphragm, and restraints
         // on components the diaphragm does not tie are allowed.
         let mut m = with_diaphragm(&["2", "3"], [false, false, true, false, false, false]);
-        m.joints.push(Joint { name: "3".into(), x: 1.0, y: 1.0, z: 0.0, restraint: [false; 6], springs: [0.0; 6] });
+        m.joints.push(Joint {
+            name: "3".into(),
+            x: 1.0,
+            y: 1.0,
+            z: 0.0,
+            restraint: [false; 6],
+            springs: [0.0; 6],
+            added_mass: [0.0; 6],
+        });
         assert!(validate(&m).is_ok());
         m.constraints.push(Constraint::Diaphragm {
             name: "E".into(),
@@ -1014,7 +1120,15 @@ mod tests {
     fn body_and_equal_validation() {
         let two = || vec!["2".to_string(), "3".to_string()];
         let mut m = cantilever();
-        m.joints.push(Joint { name: "3".into(), x: 4.0, y: 1.0, z: 0.0, restraint: [false; 6], springs: [0.0; 6] });
+        m.joints.push(Joint {
+            name: "3".into(),
+            x: 4.0,
+            y: 1.0,
+            z: 0.0,
+            restraint: [false; 6],
+            springs: [0.0; 6],
+            added_mass: [0.0; 6],
+        });
         m.constraints = vec![Constraint::Body { name: "B".into(), joints: two() }];
         assert!(validate(&m).is_ok());
         let mut none = m.clone();
@@ -1140,6 +1254,7 @@ mod tests {
                 z: c[2],
                 restraint: [false; 6],
                 springs: [0.0; 6],
+                added_mass: [0.0; 6],
             });
         }
         m.area_sections = vec![AreaSection {
@@ -1155,6 +1270,69 @@ mod tests {
             section: "S1".into(),
         }];
         m
+    }
+
+    #[test]
+    fn modal_and_spectrum_cases_are_validated_and_converted() {
+        let spectrum = |function: &str, scale: f64, damping: f64| LoadCase::ResponseSpectrum {
+            name: "RS".into(),
+            modal_case: "M".into(),
+            function: function.into(),
+            direction: GlobalAxis::X,
+            scale,
+            combination: ModalCombination::Cqc,
+            damping,
+        };
+        let base = || {
+            let mut m = cantilever();
+            m.materials[0].mass_density = 7850.0;
+            m.load_cases.push(LoadCase::Modal { name: "M".into(), modes: 2 });
+            m.response_spectra = vec![SpectrumFunction { name: "F".into(), points: vec![[0.0, 1.0], [1.0, 2.0]] }];
+            m.load_cases.push(spectrum("F", 9.8, 0.05));
+            m
+        };
+        assert!(validate(&base()).is_ok());
+
+        let mut m = base();
+        m.load_cases[1] = LoadCase::Modal { name: "M".into(), modes: 0 };
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "modes"));
+        let mut m = base();
+        m.load_cases[2] = spectrum("NOPE", 9.8, 0.05);
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "function"));
+        let mut m = base();
+        m.load_cases[2] = spectrum("F", 9.8, 1.5);
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "damping"));
+        let mut m = base();
+        m.response_spectra[0].points = vec![[1.0, 1.0], [0.5, 2.0]];
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "points"));
+        let mut m = base();
+        m.joints[1].added_mass[0] = -1.0;
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "added_mass"));
+        let mut m = base();
+        m.combinations = vec![Combination::LinearAdd {
+            name: "C".into(),
+            cases: vec![ScaledCase { case: "RS".into(), scale: 1.0 }],
+        }];
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.cause.contains("not a static case")));
+
+        // kN, mm: density kN s²/mm⁴ → N s²/m⁴ × 1e15; acceleration mm/s² → m/s² × 1e-3.
+        let mut m = base();
+        m.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
+        m.materials[0].e = 200.0;
+        m.materials[0].mass_density = 7.85e-12;
+        m.sections[0].area = 1e4;
+        m.sections[0].i33 = 1e8;
+        m.sections[0].i22 = 1e8;
+        m.sections[0].j = 2e8;
+        m.joints[1].x = 3000.0;
+        m.joints[1].added_mass = [2.0, 0.0, 0.0, 0.0, 0.0, 3.0];
+        m.load_cases[2] = spectrum("F", 9800.0, 0.05);
+        let s = validate(&m).expect("ok");
+        assert!((s.model.materials[0].mass_density - 7850.0).abs() < 1e-6);
+        assert!((s.model.joints[1].added_mass[0] - 2.0e6).abs() < 1e-6); // kN s²/mm → kg
+        assert!((s.model.joints[1].added_mass[5] - 3.0).abs() < 1e-12); // kN mm s² → kg m²
+        let LoadCase::ResponseSpectrum { scale, .. } = &s.model.load_cases[2] else { panic!() };
+        assert!((scale - 9.8).abs() < 1e-12);
     }
 
     #[test]

@@ -8,6 +8,7 @@
 //! Separate symbolic reuse across factorizations is pending. Backends are
 //! selected through [`factor::Backend`]; see decision 0005.
 
+pub mod eigen;
 pub mod factor;
 #[cfg(feature = "faer")]
 pub mod faer_backend;

@@ -1,0 +1,95 @@
+{
+  "case_id": "V-SPEC-001",
+  "title": "Response spectrum: one mode, and two modes with SRSS and CQC",
+  "feature_ids": [
+    "F10-001",
+    "F10-002",
+    "F09-003"
+  ],
+  "model": "model.json",
+  "model_sha256": "2f3d1bb5df786d0c4cbbf327d28ba5b76138adf2f4d7e6379034e0d3b36164ce",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Modal superposition of the closed-form modes; CQC with Der Kiureghian's rho",
+    "derivation": [
+      "u_i = phi_i Gamma_i Sa(T_i)/w_i^2",
+      "V_i = Gamma_i^2 Sa(T_i)",
+      "combined by SRSS, or by CQC with rho_12",
+      "one mode: u = Sa/w^2, V = M Sa, M_base = V L"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "RX",
+      "entity": "A0",
+      "component": "UX",
+      "value": 0.003772869269994569,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "RX",
+      "entity": "B0",
+      "component": "UX",
+      "value": 0.005584418975244006,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "RXC",
+      "entity": "A0",
+      "component": "UX",
+      "value": 0.003774348576186345,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "RXC",
+      "entity": "B0",
+      "component": "UX",
+      "value": 0.005582819346649187,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "RZ",
+      "entity": "C1",
+      "component": "UZ",
+      "value": 0.004828907244550404,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "RZ",
+      "entity": "C0",
+      "component": "FZ",
+      "value": 10730.904987889788,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "RZ",
+      "entity": "C0",
+      "component": "MY",
+      "value": 32192.714963669365,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "RZ",
+      "entity": "CANT",
+      "component": "M3",
+      "value": 32192.714963669365,
+      "unit": "N*m",
+      "rel": 0.0
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}
