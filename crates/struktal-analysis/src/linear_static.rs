@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use std::time::Instant;
 use struktal_core::{Combination, FrameLoadKind, LoadCase, LoadDirection, Snapshot};
-use struktal_elements::frame3d::{self, LocalSpanLoads, Mat12, SectionProps, Vec3};
+use struktal_elements::frame3d::{self, LinearSegment, LocalSpanLoads, Mat12, SectionProps, Vec3};
 use struktal_elements::release::Condensation;
 
 use struktal_math::nullspace::{self, NullSpaceOptions, NullVector};
@@ -67,6 +67,20 @@ fn global_dir(dir: LoadDirection, axes: &[Vec3; 3]) -> Vec3 {
 
 fn to_local(v: Vec3, axes: &[Vec3; 3]) -> Vec3 {
     [0, 1, 2].map(|k| axes[k][0] * v[0] + axes[k][1] * v[1] + axes[k][2] * v[2])
+}
+
+fn to_global(v: Vec3, axes: &[Vec3; 3]) -> Vec3 {
+    [0, 1, 2].map(|k| axes[0][k] * v[0] + axes[1][k] * v[1] + axes[2][k] * v[2])
+}
+
+/// Linear load along global direction `d`, in local components and distances.
+fn segment(fd: &FrameData, d: Vec3, rel_start: f64, rel_end: f64, start: f64, end: f64) -> LinearSegment {
+    LinearSegment {
+        a: rel_start * fd.length,
+        b: rel_end * fd.length,
+        start: to_local(d.map(|c| c * start), &fd.axes),
+        end: to_local(d.map(|c| c * end), &fd.axes),
+    }
 }
 
 pub(crate) fn cross(a: Vec3, b: Vec3) -> Vec3 {
@@ -199,6 +213,36 @@ fn build_case_loads(s: &Snapshot, frames: &[FrameData], loads: &[(usize, f64)]) 
                 span[f].points.push((a, to_local(g, &fd.axes)));
                 let at = [0, 1, 2].map(|k| fd.xi[k] + a * fd.axes[0][k]);
                 add_resultant(&mut resultant, at, g);
+            }
+            FrameLoadKind::Trapezoidal { direction, rel_start, rel_end, value_start, value_end } => {
+                let fd = &frames[f];
+                let d = global_dir(direction, &fd.axes);
+                let seg = segment(fd, d, rel_start, rel_end, value_start * sc, value_end * sc);
+                for (x, w) in seg.gauss(seg.a, seg.b) {
+                    let at = [0, 1, 2].map(|k| fd.xi[k] + x * fd.axes[0][k]);
+                    add_resultant(&mut resultant, at, to_global(w, &fd.axes));
+                }
+                span[f].segments.push(seg);
+            }
+            FrameLoadKind::PointMoment { direction, rel, value } => {
+                let fd = &frames[f];
+                let g = global_dir(direction, &fd.axes).map(|c| c * value * sc);
+                span[f].moments.push((rel * fd.length, to_local(g, &fd.axes)));
+                for k in 0..3 {
+                    resultant[3 + k] += g[k];
+                }
+            }
+            FrameLoadKind::TrapezoidalMoment { direction, rel_start, rel_end, value_start, value_end } => {
+                let fd = &frames[f];
+                let d = global_dir(direction, &fd.axes);
+                let seg = segment(fd, d, rel_start, rel_end, value_start * sc, value_end * sc);
+                for (_, w) in seg.gauss(seg.a, seg.b) {
+                    let g = to_global(w, &fd.axes);
+                    for k in 0..3 {
+                        resultant[3 + k] += g[k];
+                    }
+                }
+                span[f].moment_segments.push(seg);
             }
         }
     }
@@ -615,6 +659,14 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         m.joints.iter().map(|j| j.restraint.iter().any(|&r| r) || j.springs.iter().any(|&k| k > 0.0)).collect();
     let mut by_name: HashMap<String, CaseResult> = HashMap::new();
     let mut out = Vec::new();
+    // Largest extent of the joints along a global axis, for the equilibrium scale.
+    let model_size = (0..3)
+        .map(|k| {
+            let coords = (0..nj).map(|j| s.joint_xyz(j)[k]);
+            coords.clone().fold(f64::MIN, f64::max) - coords.fold(f64::MAX, f64::min)
+        })
+        .fold(0.0, f64::max)
+        .max(1.0);
 
     for case in &m.load_cases {
         let LoadCase::LinearStatic { name, loads } = case;
@@ -708,6 +760,9 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
 
         let fmag = cl.resultant[..3].iter().chain(&reaction_res[..3]).fold(gross[0], |a, v| a.max(v.abs()));
         let mmag = cl.resultant[3..].iter().chain(&reaction_res[3..]).fold(gross[1], |a, v| a.max(v.abs()));
+        // Forces and moments set each other's scale through the model size: under
+        // moments alone, every force is rounding noise and must not be its own scale.
+        let (fmag, mmag) = (fmag.max(mmag / model_size), mmag.max(fmag * model_size));
         let ferr = (0..3).map(|k| (cl.resultant[k] + reaction_res[k]).abs()).fold(0.0, f64::max);
         let merr = (3..6).map(|k| (cl.resultant[k] + reaction_res[k]).abs()).fold(0.0, f64::max);
         let checks = Checks {

@@ -13,7 +13,9 @@ use crate::units::{Dim, UnitSystem};
 /// v3 (2026-11-05): rigid end offsets on frames, joint constraints, joint
 /// springs and imposed joint displacements. Older files are migrated with
 /// none of them (decisions 0010, 0011 and 0012).
-pub const SCHEMA_VERSION: u32 = 3;
+/// v4 (2026-11-05): linearly varying and partial span loads, span moments.
+/// Older files have no such loads, so they migrate unchanged (decision 0014).
+pub const SCHEMA_VERSION: u32 = 4;
 
 pub type Name = String;
 
@@ -325,6 +327,13 @@ pub enum FrameLoadKind {
     Uniform { direction: LoadDirection, value: f64 },
     /// Concentrated force at relative distance `rel` ∈ [0, 1] from end I.
     Point { direction: LoadDirection, rel: f64, value: f64 },
+    /// Force per unit member length varying linearly between relative
+    /// distances `rel_start` < `rel_end`; zero elsewhere.
+    Trapezoidal { direction: LoadDirection, rel_start: f64, rel_end: f64, value_start: f64, value_end: f64 },
+    /// Concentrated moment about `direction` at relative distance `rel`.
+    PointMoment { direction: LoadDirection, rel: f64, value: f64 },
+    /// Moment per unit member length about `direction`, varying linearly.
+    TrapezoidalMoment { direction: LoadDirection, rel_start: f64, rel_end: f64, value_start: f64, value_end: f64 },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -439,6 +448,16 @@ impl Model {
             match &mut fl.load {
                 FrameLoadKind::Uniform { value, .. } => *value *= u.factor(Dim::FORCE_PER_LENGTH),
                 FrameLoadKind::Point { value, .. } => *value *= u.factor(Dim::FORCE),
+                FrameLoadKind::Trapezoidal { value_start, value_end, .. } => {
+                    *value_start *= u.factor(Dim::FORCE_PER_LENGTH);
+                    *value_end *= u.factor(Dim::FORCE_PER_LENGTH);
+                }
+                FrameLoadKind::PointMoment { value, .. } => *value *= u.factor(Dim::MOMENT),
+                // Moment per length has the dimension of a force.
+                FrameLoadKind::TrapezoidalMoment { value_start, value_end, .. } => {
+                    *value_start *= u.factor(Dim::FORCE);
+                    *value_end *= u.factor(Dim::FORCE);
+                }
             }
         }
         m

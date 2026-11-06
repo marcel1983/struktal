@@ -1,0 +1,189 @@
+{
+  "schema_version": 4,
+  "title": "V-TRAP-002 partial span loads",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "C0",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "C1",
+      "x": 5.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "L0",
+      "x": 0,
+      "y": 3,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "L1",
+      "x": 5.0,
+      "y": 3,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "I0",
+      "x": 0,
+      "y": 9,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "I1",
+      "x": 2.8284271247461903,
+      "y": 9,
+      "z": 2.8284271247461903,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "PC",
+      "i": "C0",
+      "j": "C1",
+      "section": "B"
+    },
+    {
+      "name": "PL",
+      "i": "L0",
+      "j": "L1",
+      "section": "B"
+    },
+    {
+      "name": "PI",
+      "i": "I0",
+      "j": "I1",
+      "section": "B"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "L"
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [
+    {
+      "pattern": "L",
+      "frame": "PC",
+      "load": {
+        "kind": "Trapezoidal",
+        "direction": "Gravity",
+        "rel_start": 0.2,
+        "rel_end": 0.8,
+        "value_start": 6000.0,
+        "value_end": 6000.0
+      }
+    },
+    {
+      "pattern": "L",
+      "frame": "PL",
+      "load": {
+        "kind": "Trapezoidal",
+        "direction": "Gravity",
+        "rel_start": 0.2,
+        "rel_end": 0.8,
+        "value_start": 6000.0,
+        "value_end": 14000.0
+      }
+    },
+    {
+      "pattern": "L",
+      "frame": "PI",
+      "load": {
+        "kind": "Trapezoidal",
+        "direction": "Gravity",
+        "rel_start": 0.0,
+        "rel_end": 1.0,
+        "value_start": 0.0,
+        "value_end": 5000.0
+      }
+    }
+  ],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "L",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

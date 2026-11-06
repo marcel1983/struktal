@@ -57,8 +57,8 @@ impl std::error::Error for LoadError {}
 /// Reads a model from JSON, checking the schema version before the body.
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
 /// behavior); v2 → v3 adds no offsets, constraints, springs or imposed
-/// displacements. Missing fields already default to that, so only the version
-/// number changes.
+/// displacements; v3 → v4 only adds load kinds. Missing fields already default
+/// to that, so only the version number changes.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
     let ver = raw.get("schema_version").and_then(|v| v.as_u64()).ok_or(LoadError::MissingSchemaVersion)?;
@@ -91,6 +91,18 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .and_then(|v| v.as_array())
             .is_some_and(|joints| joints.iter().any(|j| j.get("springs").is_some()));
         if has_offsets || has_springs || raw.get("constraints").is_some() || raw.get("joint_displacements").is_some() {
+            return Err(LoadError::UnsupportedSchema { found: ver });
+        }
+    }
+    if ver < 4 {
+        let has_v4_load = raw.get("frame_loads").and_then(|v| v.as_array()).is_some_and(|loads| {
+            loads.iter().any(|l| {
+                l.pointer("/load/kind")
+                    .and_then(|k| k.as_str())
+                    .is_some_and(|k| matches!(k, "Trapezoidal" | "PointMoment" | "TrapezoidalMoment"))
+            })
+        });
+        if has_v4_load {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
     }
@@ -398,6 +410,31 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
                     issues.push(issue(&e, "rel", format!("must be in [0, 1], got {rel}")));
                 }
             }
+            FrameLoadKind::PointMoment { direction, rel, value } => {
+                check_finite(value, &e, "value", &mut issues);
+                if !(0.0..=1.0).contains(&rel) {
+                    issues.push(issue(&e, "rel", format!("must be in [0, 1], got {rel}")));
+                }
+                if direction == LoadDirection::Gravity {
+                    issues.push(issue(&e, "direction", "a moment cannot act about Gravity"));
+                }
+            }
+            FrameLoadKind::Trapezoidal { direction, rel_start, rel_end, value_start, value_end }
+            | FrameLoadKind::TrapezoidalMoment { direction, rel_start, rel_end, value_start, value_end } => {
+                check_finite(value_start, &e, "value_start", &mut issues);
+                check_finite(value_end, &e, "value_end", &mut issues);
+                // Also rejects NaN, for which every comparison is false.
+                if !(rel_start >= 0.0 && rel_start < rel_end && rel_end <= 1.0) {
+                    issues.push(issue(
+                        &e,
+                        "rel_start/rel_end",
+                        format!("need 0 <= rel_start < rel_end <= 1, got {rel_start} and {rel_end}"),
+                    ));
+                }
+                if matches!(fl.load, FrameLoadKind::TrapezoidalMoment { .. }) && direction == LoadDirection::Gravity {
+                    issues.push(issue(&e, "direction", "a moment cannot act about Gravity"));
+                }
+            }
         }
     }
     for c in &m.load_cases {
@@ -649,7 +686,7 @@ mod tests {
 
     #[test]
     fn future_schema_rejected() {
-        let text = model_to_json(&cantilever()).replacen("\"schema_version\": 3", "\"schema_version\": 99", 1);
+        let text = model_to_json(&cantilever()).replacen("\"schema_version\": 4", "\"schema_version\": 99", 1);
         assert!(matches!(model_from_json(&text), Err(LoadError::FutureSchema { found: 99, .. })));
     }
 
@@ -728,6 +765,75 @@ mod tests {
         });
         let errs = validate(&m).expect_err("fail");
         assert!(errs.iter().any(|i| i.cause.contains("already in constraint 'D'")), "{errs:?}");
+    }
+
+    fn with_frame_load(load: FrameLoadKind) -> Model {
+        let mut m = cantilever();
+        m.frame_loads = vec![FrameLoad { pattern: "P".into(), frame: "F1".into(), load }];
+        m
+    }
+
+    #[test]
+    fn span_load_validation_and_units() {
+        let trap = |rel_start, rel_end| FrameLoadKind::Trapezoidal {
+            direction: LoadDirection::Gravity,
+            rel_start,
+            rel_end,
+            value_start: 1.0,
+            value_end: 2.0,
+        };
+        assert!(validate(&with_frame_load(trap(0.0, 1.0))).is_ok());
+        for (a, b) in [(0.5, 0.5), (0.7, 0.2), (-0.1, 0.5), (0.5, 1.1), (f64::NAN, 0.5)] {
+            let errs = validate(&with_frame_load(trap(a, b))).expect_err("fail");
+            assert!(errs.iter().any(|i| i.field == "rel_start/rel_end"), "{a} {b}");
+        }
+        let point = |direction| FrameLoadKind::PointMoment { direction, rel: 0.5, value: 1.0 };
+        assert!(validate(&with_frame_load(point(LoadDirection::Local3))).is_ok());
+        assert!(validate(&with_frame_load(point(LoadDirection::Gravity))).is_err());
+        let dist = FrameLoadKind::TrapezoidalMoment {
+            direction: LoadDirection::Gravity,
+            rel_start: 0.0,
+            rel_end: 1.0,
+            value_start: 1.0,
+            value_end: 1.0,
+        };
+        assert!(validate(&with_frame_load(dist)).is_err());
+
+        // kN and mm: force/length N/m x 1e6, moment N·m x 1, moment/length N x 1e3.
+        let in_kn_mm = |load| {
+            let mut m = with_frame_load(load);
+            m.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
+            m.materials[0].e = 200.0;
+            m.sections[0].area = 1e4;
+            m.sections[0].i33 = 1e8;
+            m.sections[0].i22 = 1e8;
+            m.sections[0].j = 2e8;
+            m.joints[1].x = 3000.0;
+            m.joint_loads.clear();
+            validate(&m).expect("ok").model.frame_loads[0].load.clone()
+        };
+        let FrameLoadKind::Trapezoidal { value_end, .. } = in_kn_mm(trap(0.0, 1.0)) else { panic!() };
+        assert!((value_end - 2.0e6).abs() < 1e-6);
+        let FrameLoadKind::PointMoment { value, .. } = in_kn_mm(point(LoadDirection::Local3)) else { panic!() };
+        assert!((value - 1.0).abs() < 1e-12);
+        let FrameLoadKind::TrapezoidalMoment { value_start, .. } = in_kn_mm(FrameLoadKind::TrapezoidalMoment {
+            direction: LoadDirection::Local1,
+            rel_start: 0.0,
+            rel_end: 1.0,
+            value_start: 1.0,
+            value_end: 1.0,
+        }) else {
+            panic!()
+        };
+        assert!((value_start - 1.0e3).abs() < 1e-9);
+    }
+
+    #[test]
+    fn older_file_with_v4_loads_rejected() {
+        let m = with_frame_load(FrameLoadKind::PointMoment { direction: LoadDirection::Local3, rel: 0.5, value: 1.0 });
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 3.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 3 })));
     }
 
     #[test]

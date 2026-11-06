@@ -27,8 +27,9 @@ No se usa código de estos motores en Struktal. Los traductores en `tools/oracle
 
 - **OpenSees `ElasticTimoshenkoBeam`**, comprobado en la versión 3.8.0.0 y en su código fuente (`ElasticTimoshenkoBeam3d.cpp`):
   - La carga uniforme funciona: un voladizo coincide con la solución exacta.
-  - Una carga puntual solo imprime `load type unknown`; el análisis termina con éxito y sin esa carga. Queda como `n/a`.
+  - Una carga puntual o parcial solo imprime `load type unknown`; el análisis termina con éxito y sin esa carga. Queda como `n/a`.
   - `-jntOffset` acorta el elemento, pero no aplica el brazo rígido, porque su matriz de transformación no tiene términos de offset: MY = −P L en lugar de −P (L + a). Queda como `n/a`, y por eso esa combinación tiene su propio caso, V-OFF-003.
+- **OpenSees `elasticBeamColumn`:** la carga parcial uniforme funciona, pero la de valores finales distintos se descarta sin error. Sin momentos de vano en `eleLoad`. Quedan como `n/a`.
 - **OpenSees con `UmfPack`** devolvió números en 4 modelos con mecanismo (V-MECH-003, 004, 006 y 007), sin aviso. Struktal los diagnostica con su nulidad analítica. No se usa OpenSees para validar mecanismos.
 - **Pynite** no tiene deformación por cortante en barras, offsets, restricciones generales ni extremo móvil de resorte. Tiene el eje Y vertical, por lo que el traductor gira el modelo.
 
@@ -36,15 +37,15 @@ No se usa código de estos motores en Struktal. Los traductores en `tools/oracle
 
 | Motor | Coinciden | Se detienen ambos | Solo Struktal detecta el mecanismo | `n/a` |
 |---|---|---|---|---|
-| OpenSeesPy | 31 | 4 | 4 | 4 |
-| Pynite | 16 | 6 | 0 | 21 |
+| OpenSeesPy | 31 | 4 | 4 | 9 |
+| Pynite | 19 | 6 | 0 | 23 |
 
-Sobre 43 resultados por motor (casos y combinaciones), sin ninguna diferencia.
+Sobre 48 resultados por motor (casos y combinaciones), sin ninguna diferencia.
 
 ## Sin cubrir
 
 - Las acciones en estaciones no se comparan todavía, solo desplazamientos y reacciones.
-- V-TIM-002, V-REL-001 y V-OFF-003 no tienen ningún motor comparable: solo los valida su solución cerrada.
+- V-TIM-002, V-REL-001, V-OFF-003, V-TRAP-003 y V-MOM-002 no tienen ningún motor comparable: solo los valida su solución cerrada.
 
 ## Reproducir
 

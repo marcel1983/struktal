@@ -37,6 +37,8 @@ def check_supported(m, loads):
             raise Unsupported(f"frame {fr['name']}: no shear deformation")
         if fr["rel_has_springs"]:
             raise Unsupported(f"frame {fr['name']}: no partial fixity")
+        if loads["frames"][fr["name"]]["moment_segments"]:
+            raise Unsupported(f"frame {fr['name']}: no distributed moments")
 
 
 def solve_case(m, loads):
@@ -78,6 +80,14 @@ def solve_case(m, loads):
                 f.add_member_dist_load(fr["name"], label, v, v)
         for rel, g in span["points"]:
             for label, v in zip(["FX", "FY", "FZ"], to_pynite(g)):
+                if v != 0.0:
+                    f.add_member_pt_load(fr["name"], label, v, rel * fr["length"])
+        for start, end, w1, w2 in span["segments"]:
+            for label, a, b in zip(["FX", "FY", "FZ"], to_pynite(w1), to_pynite(w2)):
+                if a != 0.0 or b != 0.0:
+                    f.add_member_dist_load(fr["name"], label, a, b, start * fr["length"], end * fr["length"])
+        for rel, g in span["moments"]:
+            for label, v in zip(["MX", "MY", "MZ"], to_pynite(g)):
                 if v != 0.0:
                     f.add_member_pt_load(fr["name"], label, v, rel * fr["length"])
     f.analyze_linear(check_stability=True)

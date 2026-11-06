@@ -91,7 +91,11 @@ def load_model(path):
     for jd in m.get("joint_displacements", []):
         jd["values"] = [v * l for v in jd["values"][:3]] + jd["values"][3:]
     for fl in m.get("frame_loads", []):
-        fl["load"]["value"] *= f / l if fl["load"]["kind"] == "Uniform" else f
+        load = fl["load"]
+        factor = {"Uniform": f / l, "Point": f, "Trapezoidal": f / l, "PointMoment": f * l, "TrapezoidalMoment": f}[load["kind"]]
+        for key in ("value", "value_start", "value_end"):
+            if key in load:
+                load[key] *= factor
     m["by_joint"] = by_joint
     return m
 
@@ -120,7 +124,10 @@ def case_loads(m, case):
         if sc != 0.0:
             t = imposed.setdefault(jd["joint"], [0.0] * 6)
             imposed[jd["joint"]] = [a + sc * b for a, b in zip(t, jd["values"])]
-    frames = {fr["name"]: {"uniform": [0.0] * 3, "points": []} for fr in m["frames"]}
+    frames = {
+        fr["name"]: {"uniform": [0.0] * 3, "points": [], "segments": [], "moments": [], "moment_segments": []}
+        for fr in m["frames"]
+    }
     by_frame = {fr["name"]: fr for fr in m["frames"]}
     for p in m.get("load_patterns", []):
         sc = scale.get(p["name"], 0.0) * p.get("self_weight_multiplier", 0.0)
@@ -133,12 +140,18 @@ def case_loads(m, case):
             continue
         load = fl["load"]
         d = direction(load["direction"], by_frame[fl["frame"]]["axes"])
-        g = [c * load["value"] * sc for c in d]
         slot = frames[fl["frame"]]
-        if load["kind"] == "Uniform":
-            slot["uniform"] = [a + b for a, b in zip(slot["uniform"], g)]
+        kind = load["kind"]
+        if kind in ("Uniform", "Point", "PointMoment"):
+            g = [c * load["value"] * sc for c in d]
+            if kind == "Uniform":
+                slot["uniform"] = [a + b for a, b in zip(slot["uniform"], g)]
+            else:
+                slot["points" if kind == "Point" else "moments"].append((load["rel"], g))
         else:
-            slot["points"].append((load["rel"], g))
+            segment = (load["rel_start"], load["rel_end"], [c * load["value_start"] * sc for c in d],
+                       [c * load["value_end"] * sc for c in d])
+            slot["segments" if kind == "Trapezoidal" else "moment_segments"].append(segment)
     return {"joints": joints, "imposed": imposed, "frames": frames}
 
 

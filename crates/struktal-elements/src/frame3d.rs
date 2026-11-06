@@ -224,20 +224,68 @@ pub fn mat_t_vec(m: &Mat12, v: &[f64; 12]) -> [f64; 12] {
     out
 }
 
+/// Intensity per unit length varying linearly from `start` at distance `a`
+/// from end I to `end` at `b`, in local components.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LinearSegment {
+    pub a: f64,
+    pub b: f64,
+    pub start: Vec3,
+    pub end: Vec3,
+}
+
+impl LinearSegment {
+    /// Three-point Gauss rule over [lo, hi] ⊂ [a, b]: (position, weighted
+    /// resultant). It is exact for polynomials up to degree 5, and every
+    /// integral below is at most a linear intensity times a cubic.
+    pub fn gauss(&self, lo: f64, hi: f64) -> [(f64, Vec3); 3] {
+        const NODE: f64 = 0.774_596_669_241_483_4; // sqrt(3/5)
+        let (mid, half) = (0.5 * (lo + hi), 0.5 * (hi - lo));
+        [(-NODE, 5.0 / 9.0), (0.0, 8.0 / 9.0), (NODE, 5.0 / 9.0)].map(|(n, w)| {
+            let s = mid + half * n;
+            let t = (s - self.a) / (self.b - self.a);
+            (s, [0, 1, 2].map(|k| (self.start[k] + t * (self.end[k] - self.start[k])) * w * half))
+        })
+    }
+}
+
 /// Span loads in local components: uniform force per length over the full
-/// member and concentrated forces at absolute distance `a` from end I.
+/// member, and at absolute distances from end I: concentrated forces, linearly
+/// varying forces, concentrated moments and linearly varying moments.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LocalSpanLoads {
     pub uniform: Vec3,
     pub points: Vec<(f64, Vec3)>,
+    pub segments: Vec<LinearSegment>,
+    pub moments: Vec<(f64, Vec3)>,
+    pub moment_segments: Vec<LinearSegment>,
 }
 
-/// Transverse load in one primed plane: uniform q over the full length and
-/// point forces (a, P).
+impl LocalSpanLoads {
+    /// Concentrated forces plus the Gauss points of the force segments.
+    fn all_points(&self) -> Vec<(f64, Vec3)> {
+        let mut out = self.points.clone();
+        out.extend(self.segments.iter().flat_map(|s| s.gauss(s.a, s.b)));
+        out
+    }
+
+    /// Concentrated moments plus the Gauss points of the moment segments.
+    fn all_moments(&self) -> Vec<(f64, Vec3)> {
+        let mut out = self.moments.clone();
+        out.extend(self.moment_segments.iter().flat_map(|s| s.gauss(s.a, s.b)));
+        out
+    }
+}
+
+/// Transverse load in one primed plane: uniform q over the full length, point
+/// forces (a, P) and point moments (a, M) with M = sign × component `m_comp`.
 struct PlaneLoads<'a> {
     q: f64,
     points: &'a [(f64, Vec3)],
     comp: usize,
+    moments: &'a [(f64, Vec3)],
+    m_comp: usize,
+    m_sign: f64,
 }
 
 /// Fixed-end forces [V_I, M_I, V_J, M_J] exerted by the supports on a
@@ -259,6 +307,13 @@ fn fixed_end_plane(l: f64, pl: Plane, loads: &PlaneLoads) -> [f64; 4] {
         total += pv;
         moment_i += pv * a;
     }
+    // A moment bends only [0, a], and shear plays no part.
+    for &(a, m) in loads.moments {
+        let mv = loads.m_sign * m[loads.m_comp];
+        v += mv * a * a / (2.0 * ei) + mv * a * (l - a) / ei;
+        t += mv * a / ei;
+        moment_i += mv;
+    }
     // Tip flexibility for (V, M) applied at J.
     let f11 = l.powi(3) / (3.0 * ei) + l * cs;
     let f12 = l * l / (2.0 * ei);
@@ -278,21 +333,29 @@ fn fixed_end_plane(l: f64, pl: Plane, loads: &PlaneLoads) -> [f64; 4] {
 pub fn equivalent_nodal_loads(l: f64, p: &SectionProps, loads: &LocalSpanLoads) -> [f64; 12] {
     let mut f = [0.0; 12];
     let [q1, q2, q3] = loads.uniform;
+    let points = loads.all_points();
+    let moments = loads.all_moments();
     f[0] += q1 * l / 2.0;
     f[6] += q1 * l / 2.0;
-    for &(a, [p1, _, _]) in &loads.points {
+    for &(a, [p1, _, _]) in &points {
         f[0] += p1 * (l - a) / l;
         f[6] += p1 * a / l;
     }
+    for &(a, [m1, _, _]) in &moments {
+        f[3] += m1 * (l - a) / l;
+        f[9] += m1 * a / l;
+    }
     let (p12, p13) = planes(p);
-    // Plane 1-2: (v, θ) = (u2, r3).
-    let r = fixed_end_plane(l, p12, &PlaneLoads { q: q2, points: &loads.points, comp: 1 });
+    // Plane 1-2: (v, θ) = (u2, r3), so a positive M3 is a positive primed moment.
+    let plane = PlaneLoads { q: q2, points: &points, comp: 1, moments: &moments, m_comp: 2, m_sign: 1.0 };
+    let r = fixed_end_plane(l, p12, &plane);
     f[1] -= r[0];
     f[5] -= r[1];
     f[7] -= r[2];
     f[11] -= r[3];
-    // Plane 1-3: (v, θ) = (u3, −r2).
-    let r = fixed_end_plane(l, p13, &PlaneLoads { q: q3, points: &loads.points, comp: 2 });
+    // Plane 1-3: (v, θ) = (u3, −r2), so a positive M2 is a negative primed moment.
+    let plane = PlaneLoads { q: q3, points: &points, comp: 2, moments: &moments, m_comp: 1, m_sign: -1.0 };
+    let r = fixed_end_plane(l, p13, &plane);
     f[2] -= r[0];
     f[4] += r[1];
     f[8] -= r[2];
@@ -322,18 +385,46 @@ pub fn end_forces_local(k_local: &Mat12, t: &Mat12, u_global: &[f64; 12], f_eq: 
 pub fn station_actions(end_i: &[f64; 12], loads: &LocalSpanLoads, x: f64) -> [f64; 6] {
     let [q1, q2, q3] = loads.uniform;
     let mut f = [end_i[0] + q1 * x, end_i[1] + q2 * x, end_i[2] + q3 * x];
+    let mut t = end_i[3];
     let mut m2 = end_i[4] + x * end_i[2] + x * x * q3 / 2.0;
     let mut m3 = end_i[5] - x * end_i[1] - x * x * q2 / 2.0;
-    for &(a, [p1, p2, p3]) in &loads.points {
+    let mut add_force = |a: f64, [p1, p2, p3]: Vec3| {
+        f[0] += p1;
+        f[1] += p2;
+        f[2] += p3;
+        m2 += (x - a) * p3;
+        m3 -= (x - a) * p2;
+    };
+    for &(a, p) in &loads.points {
         if a < x {
-            f[0] += p1;
-            f[1] += p2;
-            f[2] += p3;
-            m2 += (x - a) * p3;
-            m3 -= (x - a) * p2;
+            add_force(a, p);
         }
     }
-    [-f[0], -f[1], -f[2], -end_i[3], -m2, -m3]
+    for s in &loads.segments {
+        if s.a < x {
+            for (a, p) in s.gauss(s.a, x.min(s.b)) {
+                add_force(a, p);
+            }
+        }
+    }
+    let mut add_moment = |[m1, m_2, m_3]: Vec3| {
+        t += m1;
+        m2 += m_2;
+        m3 += m_3;
+    };
+    for &(a, m) in &loads.moments {
+        if a < x {
+            add_moment(m);
+        }
+    }
+    for s in &loads.moment_segments {
+        if s.a < x {
+            for (_, m) in s.gauss(s.a, x.min(s.b)) {
+                add_moment(m);
+            }
+        }
+    }
+    [-f[0], -f[1], -f[2], -t, -m2, -m3]
 }
 
 #[cfg(test)]
@@ -474,7 +565,8 @@ mod tests {
     #[test]
     fn equivalent_loads_preserve_resultant_and_moment() {
         let l = 4.0;
-        let loads = LocalSpanLoads { uniform: [1.0, -2.0, 3.0], points: vec![(1.0, [5.0, 7.0, -11.0])] };
+        let loads =
+            LocalSpanLoads { uniform: [1.0, -2.0, 3.0], points: vec![(1.0, [5.0, 7.0, -11.0])], ..Default::default() };
         let f = equivalent_nodal_loads(l, &P, &loads);
         // Force resultants.
         assert_close(f[0] + f[6], 1.0 * l + 5.0, 1e-12);
@@ -527,6 +619,7 @@ mod tests {
         let loads = LocalSpanLoads {
             uniform: [1.0, -2.0, 3.0],
             points: vec![(1.0, [5.0, 7.0, -11.0]), (3.5, [0.0, -2.0, 4.0])],
+            ..Default::default()
         };
         let f = equivalent_nodal_loads(l, &P_EB, &loads);
         let r = hermite_reference(l, &loads);
@@ -538,11 +631,131 @@ mod tests {
     #[test]
     fn timoshenko_uniform_fixed_end_moment_is_independent_of_shear() {
         let l = 2.0;
-        let loads = LocalSpanLoads { uniform: [0.0, -3.0, 5.0], points: vec![] };
+        let loads = LocalSpanLoads { uniform: [0.0, -3.0, 5.0], ..Default::default() };
         let f = equivalent_nodal_loads(l, &P, &loads);
         let r = hermite_reference(l, &loads);
         for k in 0..12 {
             assert_close(f[k], r[k], 1e-12 * (1.0 + r[k].abs()));
+        }
+    }
+
+    fn close_12(a: &[f64; 12], b: &[f64; 12], rel: f64) {
+        let scale = a.iter().chain(b).fold(1.0_f64, |m, v| m.max(v.abs()));
+        for k in 0..12 {
+            assert!((a[k] - b[k]).abs() <= rel * scale, "dof {k}: {} vs {}", a[k], b[k]);
+        }
+    }
+
+    #[test]
+    fn full_constant_segment_equals_the_uniform_load() {
+        let l = 3.0;
+        let q = [2.0, -7.0, 5.0];
+        let uniform = LocalSpanLoads { uniform: q, ..Default::default() };
+        let segment =
+            LocalSpanLoads { segments: vec![LinearSegment { a: 0.0, b: l, start: q, end: q }], ..Default::default() };
+        for p in [&P, &P_EB] {
+            close_12(&equivalent_nodal_loads(l, p, &uniform), &equivalent_nodal_loads(l, p, &segment), 1e-13);
+        }
+        let end = [0.0; 12];
+        for x in [0.0, 0.4, 1.7, 3.0] {
+            let (a, b) = (station_actions(&end, &uniform, x), station_actions(&end, &segment, x));
+            for k in 0..6 {
+                assert_close(a[k], b[k], 1e-12);
+            }
+        }
+    }
+
+    #[test]
+    fn segments_add_up_and_a_short_one_tends_to_a_point_load() {
+        let l = 5.0;
+        // One linear load, cut in two at x = 2: same load, so same result.
+        let at = |x: f64| [0.0, 3.0 + 2.0 * x, -1.0 + 4.0 * x];
+        let whole = LocalSpanLoads {
+            segments: vec![LinearSegment { a: 1.0, b: 4.0, start: at(1.0), end: at(4.0) }],
+            ..Default::default()
+        };
+        let cut = LocalSpanLoads {
+            segments: vec![
+                LinearSegment { a: 1.0, b: 2.0, start: at(1.0), end: at(2.0) },
+                LinearSegment { a: 2.0, b: 4.0, start: at(2.0), end: at(4.0) },
+            ],
+            ..Default::default()
+        };
+        close_12(&equivalent_nodal_loads(l, &P, &whole), &equivalent_nodal_loads(l, &P, &cut), 1e-13);
+
+        let w = 1e-5;
+        let short = LocalSpanLoads {
+            segments: vec![LinearSegment {
+                a: 2.0 - w / 2.0,
+                b: 2.0 + w / 2.0,
+                start: [0.0, 8.0 / w, -3.0 / w],
+                end: [0.0, 8.0 / w, -3.0 / w],
+            }],
+            ..Default::default()
+        };
+        let point = LocalSpanLoads { points: vec![(2.0, [0.0, 8.0, -3.0])], ..Default::default() };
+        close_12(&equivalent_nodal_loads(l, &P, &short), &equivalent_nodal_loads(l, &P, &point), 1e-8);
+    }
+
+    #[test]
+    fn point_moment_matches_classic_fixed_end_moments_and_statics() {
+        // Clamped beam, moment M about local 3 at a, from the slopes of the
+        // Hermite shapes (Euler–Bernoulli): f_I = M b (b - 2a) / L²,
+        // f_J = M a (a - 2b) / L², forces ∓6 M a b / L³. All of M goes to the
+        // near end as a tends to that end.
+        let (l, a, m) = (5.0_f64, 2.0_f64, 100.0_f64);
+        let b = l - a;
+        let loads = LocalSpanLoads { moments: vec![(a, [0.0, 0.0, m])], ..Default::default() };
+        let f = equivalent_nodal_loads(l, &P_EB, &loads);
+        assert_close(f[5], m * b * (b - 2.0 * a) / (l * l), 1e-11);
+        assert_close(f[11], m * a * (a - 2.0 * b) / (l * l), 1e-11);
+        assert_close(f[1], -6.0 * m * a * b / l.powi(3), 1e-11);
+        assert_close(f[7], 6.0 * m * a * b / l.powi(3), 1e-11);
+        // The same about local 2, with and without shear: statics in every case.
+        for p in [&P, &P_EB] {
+            let loads = LocalSpanLoads { moments: vec![(a, [7.0, m, -m])], ..Default::default() };
+            let f = equivalent_nodal_loads(l, p, &loads);
+            assert_close(f[1] + f[7], 0.0, 1e-11);
+            assert_close(f[2] + f[8], 0.0, 1e-11);
+            assert_close(f[5] + f[11] + l * f[7], -m, 1e-10);
+            assert_close(f[4] + f[10] - l * f[8], m, 1e-10);
+            assert_close(f[3] + f[9], 7.0, 1e-12);
+        }
+    }
+
+    #[test]
+    fn stations_of_new_loads_close_at_end_j() {
+        // End I carries what statics demand, so the cut just past the loads
+        // has nothing left and the actions there must vanish.
+        let loads = LocalSpanLoads {
+            segments: vec![LinearSegment { a: 0.5, b: 3.0, start: [1.0, -2.0, 3.0], end: [4.0, 5.0, -6.0] }],
+            moments: vec![(1.0, [2.0, -3.0, 4.0])],
+            moment_segments: vec![LinearSegment { a: 1.0, b: 2.5, start: [1.0, 2.0, 3.0], end: [0.5, -1.0, 2.0] }],
+            ..Default::default()
+        };
+        let mut end = [0.0; 12];
+        let (mut f, mut m) = ([0.0; 3], [0.0; 3]);
+        for s in &loads.segments {
+            for (x, p) in s.gauss(s.a, s.b) {
+                for k in 0..3 {
+                    f[k] += p[k];
+                }
+                // Moment of the force about end I: r = x e1.
+                m[1] -= x * p[2];
+                m[2] += x * p[1];
+            }
+        }
+        for (_, v) in loads.all_moments() {
+            for k in 0..3 {
+                m[k] += v[k];
+            }
+        }
+        for k in 0..3 {
+            end[k] = -f[k];
+            end[3 + k] = -m[k];
+        }
+        for v in station_actions(&end, &loads, 3.5) {
+            assert!(v.abs() < 1e-11, "{v}");
         }
     }
 
@@ -566,7 +779,8 @@ mod tests {
     #[test]
     fn timoshenko_equivalent_loads_preserve_resultant_and_moment() {
         let l = 3.0;
-        let loads = LocalSpanLoads { uniform: [0.0, 4.0, -6.0], points: vec![(0.7, [0.0, 9.0, 2.0])] };
+        let loads =
+            LocalSpanLoads { uniform: [0.0, 4.0, -6.0], points: vec![(0.7, [0.0, 9.0, 2.0])], ..Default::default() };
         let f = equivalent_nodal_loads(l, &P, &loads);
         assert_close(f[1] + f[7], 4.0 * l + 9.0, 1e-12);
         assert_close(f[5] + f[11] + l * f[7], 4.0 * l * l / 2.0 + 9.0 * 0.7, 1e-12);
@@ -579,7 +793,7 @@ mod tests {
         // Simply supported span L with uniform q2 (no K needed): end forces
         // from statics. F_I2 = −q L/2 (support pushes against load).
         let (l, q) = (6.0, -5000.0);
-        let loads = LocalSpanLoads { uniform: [0.0, q, 0.0], points: vec![] };
+        let loads = LocalSpanLoads { uniform: [0.0, q, 0.0], ..Default::default() };
         let mut end_i = [0.0; 12];
         end_i[1] = -q * l / 2.0;
         let s = station_actions(&end_i, &loads, l / 2.0);

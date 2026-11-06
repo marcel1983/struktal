@@ -231,7 +231,7 @@ mod tests {
         // opposing the load), i.e. condensed f = (5qL/8, qL²/8, 3qL/8, 0)·sign.
         let (l, q) = (4.0, -1000.0);
         let k = local_stiffness(l, &P);
-        let loads = LocalSpanLoads { uniform: [0.0, q, 0.0], points: vec![] };
+        let loads = LocalSpanLoads { uniform: [0.0, q, 0.0], ..Default::default() };
         let f = equivalent_nodal_loads(l, &P, &loads);
         let mut rel = [false; 12];
         rel[11] = true;

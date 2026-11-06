@@ -1,0 +1,188 @@
+{
+  "case_id": "V-TRAP-002",
+  "title": "Partial span loads: constant, linear, inclined bar under gravity",
+  "feature_ids": [
+    "F06-006",
+    "F18"
+  ],
+  "model": "model.json",
+  "model_sha256": "41c6be264ecfd8e905f380a9112788c77c1cd60f1d7a74d2b7de4c4f1a326537",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Integral of the cantilever tip-load results over the loaded zone, by Simpson in tools/gen_cases.py",
+    "derivation": [
+      "load P at s: tip deflection P s^2 (3 L - s)/(6 E I) + P s/(G As), rotation P s^2/(2 E I)",
+      "section actions from the load beyond the section",
+      "inclined bar: F = q L/2 at 2 L/3 along the bar"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C1",
+      "component": "UZ",
+      "value": -0.0125625,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C1",
+      "component": "RY",
+      "value": 0.0031500000000000005,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "C0",
+      "component": "FZ",
+      "value": 18000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "C0",
+      "component": "MY",
+      "value": -45000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PC",
+      "component": "M3",
+      "value": -45000.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PC",
+      "component": "M3",
+      "value": -6750.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PC",
+      "component": "V2",
+      "value": -9000.0,
+      "unit": "N",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PC",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "L1",
+      "component": "UZ",
+      "value": -0.023682499999999954,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "L1",
+      "component": "RY",
+      "value": 0.006000000000000001,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "L0",
+      "component": "FZ",
+      "value": 30000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "L0",
+      "component": "MY",
+      "value": -81000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PL",
+      "component": "M3",
+      "value": -81000.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PL",
+      "component": "M3",
+      "value": -14250.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PL",
+      "component": "V2",
+      "value": -18000.0,
+      "unit": "N",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PL",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 1.0
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "I0",
+      "component": "FZ",
+      "value": 10000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "I0",
+      "component": "FX",
+      "value": 0.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "I0",
+      "component": "MY",
+      "value": -18856.180831641268,
+      "unit": "N*m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

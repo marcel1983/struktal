@@ -1,0 +1,85 @@
+{
+  "case_id": "V-MOM-002",
+  "title": "Distributed span moments: uniform bending and linear torque",
+  "feature_ids": [
+    "F06-007",
+    "F18"
+  ],
+  "model": "model.json",
+  "model_sha256": "126f96c71ce58d1ed095e317fd87497d8c8b8ddbe58644312dd1b30ab91f7644",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Cantilever under distributed moments, by integrating the section actions",
+    "derivation": [
+      "uniform moment m: theta = m L^2/(2 E I), deflection = m L^3/(3 E I)",
+      "torque 0 to t: T(x) = t (L^2 - x^2)/(2 L), rotation t L^2/(3 G J)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D1",
+      "component": "RY",
+      "value": 0.0025,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D1",
+      "component": "UZ",
+      "value": -0.008333333333333333,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "D0",
+      "component": "MY",
+      "value": -40000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FD",
+      "component": "M3",
+      "value": -20000.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "E1",
+      "component": "RX",
+      "value": 0.002166666666666667,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "E0",
+      "component": "MX",
+      "value": -15000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FE",
+      "component": "T",
+      "value": 11250.0,
+      "unit": "N*m",
+      "rel": 0.5
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

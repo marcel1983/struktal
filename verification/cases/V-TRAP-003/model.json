@@ -1,0 +1,99 @@
+{
+  "schema_version": 4,
+  "title": "V-TRAP-003 partial load on a shear-deformable bar",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "R",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002,
+      "as2": 0.004,
+      "as3": 0.004
+    }
+  ],
+  "joints": [
+    {
+      "name": "S0",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "S1",
+      "x": 5.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "PS",
+      "i": "S0",
+      "j": "S1",
+      "section": "R"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "L"
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [
+    {
+      "pattern": "L",
+      "frame": "PS",
+      "load": {
+        "kind": "Trapezoidal",
+        "direction": "Gravity",
+        "rel_start": 0.2,
+        "rel_end": 0.8,
+        "value_start": 6000.0,
+        "value_end": 14000.0
+      }
+    }
+  ],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "L",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

@@ -57,5 +57,7 @@ Estado: convenciones de struktal definidas y verificadas analíticamente. La cor
 ## Cargas en barras
 
 - Uniforme: por unidad de longitud real del miembro, en toda la longitud. La opción proyectada es F06-009.
+- Trapezoidal y momento repartido: por unidad de longitud real, lineales entre `rel_start` y `rel_end` de la longitud flexible (decisión 0014). Unidades: fuerza/longitud y fuerza·longitud/longitud.
+- Momento concentrado: alrededor de `direction`, regla de la mano derecha. Como las cargas puntuales, uno situado exactamente en una estación no cuenta en ella.
 - Las cargas en ejes globales se proyectan a ejes locales con la matriz de ejes de la barra.
 - Cargas nodales equivalentes = −(reacciones de empotramiento exactas), con o sin deformación por cortante; los desplazamientos nodales son exactos para cargas uniformes y puntuales.

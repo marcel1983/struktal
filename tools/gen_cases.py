@@ -1098,4 +1098,181 @@ write("V-SET-002", "Imposed rotation, shear deformation, middle support, grounde
     exp("external_work", "GND", "", "", 0.5 * Rs * ug, "J"),
 ])
 
+# ---------------------------------------------------------------- span loads
+Lt3, qt3 = 6.0, 9_000.0
+
+
+def trap(frame, q_start, q_end, a=0.0, b=1.0, direction="Gravity"):
+    return {"pattern": "L", "frame": frame, "load": {"kind": "Trapezoidal", "direction": direction, "rel_start": a,
+                                                     "rel_end": b, "value_start": q_start, "value_end": q_end}}
+
+
+# Simply supported, 0 at A to q at B: in two elements, so the mid deflection is a
+# joint; in one element; and clamped at both ends.
+write("V-TRAP-001", "Triangular load: simply supported and clamped beams", ["F06-006", "F08", "F18"], model(
+    "V-TRAP-001 triangular load",
+    [J("A", 0, 0, 0, PIN), J("M", Lt3 / 2, 0, 0), J("B", Lt3, 0, 0, ROL),
+     J("C", 0, 3, 0, PIN), J("D", Lt3, 3, 0, ROL),
+     J("E", 0, 6, 0, FIX), J("F", Lt3, 6, 0, FIX)],
+    [{"name": "F1", "i": "A", "j": "M", "section": "B"}, {"name": "F2", "i": "M", "j": "B", "section": "B"},
+     {"name": "F3", "i": "C", "j": "D", "section": "B"}, {"name": "F4", "i": "E", "j": "F", "section": "B"}],
+    [SEC], [{"name": "L"}],
+    frame_loads=[trap("F1", 0.0, qt3 / 2), trap("F2", qt3 / 2, qt3), trap("F3", 0.0, qt3), trap("F4", 0.0, qt3)],
+    schema=4,
+), {"kind": "analytical", "source": "Classic results for a triangular load on a beam",
+    "derivation": ["simply supported: R_A = q L/6, R_B = q L/3, M(x) = q L x/6 - q x^3/(6 L)",
+                   "delta_mid = 5 q L^4/(768 E I), theta_A = 7 q L^3/(360 E I), theta_B = q L^3/(45 E I)",
+                   "clamped: R_E = 3 q L/20, R_F = 7 q L/20, M_E = q L^2/30, M_F = q L^2/20"]}, [
+    exp("joint_displacement", "LC1", "M", "UZ", -5 * qt3 * Lt3**4 / (768 * E * I), "m"),
+    exp("joint_displacement", "LC1", "A", "RY", 7 * qt3 * Lt3**3 / (360 * E * I), "rad"),
+    exp("joint_displacement", "LC1", "B", "RY", -qt3 * Lt3**3 / (45 * E * I), "rad"),
+    exp("joint_reaction", "LC1", "A", "FZ", qt3 * Lt3 / 6, "N"),
+    exp("joint_reaction", "LC1", "B", "FZ", qt3 * Lt3 / 3, "N"),
+    exp("joint_reaction", "LC1", "C", "FZ", qt3 * Lt3 / 6, "N"),
+    exp("joint_reaction", "LC1", "D", "FZ", qt3 * Lt3 / 3, "N"),
+    exp("frame_station", "LC1", "F3", "M3", qt3 * Lt3 * (Lt3 / 2) / 6 - qt3 * (Lt3 / 2)**3 / (6 * Lt3), "N*m", 0.5),
+    exp("frame_station", "LC1", "F3", "M3", qt3 * Lt3 * (Lt3 / 4) / 6 - qt3 * (Lt3 / 4)**3 / (6 * Lt3), "N*m", 0.25),
+    exp("joint_reaction", "LC1", "E", "FZ", 3 * qt3 * Lt3 / 20, "N"),
+    exp("joint_reaction", "LC1", "F", "FZ", 7 * qt3 * Lt3 / 20, "N"),
+    exp("joint_reaction", "LC1", "E", "MY", -qt3 * Lt3**2 / 30, "N*m"),
+    exp("joint_reaction", "LC1", "F", "MY", qt3 * Lt3**2 / 20, "N*m"),
+    exp("frame_station", "LC1", "F4", "M3", -qt3 * Lt3**2 / 30, "N*m", 0.0),
+    exp("frame_station", "LC1", "F4", "M3", -qt3 * Lt3**2 / 20, "N*m", 1.0),
+])
+
+
+def simpson(fn, lo, hi, n=2000):
+    h = (hi - lo) / n
+    return h / 3 * (fn(lo) + fn(hi) + sum((4 if k % 2 else 2) * fn(lo + k * h) for k in range(1, n)))
+
+
+def partial_cantilever(q_of, lo, hi, L_, EI_, GAs_):
+    """Tip of a cantilever by summing tip load results along the loaded zone:
+    a load P at s gives P s^2 (3 L - s)/(6 E I) + P s/(G As) and P s^2/(2 E I)."""
+    shear = (lambda s: q_of(s) * s / GAs_) if GAs_ else (lambda s: 0.0)
+    return (simpson(lambda s: q_of(s) * s**2 * (3 * L_ - s) / (6 * EI_) + shear(s), lo, hi),
+            simpson(lambda s: q_of(s) * s**2 / (2 * EI_), lo, hi),
+            simpson(q_of, lo, hi),
+            simpson(lambda s: q_of(s) * s, lo, hi))
+
+
+# Partial loads on cantilevers: constant, linear, in a shear-deformable bar, and
+# a gravity load on an inclined bar. a, b are absolute distances.
+Lp2, ap2, bp2 = 5.0, 1.0, 4.0
+q1p, q2p = 6_000.0, 14_000.0
+linear_q = lambda s: q1p + (q2p - q1p) * (s - ap2) / (bp2 - ap2)
+exp_p, exp_ps = [], []
+for fr_, jt, base, q_fn, s_, GA_, v1, v2 in [
+    ("PC", "C1", "C0", lambda s: q1p, SEC, None, q1p, q1p),
+    ("PL", "L1", "L0", linear_q, SEC, None, q1p, q2p),
+    ("PS", "S1", "S0", linear_q, SR, G * SR["as2"], q1p, q2p),
+]:
+    dtip, ttip, Ftot, Mtot = partial_cantilever(q_fn, ap2, bp2, Lp2, E * s_["i33"], GA_)
+    # Section at x, inside the loaded zone: only the load beyond x counts.
+    x_mid = Lp2 / 2
+    M_mid = simpson(lambda s: q_fn(s) * (s - x_mid), x_mid, bp2)
+    (exp_ps if fr_ == "PS" else exp_p).extend([
+        exp("joint_displacement", "LC1", jt, "UZ", -dtip, "m"),
+        exp("joint_displacement", "LC1", jt, "RY", ttip, "rad"),
+        exp("joint_reaction", "LC1", base, "FZ", Ftot, "N"),
+        exp("joint_reaction", "LC1", base, "MY", -Mtot, "N*m"),
+        exp("frame_station", "LC1", fr_, "M3", -Mtot, "N*m", 0.0),
+        exp("frame_station", "LC1", fr_, "M3", -M_mid, "N*m", 0.5),
+        exp("frame_station", "LC1", fr_, "V2", -simpson(q_fn, x_mid, bp2), "N", 0.5),
+        exp("frame_station", "LC1", fr_, "M3", 0.0, "N*m", 1.0)])
+# Inclined 45 deg in XZ: triangular gravity load along the bar, 0 at the base.
+ci = math.sqrt(0.5)
+Li, qi = 4.0, 5_000.0
+Fi = qi * Li / 2
+exp_p += [exp("joint_reaction", "LC1", "I0", "FZ", Fi, "N"),
+          exp("joint_reaction", "LC1", "I0", "FX", 0.0, "N"),
+          exp("joint_reaction", "LC1", "I0", "MY", -Fi * (2 * Li / 3) * ci, "N*m")]
+ref_partial = {"kind": "analytical", "source": "Integral of the cantilever tip-load results over the loaded zone, by Simpson in tools/gen_cases.py",
+               "derivation": ["load P at s: tip deflection P s^2 (3 L - s)/(6 E I) + P s/(G As), rotation P s^2/(2 E I)",
+                              "section actions from the load beyond the section", "inclined bar: F = q L/2 at 2 L/3 along the bar"]}
+write("V-TRAP-002", "Partial span loads: constant, linear, inclined bar under gravity", ["F06-006", "F18"], model(
+    "V-TRAP-002 partial span loads",
+    [J("C0", 0, 0, 0, FIX), J("C1", Lp2, 0, 0), J("L0", 0, 3, 0, FIX), J("L1", Lp2, 3, 0),
+     J("I0", 0, 9, 0, FIX), J("I1", Li * ci, 9, Li * ci)],
+    [{"name": "PC", "i": "C0", "j": "C1", "section": "B"}, {"name": "PL", "i": "L0", "j": "L1", "section": "B"},
+     {"name": "PI", "i": "I0", "j": "I1", "section": "B"}],
+    [SEC], [{"name": "L"}],
+    frame_loads=[trap("PC", q1p, q1p, ap2 / Lp2, bp2 / Lp2), trap("PL", q1p, q2p, ap2 / Lp2, bp2 / Lp2), trap("PI", 0.0, qi)],
+    schema=4,
+), ref_partial, exp_p)
+# Apart, as in V-OFF-003: Pynite has no shear deformation, and this bar alone
+# would leave the model above with no external comparison.
+write("V-TRAP-003", "Partial linear span load with shear deformation", ["F06-006", "F02-003", "F18"], model(
+    "V-TRAP-003 partial load on a shear-deformable bar",
+    [J("S0", 0, 0, 0, FIX), J("S1", Lp2, 0, 0)],
+    [{"name": "PS", "i": "S0", "j": "S1", "section": "R"}],
+    [SR], [{"name": "L"}],
+    frame_loads=[trap("PS", q1p, q2p, ap2 / Lp2, bp2 / Lp2)],
+    schema=4,
+), ref_partial, exp_ps)
+
+# Span moments on cantilevers along +X (local 1 = +X, 2 = +Z, 3 = -Y).
+Lm3, am3, M0 = 5.0, 2.0, 30_000.0
+SM = {"name": "M", "material": "STEEL", "area": 0.01, "i33": 2e-4, "i22": 1e-4, "j": 3e-4}
+EIm3, EIm2, GJm = E * SM["i33"], E * SM["i22"], G * SM["j"]
+m0, t0 = 8_000.0, 6_000.0
+
+
+def moment_load(frame, direction, value, rel):
+    return {"pattern": "L", "frame": frame, "load": {"kind": "PointMoment", "direction": direction, "rel": rel, "value": value}}
+
+
+def moment_trap(frame, direction, v1, v2):
+    return {"pattern": "L", "frame": frame, "load": {"kind": "TrapezoidalMoment", "direction": direction, "rel_start": 0.0,
+                                                     "rel_end": 1.0, "value_start": v1, "value_end": v2}}
+
+
+rel3 = am3 / Lm3
+thM3 = M0 * am3 / EIm3
+thM2 = M0 * am3 / EIm2
+
+
+def moment_model(title, names, loads):
+    return model(
+        title,
+        [j_ for k_, n_ in enumerate(names) for j_ in (J(n_ + "0", 0, 3.0 * k_, 0, FIX), J(n_ + "1", Lm3, 3.0 * k_, 0))],
+        [{"name": "F" + n_, "i": n_ + "0", "j": n_ + "1", "section": "M"} for n_ in names],
+        [SM], [{"name": "L"}], frame_loads=loads, schema=4)
+
+
+write("V-MOM-001", "Concentrated span moments about each local axis", ["F06-007", "F18"], moment_model(
+    "V-MOM-001 concentrated span moments", ["A", "B", "C"],
+    [moment_load("FA", "GlobalY", M0, rel3), moment_load("FB", "GlobalZ", M0, rel3), moment_load("FC", "Local1", M0, rel3)],
+), {"kind": "analytical", "source": "Cantilever under a moment: only the part from the support to the moment bends",
+    "derivation": ["theta = M a/(E I), tip deflection = M a^2/(2 E I) + M a (L - a)/(E I)", "torque: rotation T a/(G J)"]}, [
+    exp("joint_displacement", "LC1", "A1", "RY", thM3, "rad"),
+    exp("joint_displacement", "LC1", "A1", "UZ", -(M0 * am3**2 / (2 * EIm3) + thM3 * (Lm3 - am3)), "m"),
+    exp("joint_reaction", "LC1", "A0", "MY", -M0, "N*m"),
+    exp("frame_station", "LC1", "FA", "M3", -M0, "N*m", 0.25),
+    exp("frame_station", "LC1", "FA", "M3", 0.0, "N*m", 0.5),
+    exp("joint_displacement", "LC1", "B1", "RZ", thM2, "rad"),
+    exp("joint_displacement", "LC1", "B1", "UY", M0 * am3**2 / (2 * EIm2) + thM2 * (Lm3 - am3), "m"),
+    exp("joint_reaction", "LC1", "B0", "MZ", -M0, "N*m"),
+    exp("frame_station", "LC1", "FB", "M2", M0, "N*m", 0.25),
+    exp("frame_station", "LC1", "FB", "M2", 0.0, "N*m", 0.5),
+    exp("joint_displacement", "LC1", "C1", "RX", M0 * am3 / GJm, "rad"),
+    exp("joint_reaction", "LC1", "C0", "MX", -M0, "N*m"),
+    exp("frame_station", "LC1", "FC", "T", M0, "N*m", 0.25),
+    exp("frame_station", "LC1", "FC", "T", 0.0, "N*m", 0.5),
+])
+write("V-MOM-002", "Distributed span moments: uniform bending and linear torque", ["F06-007", "F18"], moment_model(
+    "V-MOM-002 distributed span moments", ["D", "E"],
+    [moment_trap("FD", "GlobalY", m0, m0), moment_trap("FE", "Local1", 0.0, t0)],
+), {"kind": "analytical", "source": "Cantilever under distributed moments, by integrating the section actions",
+    "derivation": ["uniform moment m: theta = m L^2/(2 E I), deflection = m L^3/(3 E I)",
+                   "torque 0 to t: T(x) = t (L^2 - x^2)/(2 L), rotation t L^2/(3 G J)"]}, [
+    exp("joint_displacement", "LC1", "D1", "RY", m0 * Lm3**2 / (2 * EIm3), "rad"),
+    exp("joint_displacement", "LC1", "D1", "UZ", -m0 * Lm3**3 / (3 * EIm3), "m"),
+    exp("joint_reaction", "LC1", "D0", "MY", -m0 * Lm3, "N*m"),
+    exp("frame_station", "LC1", "FD", "M3", -m0 * Lm3 / 2, "N*m", 0.5),
+    exp("joint_displacement", "LC1", "E1", "RX", t0 * Lm3**2 / (3 * GJm), "rad"),
+    exp("joint_reaction", "LC1", "E0", "MX", -t0 * Lm3 / 2, "N*m"),
+    exp("frame_station", "LC1", "FE", "T", 3 * t0 * Lm3 / 8, "N*m", 0.5),
+])
+
 print("cases written to", ROOT)

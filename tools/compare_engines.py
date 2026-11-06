@@ -47,8 +47,9 @@ def compare_case(st, ref, joints_model):
     extent = max((max(c) - min(c) for c in zip(*points)), default=1.0) or 1.0
     ld, hd, _ = kinds([j["displacement"] for j in st["joints"]], extent)
     lr, hr, _ = kinds([j["reaction"] for j in st["joints"] if j["reaction"]], extent)
-    sd = [ld, max(hd, ld / extent)]
-    sr = [lr, max(hr, lr * extent)]
+    # Each kind sets the other's scale: under moments alone, forces are only noise.
+    sd = [max(ld, hd * extent), max(hd, ld / extent)]
+    sr = [max(lr, hr / extent), max(hr, lr * extent)]
     checks, worst, what, diffs = 0, 0.0, "", []
 
     def check(a, b, floor, label):

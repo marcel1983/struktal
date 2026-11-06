@@ -1,0 +1,97 @@
+{
+  "case_id": "V-TRAP-003",
+  "title": "Partial linear span load with shear deformation",
+  "feature_ids": [
+    "F06-006",
+    "F02-003",
+    "F18"
+  ],
+  "model": "model.json",
+  "model_sha256": "a4d5c38fd745e26b6af5fe38869470aeec043ac5560600af9a5087ea42e1f5f8",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Integral of the cantilever tip-load results over the loaded zone, by Simpson in tools/gen_cases.py",
+    "derivation": [
+      "load P at s: tip deflection P s^2 (3 L - s)/(6 E I) + P s/(G As), rotation P s^2/(2 E I)",
+      "section actions from the load beyond the section",
+      "inclined bar: F = q L/2 at 2 L/3 along the bar"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "S1",
+      "component": "UZ",
+      "value": -0.023945749999999953,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "S1",
+      "component": "RY",
+      "value": 0.006000000000000001,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "S0",
+      "component": "FZ",
+      "value": 30000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "S0",
+      "component": "MY",
+      "value": -81000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PS",
+      "component": "M3",
+      "value": -81000.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PS",
+      "component": "M3",
+      "value": -14250.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PS",
+      "component": "V2",
+      "value": -18000.0,
+      "unit": "N",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "PS",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 1.0
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

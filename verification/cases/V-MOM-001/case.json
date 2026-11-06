@@ -1,0 +1,145 @@
+{
+  "case_id": "V-MOM-001",
+  "title": "Concentrated span moments about each local axis",
+  "feature_ids": [
+    "F06-007",
+    "F18"
+  ],
+  "model": "model.json",
+  "model_sha256": "2b8f6884f40444c84a968af6f046f08c9c11665e209b9fdbad2ce04f0e0ccfd9",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Cantilever under a moment: only the part from the support to the moment bends",
+    "derivation": [
+      "theta = M a/(E I), tip deflection = M a^2/(2 E I) + M a (L - a)/(E I)",
+      "torque: rotation T a/(G J)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "RY",
+      "value": 0.0015,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A1",
+      "component": "UZ",
+      "value": -0.006,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A0",
+      "component": "MY",
+      "value": -30000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FA",
+      "component": "M3",
+      "value": -30000.0,
+      "unit": "N*m",
+      "rel": 0.25
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FA",
+      "component": "M3",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "RZ",
+      "value": 0.003,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B1",
+      "component": "UY",
+      "value": 0.012,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B0",
+      "component": "MZ",
+      "value": -30000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FB",
+      "component": "M2",
+      "value": 30000.0,
+      "unit": "N*m",
+      "rel": 0.25
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FB",
+      "component": "M2",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C1",
+      "component": "RX",
+      "value": 0.0026000000000000003,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "C0",
+      "component": "MX",
+      "value": -30000.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FC",
+      "component": "T",
+      "value": 30000.0,
+      "unit": "N*m",
+      "rel": 0.25
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "FC",
+      "component": "T",
+      "value": 0.0,
+      "unit": "N*m",
+      "rel": 0.5
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

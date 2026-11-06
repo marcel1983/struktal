@@ -1,0 +1,221 @@
+{
+  "schema_version": 4,
+  "title": "V-TRAP-001 triangular load",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "A",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "M",
+      "x": 3.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "B",
+      "x": 6.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        true,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "C",
+      "x": 0,
+      "y": 3,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D",
+      "x": 6.0,
+      "y": 3,
+      "z": 0,
+      "restraint": [
+        false,
+        true,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "E",
+      "x": 0,
+      "y": 6,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "F",
+      "x": 6.0,
+      "y": 6,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "F1",
+      "i": "A",
+      "j": "M",
+      "section": "B"
+    },
+    {
+      "name": "F2",
+      "i": "M",
+      "j": "B",
+      "section": "B"
+    },
+    {
+      "name": "F3",
+      "i": "C",
+      "j": "D",
+      "section": "B"
+    },
+    {
+      "name": "F4",
+      "i": "E",
+      "j": "F",
+      "section": "B"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "L"
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [
+    {
+      "pattern": "L",
+      "frame": "F1",
+      "load": {
+        "kind": "Trapezoidal",
+        "direction": "Gravity",
+        "rel_start": 0.0,
+        "rel_end": 1.0,
+        "value_start": 0.0,
+        "value_end": 4500.0
+      }
+    },
+    {
+      "pattern": "L",
+      "frame": "F2",
+      "load": {
+        "kind": "Trapezoidal",
+        "direction": "Gravity",
+        "rel_start": 0.0,
+        "rel_end": 1.0,
+        "value_start": 4500.0,
+        "value_end": 9000.0
+      }
+    },
+    {
+      "pattern": "L",
+      "frame": "F3",
+      "load": {
+        "kind": "Trapezoidal",
+        "direction": "Gravity",
+        "rel_start": 0.0,
+        "rel_end": 1.0,
+        "value_start": 0.0,
+        "value_end": 9000.0
+      }
+    },
+    {
+      "pattern": "L",
+      "frame": "F4",
+      "load": {
+        "kind": "Trapezoidal",
+        "direction": "Gravity",
+        "rel_start": 0.0,
+        "rel_end": 1.0,
+        "value_start": 0.0,
+        "value_end": 9000.0
+      }
+    }
+  ],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "L",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

@@ -1,0 +1,153 @@
+{
+  "case_id": "V-TRAP-001",
+  "title": "Triangular load: simply supported and clamped beams",
+  "feature_ids": [
+    "F06-006",
+    "F08",
+    "F18"
+  ],
+  "model": "model.json",
+  "model_sha256": "00c0cd9508f2a7be34b7d84ee2f210792b706de6ff77fb6174cb09c8950556af",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Classic results for a triangular load on a beam",
+    "derivation": [
+      "simply supported: R_A = q L/6, R_B = q L/3, M(x) = q L x/6 - q x^3/(6 L)",
+      "delta_mid = 5 q L^4/(768 E I), theta_A = 7 q L^3/(360 E I), theta_B = q L^3/(45 E I)",
+      "clamped: R_E = 3 q L/20, R_F = 7 q L/20, M_E = q L^2/30, M_F = q L^2/20"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "M",
+      "component": "UZ",
+      "value": -0.003796875,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A",
+      "component": "RY",
+      "value": 0.00189,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B",
+      "component": "RY",
+      "value": -0.00216,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "FZ",
+      "value": 9000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B",
+      "component": "FZ",
+      "value": 18000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "C",
+      "component": "FZ",
+      "value": 9000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "D",
+      "component": "FZ",
+      "value": 18000.0,
+      "unit": "N"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F3",
+      "component": "M3",
+      "value": 20250.0,
+      "unit": "N*m",
+      "rel": 0.5
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F3",
+      "component": "M3",
+      "value": 12656.25,
+      "unit": "N*m",
+      "rel": 0.25
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "E",
+      "component": "FZ",
+      "value": 8100.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "F",
+      "component": "FZ",
+      "value": 18900.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "E",
+      "component": "MY",
+      "value": -10800.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "F",
+      "component": "MY",
+      "value": 16200.0,
+      "unit": "N*m"
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F4",
+      "component": "M3",
+      "value": -10800.0,
+      "unit": "N*m",
+      "rel": 0.0
+    },
+    {
+      "result": "frame_station",
+      "case": "LC1",
+      "entity": "F4",
+      "component": "M3",
+      "value": -16200.0,
+      "unit": "N*m",
+      "rel": 1.0
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -31,10 +31,15 @@ def solve_case(m, loads):
     check_supported(m)
     for fr in m["frames"]:
         span = loads["frames"][fr["name"]]
-        if fr["sec"]["as2"] > 0 and span["points"]:
-            # Uniform loads work. A point load only prints "load type unknown" and
-            # the analysis goes on without it, returning success.
-            raise Unsupported(f"frame {fr['name']}: ElasticTimoshenkoBeam drops point loads")
+        if fr["sec"]["as2"] > 0 and (span["points"] or span["segments"]):
+            # Uniform loads work. Any other span load only prints "load type unknown"
+            # and the analysis goes on without it, returning success.
+            raise Unsupported(f"frame {fr['name']}: ElasticTimoshenkoBeam drops point and partial loads")
+        if span["moments"] or span["moment_segments"]:
+            raise Unsupported(f"frame {fr['name']}: no span moments in eleLoad")
+        if any(a != b for _, _, a, b in span["segments"]):
+            # Probed on elasticBeamColumn: end values are accepted and the load is lost.
+            raise Unsupported(f"frame {fr['name']}: no linearly varying span loads")
 
     ops.wipe()
     ops.model("basic", "-ndm", 3, "-ndf", 6)
@@ -124,6 +129,8 @@ def solve_case(m, loads):
             ops.eleLoad("-ele", ele_of[fr["name"]], "-type", "-beamUniform", dot(w, e2), dot(w, e3), dot(w, e1))
         for rel, g in span["points"]:
             ops.eleLoad("-ele", ele_of[fr["name"]], "-type", "-beamPoint", dot(g, e2), dot(g, e3), rel, dot(g, e1))
+        for start, end, w, _ in span["segments"]:
+            ops.eleLoad("-ele", ele_of[fr["name"]], "-type", "-beamUniform", dot(w, e2), dot(w, e3), dot(w, e1), start, end)
 
     ops.system("UmfPack")
     ops.numberer("RCM")
