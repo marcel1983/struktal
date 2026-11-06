@@ -251,8 +251,8 @@ def main(engine, version, solve_case, solve_modes=None):
     results = {}
     for case in m.get("load_cases", []):
         if case["type"] == "Modal":
-            if solve_modes is None:
-                results[case["name"]] = {"status": "skipped", "reason": "modes are not translated for this engine"}
+            if solve_modes is None or m.get("mass_source"):
+                results[case["name"]] = {"status": "skipped", "reason": "modes or the mass source are not translated for this engine"}
                 continue
             try:
                 results[case["name"]] = {"status": "ok", "periods": solve_modes(m, case["modes"]), "joints": {}}

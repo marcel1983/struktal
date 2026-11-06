@@ -14,3 +14,9 @@ FRAME LOADS - DISTRIBUTED,*,pending,specified,specified,F06-003/F06-006,specifie
 FRAME LOADS - POINT,*,pending,specified,specified,F06-004,specified,
 LOAD CASE DEFINITIONS,*,pending,specified,specified,F08-001,specified,
 COMBINATION DEFINITIONS,*,pending,specified,specified,F16-*,specified,
+MASS SOURCE,*,pending,implemented,specified,F07-001,partial,"Solo la de por defecto; decisión 0022"
+JOINT ADDED MASS ASSIGNMENTS,*,pending,implemented,specified,F07-001,partial,Ejes globales; decisión 0022
+CASE - MODAL 1 - GENERAL,*,pending,implemented,specified,F09-001,partial,Solo Eigen sin desplazamiento; decisión 0022
+CASE - RESPONSE SPECTRUM 1 - GENERAL,*,pending,implemented,specified,F10-001,partial,CQC y SRSS; decisión 0022
+CASE - RESPONSE SPECTRUM 2 - LOAD ASSIGNMENTS,*,pending,implemented,specified,F10-001,partial,Una dirección global; decisión 0022
+FUNCTION - RESPONSE SPECTRUM - USER,*,pending,implemented,specified,F10-001,partial,Mismo amortiguamiento que el caso; decisión 0022

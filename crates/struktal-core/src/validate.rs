@@ -58,7 +58,7 @@ impl std::error::Error for LoadError {}
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
 /// behavior); v2 → v3 adds no offsets, constraints, springs or imposed
 /// displacements; v3 → v4 only adds load kinds; v4 → v5 adds no subdivision;
-/// v5 → v6 only allows areas of three joints.
+/// v5 → v6 only allows areas of three joints; v6 → v7 only adds a mass source.
 /// Missing fields already default to that, so only the version number changes.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
@@ -94,6 +94,9 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
         if has_offsets || has_springs || raw.get("constraints").is_some() || raw.get("joint_displacements").is_some() {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
+    }
+    if ver < 7 && raw.get("mass_source").is_some() {
+        return Err(LoadError::UnsupportedSchema { found: ver });
     }
     if ver < 6 {
         let has_triangle = raw.get("areas").and_then(|v| v.as_array()).is_some_and(|areas| {
@@ -259,6 +262,20 @@ fn check_mass_and_spectra(m: &Model, issues: &mut Vec<Issue>) {
     for j in &m.joints {
         if j.added_mass.iter().any(|v| !v.is_finite() || *v < 0.0) {
             issues.push(issue(format!("joint {}", j.name), "added_mass", "must be finite and >= 0"));
+        }
+    }
+    if let Some(source) = &m.mass_source {
+        for p in &source.patterns {
+            if !m.load_patterns.iter().any(|x| x.name == p.pattern) {
+                issues.push(issue("mass_source", "patterns", format!("unknown load pattern '{}'", p.pattern)));
+            }
+            if !p.scale.is_finite() || p.scale < 0.0 {
+                issues.push(issue(
+                    "mass_source",
+                    "patterns",
+                    format!("scale of '{}' must be finite and >= 0", p.pattern),
+                ));
+            }
         }
     }
     let functions = index_unique("response spectrum", m.response_spectra.iter().map(|f| f.name.as_str()), issues);
@@ -830,6 +847,7 @@ mod tests {
             areas: vec![],
             area_loads: vec![],
             response_spectra: vec![],
+            mass_source: None,
             constraints: vec![],
             load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0 }],
             joint_loads: vec![JointLoad {
@@ -1302,6 +1320,22 @@ mod tests {
             section: "S1".into(),
         }];
         m
+    }
+
+    #[test]
+    fn a_mass_source_needs_schema_7_and_known_patterns() {
+        let mut m = cantilever();
+        m.mass_source = Some(MassSource {
+            elements: false,
+            added_masses: true,
+            patterns: vec![ScaledPattern { pattern: "NOPE".into(), scale: -1.0 }],
+        });
+        let text = format!("{:?}", validate(&m).expect_err("invalid"));
+        assert!(text.contains("NOPE") && text.contains(">= 0"), "{text}");
+
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 6.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 6 })));
     }
 
     #[test]

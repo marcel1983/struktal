@@ -1,0 +1,86 @@
+{
+  "case_id": "V-MASS-001",
+  "title": "Mass source: only patterns, leaving out density and added mass",
+  "feature_ids": [
+    "F07-001",
+    "F09-001"
+  ],
+  "model": "model.json",
+  "model_sha256": "d4eb0576a10a4210c3e706493dfb7e3117e74eceab404a8fecb0b2f7e005ec3d",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "One mass on a massless cantilever: T = 2 pi sqrt(m/k), m = sum(f W)/g",
+    "derivation": [
+      "m = (0.5 x 20000 + 4000)/9.80665",
+      "the horizontal force and the moment of the pattern give no mass",
+      "the density and the added mass of the model are left out by the source",
+      "k = 3 E I33/L^3 in Z, 3 E I22/L^3 in Y, E A/L in X",
+      "the static case still has the horizontal force: UX = F L/(E A)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "1",
+      "component": "",
+      "value": 0.15925380049198895,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "2",
+      "component": "",
+      "value": 0.11260944225761492,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "3",
+      "component": "",
+      "value": 0.009194522458352077,
+      "unit": "s"
+    },
+    {
+      "result": "modal_mass_ratio",
+      "case": "M",
+      "entity": "1",
+      "component": "Z",
+      "value": 1.0,
+      "unit": "1"
+    },
+    {
+      "result": "modal_mass_ratio",
+      "case": "M",
+      "entity": "2",
+      "component": "Y",
+      "value": 1.0,
+      "unit": "1"
+    },
+    {
+      "result": "modal_mass_ratio",
+      "case": "M",
+      "entity": "3",
+      "component": "X",
+      "value": 1.0,
+      "unit": "1"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "S",
+      "entity": "B",
+      "component": "UX",
+      "value": 7.5e-06,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

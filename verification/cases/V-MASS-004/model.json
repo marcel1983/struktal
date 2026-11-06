@@ -1,0 +1,128 @@
+{
+  "mass_source": {
+    "elements": false,
+    "added_masses": false,
+    "patterns": [
+      {
+        "pattern": "W1",
+        "scale": 0.5
+      },
+      {
+        "pattern": "W2",
+        "scale": 1.0
+      }
+    ]
+  },
+  "schema_version": 7,
+  "title": "V-MASS-004 upward load",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0,
+      "mass_density": 7850.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0002,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "A",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B",
+      "x": 3.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "added_mass": [
+        999.0,
+        999.0,
+        999.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "F1",
+      "i": "A",
+      "j": "B",
+      "section": "B"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "W1"
+    },
+    {
+      "name": "W2"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "W1",
+      "joint": "B",
+      "values": [
+        0,
+        0,
+        20000.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "S",
+      "loads": [
+        {
+          "pattern": "W1",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "Modal",
+      "name": "M",
+      "modes": 3
+    }
+  ],
+  "combinations": []
+}

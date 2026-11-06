@@ -1,0 +1,53 @@
+{
+  "case_id": "V-MASS-002",
+  "title": "Mass source in kip and inch: elements, added mass, and a uniform load with self weight",
+  "feature_ids": [
+    "F07-001",
+    "F09-001",
+    "units"
+  ],
+  "model": "model.json",
+  "model_sha256": "5934053b12676d087f6a5295523dbe4f3f341bbbaf6c156f80c1c79657b25482",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "One mass on a cantilever, in SI: half of the bar's mass and half of its load reach the free joint",
+    "derivation": [
+      "m = rho A L/2 + m_added + f (w + gamma A) L/(2 g), with g = 9.80665 m/s2 in SI",
+      "the load is uniform, so each end takes half",
+      "T = 2 pi sqrt(m/k)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "1",
+      "component": "",
+      "value": 0.41373591493714273,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "2",
+      "component": "",
+      "value": 0.29255547107247426,
+      "unit": "s"
+    },
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "3",
+      "component": "",
+      "value": 0.01888437445509264,
+      "unit": "s"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

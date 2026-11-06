@@ -905,7 +905,13 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     };
 
     let dynamic = m.load_cases.iter().any(|c| !matches!(c, LoadCase::LinearStatic { .. }));
-    let mass = dynamic.then(|| dynamics::assemble_mass(s, &map, &frames, &area_data));
+    let mass = dynamic.then(|| {
+        let forces = m.mass_source.as_ref().filter(|x| !x.patterns.is_empty()).map(|x| {
+            let pats: Vec<(usize, f64)> = x.patterns.iter().map(|p| (s.pattern_index[&p.pattern], p.scale)).collect();
+            build_case_loads(s, &frames, &area_data, &pats).f_full
+        });
+        dynamics::assemble_mass(s, &map, &frames, &area_data, forces.as_deref())
+    });
     let no_loads = build_case_loads(s, &frames, &area_data, &[]);
     let mut modal_cache: HashMap<&str, dynamics::Solved> = HashMap::new();
 

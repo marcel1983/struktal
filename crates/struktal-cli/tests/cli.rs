@@ -299,6 +299,45 @@ fn a_meshed_s2k_area_solves_to_the_closed_form() {
 }
 
 #[test]
+fn an_s2k_mass_source_and_spectrum_solve_to_the_closed_form() {
+    let dir = std::env::temp_dir().join(format!("struktal-test-import-modal-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let model = dir.join("modal.json");
+    let out = bin()
+        .arg("import")
+        .arg(repo().join("verification/s2k/modal-spectrum.s2k"))
+        .arg("-o")
+        .arg(&model)
+        .output()
+        .expect("run");
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let notes = String::from_utf8_lossy(&out.stderr);
+    assert!(notes.contains("WITH_SPECTRUM"), "{notes}");
+    let r = bin().arg("solve").arg(&model).output().expect("run");
+    assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&r.stdout).expect("json");
+    let case =
+        |name: &str| v["cases"].as_array().expect("cases").iter().find(|c| c["name"] == name).expect("case").clone();
+    // In SI: 0.5 x 20 kN over g, and 1 kN s²/m added. No mass from the elements.
+    let mass: f64 = 0.5 * 20_000.0 / 9.80665 + 1000.0;
+    let k_z: f64 = 3.0 * 2e11 * 1e-4 / 27.0;
+    let omega = (k_z / mass).sqrt();
+    let modes = case("MODAL");
+    let first = &modes["modal"]["modes"][0];
+    let period = first["period"].as_f64().expect("period");
+    let want = 2.0 * std::f64::consts::PI / omega;
+    assert!((period / want - 1.0).abs() < 1e-9, "{period} against {want}");
+    assert!((first["mass_ratio"][2].as_f64().expect("ratio") - 1.0).abs() < 1e-9);
+    assert_eq!(modes["modal"]["modes"].as_array().expect("modes").len(), 3);
+    // A flat spectrum of 2 g in Z, on that mode alone.
+    let spectrum = case("SPZ");
+    let tip = spectrum["joints"].as_array().expect("joints").iter().find(|j| j["joint"] == "2").expect("joint");
+    let got = tip["displacement"][2].as_f64().expect("uz");
+    let want = 2.0 * 9.80665 / (omega * omega);
+    assert!((got / want - 1.0).abs() < 1e-9, "{got} against {want}");
+}
+
+#[test]
 fn s2k_with_something_unsupported_is_refused_with_all_the_reasons() {
     let dir = std::env::temp_dir().join(format!("struktal-test-import-bad-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("mkdir");

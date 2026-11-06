@@ -1,0 +1,109 @@
+{
+  "mass_source": {
+    "elements": true,
+    "added_masses": true,
+    "patterns": [
+      {
+        "pattern": "D",
+        "scale": 0.7
+      }
+    ]
+  },
+  "schema_version": 7,
+  "title": "V-MASS-002 kip and inch",
+  "units": {
+    "force": "kip",
+    "length": "in"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 29000.0,
+      "nu": 0.3,
+      "unit_weight": 0.00028,
+      "mass_density": 7.3e-07
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 10.0,
+      "i33": 100.0,
+      "i22": 200.0,
+      "j": 50.0
+    }
+  ],
+  "joints": [
+    {
+      "name": "A",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "B",
+      "x": 120.0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "added_mass": [
+        0.02,
+        0.02,
+        0.02,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "F1",
+      "i": "A",
+      "j": "B",
+      "section": "B"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "D",
+      "self_weight_multiplier": 1.0
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [
+    {
+      "pattern": "D",
+      "frame": "F1",
+      "load": {
+        "kind": "Uniform",
+        "direction": "Gravity",
+        "value": 0.01
+      }
+    }
+  ],
+  "load_cases": [
+    {
+      "type": "Modal",
+      "name": "M",
+      "modes": 3
+    }
+  ],
+  "combinations": []
+}

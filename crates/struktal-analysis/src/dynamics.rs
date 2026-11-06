@@ -18,35 +18,83 @@ pub(crate) struct MassMatrix {
     /// Free translation of the structure along each axis, in reduced DOFs.
     pub rigid: [Vec<f64>; 3],
     pub total: [f64; 3],
+    /// Why this mass cannot be used, so the modal cases end in error.
+    pub problem: Option<String>,
+    pub note: Option<String>,
+}
+
+/// [m/s²], to turn the load of a mass source into mass. In SI, as the snapshot is.
+const STANDARD_GRAVITY: f64 = 9.80665;
+/// Below this fraction of the largest load, an upward force is rounding.
+const UPWARD_TOL_REL: f64 = 1e-9;
+
+/// Adds the mass of the nodal forces of the source patterns: the downward force
+/// over gravity, on the three translations. An upward force would be negative
+/// mass, except on a joint with no free translation, where mass has no effect.
+fn add_pattern_mass(s: &Snapshot, forces: &[f64], lumped: &mut [f64]) -> (Option<String>, Option<String>) {
+    let joints = &s.model.joints;
+    let largest = forces.chunks(6).fold(0.0_f64, |a, c| a.max(c[2].abs()));
+    let mut weight = 0.0;
+    let mut lateral = 0.0_f64;
+    for (j, c) in forces.chunks(6).enumerate() {
+        lateral = lateral.max(c[0].abs()).max(c[1].abs());
+        if c[2] > UPWARD_TOL_REL * largest && !joints[j].restraint[..3].iter().all(|r| *r) {
+            let why =
+                format!("mass source: joint {} has a net upward load of {:e} N: negative mass", joints[j].name, c[2]);
+            return (None, Some(why));
+        }
+        let down = (-c[2]).max(0.0);
+        weight += down;
+        for d in 0..3 {
+            lumped[6 * j + d] += down / STANDARD_GRAVITY;
+        }
+    }
+    let mut note = format!("mass source: {weight:e} N of load gives {:e} kg", weight / STANDARD_GRAVITY);
+    if lateral > UPWARD_TOL_REL * largest {
+        note.push_str("; horizontal loads of those patterns give no mass");
+    }
+    (Some(note), None)
 }
 
 /// Half of each frame's mass at each end, and each area's by the share of its
 /// corners, on translations; added masses as given. Then Cᵀ M C, so a tied joint's
 /// mass acts on its reference through the lever arm.
-pub(crate) fn assemble_mass(s: &Snapshot, map: &DofMap, frames: &[FrameData], areas: &[AreaData]) -> MassMatrix {
+pub(crate) fn assemble_mass(
+    s: &Snapshot,
+    map: &DofMap,
+    frames: &[FrameData],
+    areas: &[AreaData],
+    pattern_forces: Option<&[f64]>,
+) -> MassMatrix {
     let m = &s.model;
+    let (elements, added) = m.mass_source.as_ref().map_or((true, true), |x| (x.elements, x.added_masses));
     let mut lumped = vec![0.0; 6 * m.joints.len()];
-    for (j, joint) in m.joints.iter().enumerate() {
-        for d in 0..6 {
-            lumped[6 * j + d] += joint.added_mass[d];
-        }
-    }
-    for (fd, &(_, _, sec, mat)) in frames.iter().zip(&s.frame_refs) {
-        let half = 0.5 * m.materials[mat].mass_density * m.sections[sec].area * fd.length;
-        for d in 0..3 {
-            lumped[fd.dofs[d]] += half;
-            lumped[fd.dofs[6 + d]] += half;
-        }
-    }
-    for (a, def) in areas.iter().zip(&m.areas) {
-        let sec = m.area_sections.iter().find(|x| x.name == def.section).expect("validated section");
-        let density = m.materials.iter().find(|x| x.name == sec.material).map_or(0.0, |x| x.mass_density);
-        for (n, share) in a.nodal_areas().iter().enumerate() {
-            for d in 0..3 {
-                lumped[a.dofs[6 * n + d]] += density * sec.thickness * share;
+    if added {
+        for (j, joint) in m.joints.iter().enumerate() {
+            for d in 0..6 {
+                lumped[6 * j + d] += joint.added_mass[d];
             }
         }
     }
+    if elements {
+        for (fd, &(_, _, sec, mat)) in frames.iter().zip(&s.frame_refs) {
+            let half = 0.5 * m.materials[mat].mass_density * m.sections[sec].area * fd.length;
+            for d in 0..3 {
+                lumped[fd.dofs[d]] += half;
+                lumped[fd.dofs[6 + d]] += half;
+            }
+        }
+        for (a, def) in areas.iter().zip(&m.areas) {
+            let sec = m.area_sections.iter().find(|x| x.name == def.section).expect("validated section");
+            let density = m.materials.iter().find(|x| x.name == sec.material).map_or(0.0, |x| x.mass_density);
+            for (n, share) in a.nodal_areas().iter().enumerate() {
+                for d in 0..3 {
+                    lumped[a.dofs[6 * n + d]] += density * sec.thickness * share;
+                }
+            }
+        }
+    }
+    let (note, problem) = pattern_forces.map_or((None, None), |f| add_pattern_mass(s, f, &mut lumped));
     let mut tb = TripletBuilder::new(map.n).expect("size checked with the stiffness");
     for (g, &v) in lumped.iter().enumerate() {
         if v == 0.0 {
@@ -72,7 +120,7 @@ pub(crate) fn assemble_mass(s: &Snapshot, map: &DofMap, frames: &[FrameData], ar
         let mr = matrix.mul_vec(&rigid[axis]);
         rigid[axis].iter().zip(&mr).map(|(a, b)| a * b).sum()
     });
-    MassMatrix { m: matrix, rigid, total }
+    MassMatrix { m: matrix, rigid, total, problem, note }
 }
 
 /// A solved modal case, kept for the spectra that use it.
@@ -117,6 +165,9 @@ pub(crate) fn modal_case(
     let (Some(factor), Some(mass)) = (factor, mass) else {
         return (failed(name, KIND, "no free degrees of freedom".into()), Err(()));
     };
+    if let Some(why) = &mass.problem {
+        return (failed(name, KIND, why.clone()), Err(()));
+    }
     let r = match eigen::subspace_iteration(factor, k, &mass.m, modes, EIGEN_TOL, EIGEN_MAX_ITER) {
         Ok(r) => r,
         Err(e) => return (failed(name, KIND, format!("modes: {e}")), Err(())),
@@ -168,7 +219,7 @@ pub(crate) fn modal_case(
         solved.participation.push(gamma);
         solved.mass_ratio.push(ratio);
     }
-    let mut messages = Vec::new();
+    let mut messages: Vec<String> = mass.note.iter().cloned().collect();
     if r.values.len() < modes {
         messages.push(format!("{} of {modes} modes: that many degrees of freedom have mass", r.values.len()));
     }

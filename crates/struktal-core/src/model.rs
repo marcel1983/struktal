@@ -17,7 +17,8 @@ use crate::units::{Dim, UnitSystem};
 /// Older files have no such loads, so they migrate unchanged (decision 0014).
 /// v5 (2026-11-05): automatic subdivision of frames. Older files have none
 /// (decision 0015).
-pub const SCHEMA_VERSION: u32 = 6;
+/// v7 (2026-11-06): mass_source. Older files have none (decision 0022).
+pub const SCHEMA_VERSION: u32 = 7;
 
 pub type Name = String;
 
@@ -52,6 +53,9 @@ pub struct Model {
     pub area_loads: Vec<AreaLoad>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub response_spectra: Vec<SpectrumFunction>,
+    /// Without one, modal cases use the elements and the added masses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mass_source: Option<MassSource>,
     #[serde(default)]
     pub load_cases: Vec<LoadCase>,
     #[serde(default)]
@@ -482,6 +486,19 @@ pub struct FrameLoad {
 pub struct ScaledPattern {
     pub pattern: Name,
     pub scale: f64,
+}
+
+/// What gives mass to the modal cases (decision 0022).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MassSource {
+    /// Mass of frames and areas, from the density of their materials.
+    pub elements: bool,
+    /// `added_mass` of the joints.
+    pub added_masses: bool,
+    /// Patterns whose downward load, over standard gravity, is mass.
+    #[serde(default)]
+    pub patterns: Vec<ScaledPattern>,
 }
 
 /// Spectral acceleration against period [s], with periods strictly increasing.

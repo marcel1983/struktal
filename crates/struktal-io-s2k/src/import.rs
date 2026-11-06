@@ -23,10 +23,13 @@ const IGNORED: &[&str] = &[
     "AUTO WAVE",
     "BASE REACTIONS",
     "CABLE SECTION DEFINITIONS",
+    // Only the cases of the types read here use them, and those tables are in READ.
+    "CASE - ",
     "COORDINATE SYSTEMS",
     "DATABASE FORMAT TYPES",
     "ELEMENT FORCES",
     "ELEMENT JOINT FORCES",
+    "ELEMENT STRAINS",
     "ELEMENT STRESSES",
     "FRAME DESIGN PROCEDURES",
     "FRAME LOAD TRANSFER OPTIONS",
@@ -34,14 +37,15 @@ const IGNORED: &[&str] = &[
     "FRAME SECTION PROPERTIES 02 - CONCRETE COLUMN",
     "FRAME SECTION PROPERTIES 03 - CONCRETE BEAM",
     "FRAME SECTION PROPERTIES 13 - TIME DEPENDENT",
-    "FUNCTION - PLOT FUNCTIONS",
+    "FUNCTION - ",
     "GRID LINES",
     "GROUPS ",
+    "JOINT ACCELERATIONS",
     "JOINT DISPLACEMENTS",
     "JOINT PATTERN DEFINITIONS",
     "JOINT REACTIONS",
+    "JOINT VELOCITIES",
     "LINK PROPERTY DEFINITIONS 01 - GENERAL",
-    "MASS SOURCE",
     "MATERIAL LIST",
     "MATERIAL PROPERTIES 01 - GENERAL",
     "MATERIAL PROPERTIES 03",
@@ -55,6 +59,7 @@ const IGNORED: &[&str] = &[
     "PREFERENCES - ",
     "PROJECT INFORMATION",
     "REBAR SIZES",
+    "RESPONSE SPECTRUM MODAL INFORMATION",
     "SOLID PROPERTY DEFINITIONS",
     "TABLES AUTOMATICALLY SAVED",
     "TENDON SECTION DEFINITIONS",
@@ -68,6 +73,9 @@ const READ: &[&str] = &[
     "AREA SECTION ASSIGNMENTS",
     "AREA SECTION PROPERTIES",
     "CONNECTIVITY - AREA",
+    "CASE - MODAL 1 - GENERAL",
+    "CASE - RESPONSE SPECTRUM 1 - GENERAL",
+    "CASE - RESPONSE SPECTRUM 2 - LOAD ASSIGNMENTS",
     "CASE - STATIC 1 - LOAD ASSIGNMENTS",
     "COMBINATION DEFINITIONS",
     "CONNECTIVITY - FRAME",
@@ -85,6 +93,8 @@ const READ: &[&str] = &[
     "FRAME RELEASE ASSIGNMENTS 2 - PARTIAL FIXITY",
     "FRAME SECTION ASSIGNMENTS",
     "FRAME SECTION PROPERTIES 01 - GENERAL",
+    "FUNCTION - RESPONSE SPECTRUM - USER",
+    "JOINT ADDED MASS ASSIGNMENTS",
     "JOINT CONSTRAINT ASSIGNMENTS",
     "JOINT COORDINATES",
     "JOINT LOADS - FORCE",
@@ -94,6 +104,7 @@ const READ: &[&str] = &[
     "JOINT SPRING ASSIGNMENTS 1 - UNCOUPLED",
     "LOAD CASE DEFINITIONS",
     "LOAD PATTERN DEFINITIONS",
+    "MASS SOURCE",
     "MATERIAL PROPERTIES 02 - BASIC MECHANICAL PROPERTIES",
     "OBJECTS AND ELEMENTS - AREAS",
     "OBJECTS AND ELEMENTS - FRAMES",
@@ -137,6 +148,8 @@ const YES: &str = "Yes";
 const AREA_COVER_TOL_REL: f64 = 0.01;
 /// As `ON_AXIS_TOL_REL` of the analysis, which is what connects the joint.
 const FRAME_AXIS_TOL_REL: f64 = 1e-6;
+/// A spectrum and its case are taken to have the same damping below this.
+const DAMPING_TOL: f64 = 1e-9;
 
 fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
@@ -265,8 +278,8 @@ impl Importer<'_> {
     }
 
     /// Section properties with their own modifiers applied. A stiffness modifier
-    /// does not change weight in the source format, so a modified area takes a
-    /// material whose unit weight compensates it.
+    /// does not change weight or mass in the source format, so a modified area
+    /// takes a material whose unit weight and mass compensate it.
     fn sections(&mut self, materials: &mut Vec<Material>) -> HashMap<String, (FrameSection, f64)> {
         const T: &str = "FRAME SECTION PROPERTIES 01 - GENERAL";
         // A file lists whole section libraries: only what the frames use matters,
@@ -306,7 +319,8 @@ impl Importer<'_> {
                 as2: self.num_or(T, row, "AS2", 0.0) * self.num_or(T, row, "A2Mod", 1.0),
                 as3: self.num_or(T, row, "AS3", 0.0) * self.num_or(T, row, "A3Mod", 1.0),
             };
-            let section = with_weight_factor(section, w_mod / a_mod, materials);
+            let m_mod = self.num_or(T, row, "MMod", 1.0);
+            let section = with_unit_factors(section, w_mod / a_mod, m_mod / a_mod, materials);
             out.insert(name, (section, a_mod));
         }
         out
@@ -373,6 +387,22 @@ impl Importer<'_> {
             };
             for (d, key) in ["U1", "U2", "U3", "R1", "R2", "R3"].into_iter().enumerate() {
                 joints[j].springs[d] = self.num_or(S, row, key, 0.0);
+            }
+        }
+
+        const M: &str = "JOINT ADDED MASS ASSIGNMENTS";
+        for row in self.s2k.rows(M) {
+            let Some(name) = self.text(M, row, "Joint") else { continue };
+            let Some(&j) = index.get(&name) else {
+                self.problem(M, row.line, format!("unknown joint {name}"));
+                continue;
+            };
+            // Turned joint axes are refused above, so its local axes are the global ones.
+            if row.get("CoordSys").is_some_and(|c| c != "GLOBAL" && c != "Joint Local") {
+                self.problem(M, row.line, format!("joint {name}: added mass only in global axes"));
+            }
+            for (d, key) in ["Mass1", "Mass2", "Mass3", "MMI1", "MMI2", "MMI3"].into_iter().enumerate() {
+                joints[j].added_mass[d] += self.num_or(M, row, key, 0.0);
             }
         }
         (joints, index)
@@ -501,7 +531,8 @@ impl Importer<'_> {
             let fs2 = self.num_or(MODS, row, "AS2Mod", 1.0);
             let fs3 = self.num_or(MODS, row, "AS3Mod", 1.0);
             let fw = self.num_or(MODS, row, "WeightMod", 1.0);
-            if [fa, f2, f3, fj, fs2, fs3, fw] == [1.0; 7] {
+            let fm = self.num_or(MODS, row, "MassMod", 1.0);
+            if [fa, f2, f3, fj, fs2, fs3, fw, fm] == [1.0; 8] {
                 continue;
             }
             let own = format!("{}#{name}", base.name);
@@ -515,7 +546,7 @@ impl Importer<'_> {
                 as3: base.as3 * fs3,
                 ..base
             };
-            let modified = with_weight_factor(modified, fw / fa, materials);
+            let modified = with_unit_factors(modified, fw / fa, fm / fa, materials);
             sections.insert(own.clone(), (modified, fa));
             frames[f].section = own;
         }
@@ -1076,16 +1107,195 @@ impl Importer<'_> {
             let scale = self.num_or(A, row, "LoadSF", 1.0);
             loads.entry(case).or_default().push(ScaledPattern { pattern, scale });
         }
+        // Modes first: a spectrum needs its modal case solved before it.
+        let mut spectra = Vec::new();
         for row in self.s2k.rows(D) {
             let Some(name) = self.text(D, row, "Case") else { continue };
+            if row.get("InitialCond").is_some_and(|c| c != "Zero") {
+                self.notes.push(format!("case {name} not imported: it starts from the state of another case"));
+                continue;
+            }
             match row.get("Type") {
                 Some("LinStatic") => {
                     let case_loads = loads.remove(&name).unwrap_or_default();
                     m.load_cases.push(LoadCase::LinearStatic { name, loads: case_loads });
                 }
+                Some("LinModal") => match self.modal_case(&name) {
+                    Ok(modes) => m.load_cases.push(LoadCase::Modal { name, modes }),
+                    Err(why) => self.notes.push(format!("case {name} not imported: {why}")),
+                },
+                Some("LinRespSpec") => spectra.push((name, row.get("ModalCase"))),
                 other => self.notes.push(format!("case {name} of type {} not imported", other.unwrap_or("unknown"))),
             }
         }
+        for (name, modal_case) in spectra {
+            match self.spectrum_case(&name, modal_case, m) {
+                Ok(case) => m.load_cases.push(case),
+                Err(why) => self.notes.push(format!("case {name} not imported: {why}")),
+            }
+        }
+        // Without modes, the mass has no effect on anything imported.
+        if m.load_cases.iter().any(|c| matches!(c, LoadCase::Modal { .. })) {
+            m.mass_source = self.mass_source(m);
+        }
+    }
+
+    /// The number of modes of a case, or why it has no equivalent here.
+    fn modal_case(&mut self, name: &str) -> Result<u32, String> {
+        const T: &str = "CASE - MODAL 1 - GENERAL";
+        let row =
+            self.s2k.rows(T).iter().find(|r| r.get("Case") == Some(name)).ok_or(format!("it has no row in {T}"))?;
+        if let Some(kind) = row.get("ModeType").filter(|k| *k != "Eigen") {
+            return Err(format!("modes of type {kind}"));
+        }
+        for key in ["EigenShift", "EigenCutoff"] {
+            if row.get(key).is_some_and(|v| v.parse::<f64>() != Ok(0.0)) {
+                return Err(format!("{key} is not zero"));
+            }
+        }
+        if let Some(own) = row.get("MassSource")
+            && own != "Default"
+            && Some(own) != self.default_mass_source().as_deref()
+        {
+            return Err(format!("mass source {own} is not the default of the file"));
+        }
+        row.get("MaxNumModes")
+            .and_then(|v| v.parse::<u32>().ok())
+            .filter(|n| *n > 0)
+            .ok_or("MaxNumModes is not a positive integer".to_string())
+    }
+
+    fn default_mass_source(&self) -> Option<String> {
+        let rows = self.s2k.rows("MASS SOURCE");
+        let marked = rows.iter().find(|r| r.get("IsDefault") == Some(YES));
+        let name = marked.or(rows.first())?.get("MassSource")?;
+        (marked.is_some() || rows.iter().all(|r| r.get("MassSource") == Some(name))).then(|| name.to_string())
+    }
+
+    fn mass_source(&mut self, m: &Model) -> Option<MassSource> {
+        const T: &str = "MASS SOURCE";
+        let rows = self.s2k.rows(T);
+        if rows.is_empty() {
+            return None;
+        }
+        let Some(name) = self.default_mass_source() else {
+            self.problem(T, rows[0].line, "no mass source is marked as the default");
+            return None;
+        };
+        let own: Vec<&Row> = rows.iter().filter(|r| r.get("MassSource") == Some(name.as_str())).collect();
+        // Not every row has to repeat the flags, but one of them must have each.
+        let mut flag = |key: &str| {
+            if !own.iter().any(|r| r.get(key).is_some()) {
+                self.problems.push(Problem {
+                    table: T.to_string(),
+                    line: own[0].line,
+                    cause: format!("mass source {name}: missing field {key}"),
+                });
+            }
+            own.iter().any(|r| r.get(key) == Some(YES))
+        };
+        let (elements, added_masses, loads) = (flag("Elements"), flag("Masses"), flag("Loads"));
+        let mut patterns = Vec::new();
+        if loads {
+            for row in own.iter().copied() {
+                let (Some(pattern), Some(scale)) = (self.text(T, row, "LoadPat"), self.opt_num(T, row, "Multiplier"))
+                else {
+                    self.problem(T, row.line, format!("mass source {name}: a pattern needs its Multiplier"));
+                    continue;
+                };
+                patterns.push(ScaledPattern { pattern, scale });
+            }
+        }
+        let weighs =
+            |p: &ScaledPattern| m.load_patterns.iter().any(|x| x.name == p.pattern && x.self_weight_multiplier != 0.0);
+        if elements && patterns.iter().any(weighs) {
+            self.notes.push(format!(
+                "mass source {name}: it counts the elements and a pattern with self weight, so that mass counts twice"
+            ));
+        }
+        Some(MassSource { elements, added_masses, patterns })
+    }
+
+    /// A spectrum case, or why it has no equivalent here.
+    fn spectrum_case(&mut self, name: &str, modal_case: Option<&str>, m: &mut Model) -> Result<LoadCase, String> {
+        const G: &str = "CASE - RESPONSE SPECTRUM 1 - GENERAL";
+        const L: &str = "CASE - RESPONSE SPECTRUM 2 - LOAD ASSIGNMENTS";
+        const F: &str = "FUNCTION - RESPONSE SPECTRUM - USER";
+        let number = |row: &Row, key: &str, default: Option<f64>| -> Result<f64, String> {
+            match row.get(key) {
+                Some(v) => v.parse::<f64>().ok().filter(|x| x.is_finite()).ok_or(format!("{key} is not a number")),
+                None => default.ok_or(format!("it has no {key}")),
+            }
+        };
+        let modal_case = modal_case.ok_or("it has no ModalCase")?;
+        if !m.load_cases.iter().any(|c| matches!(c, LoadCase::Modal { .. }) && c.name() == modal_case) {
+            return Err(format!("its modal case {modal_case} was not imported"));
+        }
+        let row =
+            self.s2k.rows(G).iter().find(|r| r.get("Case") == Some(name)).ok_or(format!("it has no row in {G}"))?;
+        let combination = match row.get("ModalCombo") {
+            Some("CQC") => ModalCombination::Cqc,
+            Some("SRSS") => ModalCombination::Srss,
+            other => return Err(format!("modal combination {}", other.unwrap_or("not given"))),
+        };
+        for (key, wanted) in [("MotionType", "Acceleration"), ("DampingType", "Constant")] {
+            if let Some(v) = row.get(key).filter(|v| *v != wanted) {
+                return Err(format!("{key} {v}"));
+            }
+        }
+        // The rigid part of the response, accidental eccentricity and per-mode damping.
+        for (key, plain) in [("GMCf1", 1.0), ("GMCf2", 0.0), ("EccenRatio", 0.0), ("NumOverride", 0.0)] {
+            if number(row, key, Some(plain))? != plain {
+                return Err(format!("{key} is not {plain}"));
+            }
+        }
+        let damping = number(row, "ConstDamp", None)?;
+
+        let loads: Vec<&Row> = self.s2k.rows(L).iter().filter(|r| r.get("Case") == Some(name)).collect();
+        let [load] = loads[..] else {
+            return Err(format!("{} directions: only one, without directional combination", loads.len()));
+        };
+        if let Some(kind) = load.get("LoadType").filter(|k| *k != "Acceleration") {
+            return Err(format!("load type {kind}"));
+        }
+        if load.get("CoordSys").is_some_and(|c| c != "GLOBAL") || number(load, "Angle", Some(0.0))? != 0.0 {
+            return Err("only global axes, with no angle".to_string());
+        }
+        let direction = match load.get("LoadName") {
+            Some("U1") => GlobalAxis::X,
+            Some("U2") => GlobalAxis::Y,
+            Some("U3") => GlobalAxis::Z,
+            other => return Err(format!("direction {}", other.unwrap_or("not given"))),
+        };
+        let scale = number(load, "TransAccSF", None)?;
+        let function = load.get("Function").ok_or("it has no Function")?.to_string();
+
+        let rows: Vec<&Row> = self.s2k.rows(F).iter().filter(|r| r.get("Name") == Some(&function)).collect();
+        if rows.is_empty() {
+            return Err(format!("its function {function} is not a table in {F}"));
+        }
+        // The curve would have to be adjusted from its damping to the one of the case.
+        if let Some(own) = rows.iter().find_map(|r| r.get("FuncDamp"))
+            && own.parse::<f64>().ok().is_none_or(|d| (d - damping).abs() > DAMPING_TOL)
+        {
+            return Err(format!("its function has damping {own}, and the case {damping}"));
+        }
+        if !m.response_spectra.iter().any(|f| f.name == function) {
+            let mut points = Vec::with_capacity(rows.len());
+            for r in rows {
+                points.push([number(r, "Period", None)?, number(r, "Accel", None)?]);
+            }
+            m.response_spectra.push(SpectrumFunction { name: function.clone(), points });
+        }
+        Ok(LoadCase::ResponseSpectrum {
+            name: name.to_string(),
+            modal_case: modal_case.to_string(),
+            function,
+            direction,
+            scale,
+            combination,
+            damping,
+        })
     }
 
     fn combinations(&mut self, m: &mut Model) {
@@ -1102,13 +1312,21 @@ impl Importer<'_> {
             });
             entry.1.push(ScaledCase { case, scale });
         }
-        let cases: Vec<String> = m.load_cases.iter().map(|c| c.name().to_string()).collect();
+        // Modes and spectra have no sign, so they cannot be terms.
+        let cases: Vec<String> = m
+            .load_cases
+            .iter()
+            .filter(|c| matches!(c, LoadCase::LinearStatic { .. }))
+            .map(|c| c.name().to_string())
+            .collect();
         let mut done: Vec<String> = Vec::new();
         for name in order {
             let Some((kind, terms)) = defs.remove(&name) else { continue };
             let known = |t: &ScaledCase| cases.contains(&t.case) || done.contains(&t.case);
             if !terms.iter().all(known) {
-                self.notes.push(format!("combination {name} not imported: it uses a case that was not imported"));
+                self.notes.push(format!(
+                    "combination {name} not imported: it uses a modal or spectrum case, or one that was not imported"
+                ));
                 continue;
             }
             match kind.as_str() {
@@ -1126,15 +1344,20 @@ impl Importer<'_> {
     }
 }
 
-/// A material for this section whose unit weight is scaled, if it needs one.
-fn with_weight_factor(mut section: FrameSection, factor: f64, materials: &mut Vec<Material>) -> FrameSection {
-    if factor == 1.0 {
+/// A material for this section whose unit weight and mass are scaled, if it needs one.
+fn with_unit_factors(mut section: FrameSection, weight: f64, mass: f64, materials: &mut Vec<Material>) -> FrameSection {
+    if weight == 1.0 && mass == 1.0 {
         return section;
     }
     let base = materials.iter().find(|m| m.name == section.material).cloned();
     if let Some(base) = base {
         let name = format!("{}#{}", base.name, section.name);
-        materials.push(Material { name: name.clone(), unit_weight: base.unit_weight * factor, ..base });
+        materials.push(Material {
+            name: name.clone(),
+            unit_weight: base.unit_weight * weight,
+            mass_density: base.mass_density * mass,
+            ..base
+        });
         section.material = name;
     }
     section
@@ -1206,6 +1429,7 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
         frame_loads: Vec::new(),
         area_loads: Vec::new(),
         response_spectra: Vec::new(),
+        mass_source: None,
         load_cases: Vec::new(),
         combinations: Vec::new(),
     };
@@ -1248,6 +1472,196 @@ mod tests {
 
     fn causes(extra: &str) -> String {
         run(extra).expect_err("must fail").iter().map(ToString::to_string).collect::<Vec<_>>().join("\n")
+    }
+
+    const MODAL: &str = "TABLE:  \"CASE - MODAL 1 - GENERAL\"\n   Case=MODAL   ModeType=Eigen   MaxNumModes=4   EigenShift=0   EigenCutoff=0\n";
+    const SPECTRUM: &str = concat!(
+        "TABLE:  \"FUNCTION - RESPONSE SPECTRUM - USER\"\n",
+        "   Name=F   Period=0   Accel=1   FuncDamp=0.05\n   Name=F   Period=1   Accel=2\n   Name=LIBRARY   Period=1   Accel=x\n",
+        "TABLE:  \"CASE - RESPONSE SPECTRUM 1 - GENERAL\"\n",
+        "   Case=SP   ModalCombo=SRSS   GMCf1=1   GMCf2=0   MotionType=Acceleration   DampingType=Constant   ConstDamp=0.05   EccenRatio=0   NumOverride=0\n",
+        "TABLE:  \"CASE - RESPONSE SPECTRUM 2 - LOAD ASSIGNMENTS\"\n",
+        "   Case=SP   LoadType=Acceleration   LoadName=U2   CoordSys=GLOBAL   Function=F   Angle=0   TransAccSF=386.4\n",
+    );
+
+    /// BASE, with a spectrum case listed before its modal case.
+    fn with_spectrum(extra: &str) -> String {
+        let cases = "   Case=SP   Type=LinRespSpec   ModalCase=MODAL\n   Case=C1   Type=LinStatic\n";
+        format!("{}{MODAL}{SPECTRUM}{extra}", BASE.replace("   Case=C1   Type=LinStatic\n", cases))
+    }
+
+    fn import_text(text: &str) -> Imported {
+        import(&parse(text).expect("parse")).expect("ok")
+    }
+
+    /// The notes of a file where this text replaces that one.
+    fn refused_spectrum(from: &str, to: &str) -> String {
+        let text = with_spectrum("");
+        assert!(text.contains(from), "{from}");
+        let im = import_text(&text.replace(from, to));
+        assert!(!im.model.load_cases.iter().any(|c| c.name() == "SP"), "{to}");
+        im.notes.join("\n")
+    }
+
+    #[test]
+    fn modes_and_spectra_are_read_with_the_modes_first() {
+        let im = import_text(&with_spectrum(""));
+        let m = &im.model;
+        struktal_core::validate(m).expect("valid model");
+        let names: Vec<&str> = m.load_cases.iter().map(|c| c.name()).collect();
+        assert_eq!(names, ["C1", "MODAL", "SP"]);
+        assert!(matches!(m.load_cases[1], LoadCase::Modal { modes: 4, .. }));
+        let LoadCase::ResponseSpectrum { modal_case, function, direction, scale, combination, damping, .. } =
+            &m.load_cases[2]
+        else {
+            panic!("spectrum")
+        };
+        assert_eq!(modal_case, "MODAL");
+        assert_eq!(function, "F");
+        assert_eq!(*direction, GlobalAxis::Y);
+        assert_eq!(*scale, 386.4);
+        assert_eq!(*combination, ModalCombination::Srss);
+        assert_eq!(*damping, 0.05);
+        // Only the function in use: the other one could not even be read.
+        assert_eq!(m.response_spectra.len(), 1);
+        assert_eq!(m.response_spectra[0].points, vec![[0.0, 1.0], [1.0, 2.0]]);
+    }
+
+    #[test]
+    fn a_spectrum_with_no_equivalent_is_left_out_and_says_why() {
+        for (from, to, why) in [
+            ("ModalCombo=SRSS", "ModalCombo=GMC", "GMC"),
+            ("MotionType=Acceleration", "MotionType=Displacement", "Displacement"),
+            ("DampingType=Constant", "DampingType=Interpolated", "Interpolated"),
+            ("GMCf2=0", "GMCf2=5", "GMCf2"),
+            ("EccenRatio=0", "EccenRatio=0.05", "EccenRatio"),
+            ("NumOverride=0", "NumOverride=2", "NumOverride"),
+            ("LoadName=U2", "LoadName=R1", "direction R1"),
+            ("CoordSys=GLOBAL   Function", "CoordSys=LOCAL   Function", "global axes"),
+            ("Angle=0", "Angle=30", "global axes"),
+            ("Function=F", "Function=MISSING", "MISSING"),
+            ("FuncDamp=0.05", "FuncDamp=0.02", "damping"),
+            ("ModalCase=MODAL", "ModalCase=NOPE", "NOPE"),
+            ("TransAccSF=386.4", "Other=1", "TransAccSF"),
+        ] {
+            let notes = refused_spectrum(from, to);
+            assert!(notes.contains("SP not imported") && notes.contains(why), "{to}: {notes}");
+        }
+    }
+
+    #[test]
+    fn a_spectrum_in_two_directions_is_left_out() {
+        let extra = "   Case=SP   LoadType=Acceleration   LoadName=U1   Function=F   TransAccSF=1\n";
+        let notes = import_text(&with_spectrum(extra)).notes.join("\n");
+        assert!(notes.contains("2 directions"), "{notes}");
+    }
+
+    #[test]
+    fn modes_with_no_equivalent_are_left_out_with_their_spectra() {
+        for (from, to, why) in [
+            ("ModeType=Eigen", "ModeType=Ritz", "Ritz"),
+            ("EigenShift=0", "EigenShift=2", "EigenShift"),
+            ("ModeType=Eigen", "ModeType=Eigen   MassSource=OTHER", "OTHER"),
+        ] {
+            let notes = refused_spectrum(from, to);
+            assert!(notes.contains("MODAL not imported") && notes.contains(why), "{to}: {notes}");
+            assert!(notes.contains("its modal case MODAL was not imported"), "{notes}");
+        }
+    }
+
+    #[test]
+    fn a_case_that_starts_from_another_is_left_out() {
+        let text = BASE.replace("Case=C1   Type=LinStatic", "Case=C1   Type=LinStatic   InitialCond=NL");
+        let im = import_text(&text);
+        assert!(!im.model.load_cases.iter().any(|c| c.name() == "C1"));
+        assert!(im.notes.iter().any(|n| n.contains("C1 not imported")), "{:?}", im.notes);
+    }
+
+    #[test]
+    fn a_combination_with_a_spectrum_is_left_out_and_the_model_stays_valid() {
+        let im = import_text(&with_spectrum(concat!(
+            "TABLE:  \"COMBINATION DEFINITIONS\"\n",
+            "   ComboName=BOTH   ComboType=\"Linear Add\"   CaseName=C1   ScaleFactor=1\n",
+            "   ComboName=BOTH   ComboType=\"Linear Add\"   CaseName=SP   ScaleFactor=1\n",
+            "   ComboName=ALONE   ComboType=\"Linear Add\"   CaseName=C1   ScaleFactor=1\n",
+        )));
+        assert_eq!(im.model.combinations.len(), 1);
+        assert!(im.notes.iter().any(|n| n.contains("BOTH")), "{:?}", im.notes);
+        struktal_core::validate(&im.model).expect("valid model");
+    }
+
+    #[test]
+    fn the_default_mass_source_is_the_one_read() {
+        let im = import_text(&with_spectrum(concat!(
+            "TABLE:  \"MASS SOURCE\"\n",
+            "   MassSource=A   Elements=Yes   Masses=Yes   Loads=No   IsDefault=No\n",
+            "   MassSource=B   Elements=No   Masses=Yes   Loads=Yes   IsDefault=Yes   LoadPat=P1   Multiplier=0.25\n",
+        )));
+        let source = im.model.mass_source.as_ref().expect("source");
+        assert!(!source.elements && source.added_masses);
+        assert_eq!(source.patterns, vec![ScaledPattern { pattern: "P1".into(), scale: 0.25 }]);
+        struktal_core::validate(&im.model).expect("valid model");
+    }
+
+    #[test]
+    fn a_mass_source_that_counts_self_weight_twice_says_so() {
+        let im = import_text(&with_spectrum(concat!(
+            "TABLE:  \"MASS SOURCE\"\n",
+            "   MassSource=A   Elements=Yes   Masses=Yes   Loads=Yes   IsDefault=Yes   LoadPat=P1   Multiplier=1\n",
+        )));
+        assert!(im.notes.iter().any(|n| n.contains("counts twice")), "{:?}", im.notes);
+    }
+
+    #[test]
+    fn a_mass_source_only_matters_with_modes() {
+        let bad = "TABLE:  \"MASS SOURCE\"\n   MassSource=A   Loads=Yes\n   MassSource=B   Loads=Yes\n";
+        assert!(run(bad).expect("no modes").model.mass_source.is_none());
+        let text = causes_of(&with_spectrum(bad));
+        assert!(text.contains("no mass source is marked"), "{text}");
+        let one = "TABLE:  \"MASS SOURCE\"\n   MassSource=A   Elements=Yes   Loads=Yes   LoadPat=P1\n";
+        let text = causes_of(&with_spectrum(one));
+        assert!(text.contains("missing field Masses") && text.contains("Multiplier"), "{text}");
+    }
+
+    fn causes_of(text: &str) -> String {
+        let found = import(&parse(text).expect("parse")).expect_err("must fail");
+        found.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n")
+    }
+
+    #[test]
+    fn added_masses_add_up_and_need_a_known_joint_in_global_axes() {
+        let im = run(concat!(
+            "TABLE:  \"JOINT ADDED MASS ASSIGNMENTS\"\n",
+            "   Joint=2   CoordSys=GLOBAL   Mass1=1   Mass2=2   Mass3=3   MMI1=4   MMI2=5   MMI3=6\n",
+            "   Joint=2   CoordSys=\"Joint Local\"   Mass1=10\n",
+        ))
+        .expect("ok");
+        assert_eq!(im.model.joints[1].added_mass, [11.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let text = causes(concat!(
+            "TABLE:  \"JOINT ADDED MASS ASSIGNMENTS\"\n",
+            "   Joint=9   Mass1=1\n   Joint=2   CoordSys=OTHER   Mass1=1\n",
+        ));
+        assert!(text.contains("unknown joint 9") && text.contains("global axes"), "{text}");
+    }
+
+    #[test]
+    fn mass_modifiers_reach_the_material_and_compensate_the_area() {
+        let text = BASE
+            .replace("UnitWeight=0.1", "UnitWeight=0.1   UnitMass=8")
+            .replace("I23=0   AS2=5", "I23=0   AMod=2   MMod=3   WMod=5   AS2=5");
+        let im = import_text(&text);
+        let m = &im.model;
+        let material = m.materials.iter().find(|x| x.name == m.sections[0].material).expect("material");
+        assert_eq!(m.sections[0].area, 20.0);
+        assert_eq!(material.mass_density * m.sections[0].area, 8.0 * 10.0 * 3.0);
+        assert_eq!(material.unit_weight * m.sections[0].area, 0.1 * 10.0 * 5.0);
+
+        let frame = "TABLE:  \"FRAME PROPERTY MODIFIERS\"\n   Frame=F1   AMod=2   MassMod=3   WeightMod=1\n";
+        let im = import_text(&format!("{}{frame}", BASE.replace("UnitWeight=0.1", "UnitWeight=0.1   UnitMass=8")));
+        let m = &im.model;
+        let material = m.materials.iter().find(|x| x.name == m.sections[0].material).expect("material");
+        assert_eq!(material.mass_density * m.sections[0].area, 8.0 * 10.0 * 3.0);
+        assert_eq!(material.unit_weight * m.sections[0].area, 0.1 * 10.0);
     }
 
     #[test]

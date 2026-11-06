@@ -1,0 +1,61 @@
+{
+  "case_id": "V-MASS-003",
+  "title": "Mass source: area load on a slab on springs, with a spectrum",
+  "feature_ids": [
+    "F07-001",
+    "F09-001",
+    "F10-001"
+  ],
+  "model": "model.json",
+  "model_sha256": "2f24f019eb49e01b3c3c984df1eaf7eea31cb6b927bea11dbf486c00833155ee",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "One rigid mode on equal springs, with a quarter of the load at each joint",
+    "derivation": [
+      "m = q A/(4 g) per joint",
+      "T = 2 pi sqrt(m/k)",
+      "u = Sa/w^2 for a flat spectrum: Sa = 1.5 g"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "modal_period",
+      "case": "M",
+      "entity": "1",
+      "component": "",
+      "value": 0.24573394910108534,
+      "unit": "s"
+    },
+    {
+      "result": "modal_mass_ratio",
+      "case": "M",
+      "entity": "1",
+      "component": "Z",
+      "value": 1.0,
+      "unit": "1"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "RZ",
+      "entity": "A",
+      "component": "UZ",
+      "value": 0.0225,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "RZ",
+      "entity": "C",
+      "component": "UZ",
+      "value": 0.0225,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

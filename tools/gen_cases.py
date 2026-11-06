@@ -22,7 +22,7 @@ E, NU = 200e9, 0.3
 
 def model(title, joints, frames, sections, patterns, joint_loads=(), frame_loads=(), cases=None,
           combos=(), units=None, materials=None, schema=1, constraints=(), imposed=(),
-          area_sections=(), areas=(), area_loads=(), spectra=()):
+          area_sections=(), areas=(), area_loads=(), spectra=(), mass_source=None):
     # Cases created before schema v2 stay at v1 on purpose: they exercise the
     # v1 -> v2 migration end to end (decision 0007).
     extra = {"constraints": list(constraints)} if constraints else {}
@@ -32,6 +32,8 @@ def model(title, joints, frames, sections, patterns, joint_loads=(), frame_loads
         extra.update(area_sections=list(area_sections), areas=list(areas), area_loads=list(area_loads))
     if spectra:
         extra["response_spectra"] = list(spectra)
+    if mass_source:
+        extra["mass_source"] = mass_source
     return {
         **extra,
         "schema_version": schema,
@@ -2006,5 +2008,108 @@ write("V-SPEC-001", "Response spectrum: one mode, and two modes with SRSS and CQ
     exp("joint_reaction", "RZ", "C0", "MY", Mt_ * at_ * Lt_, "N*m"),
     exp("frame_station", "RZ", "CANT", "M3", Mt_ * at_ * Lt_, "N*m", 0.0),
 ], tol=MOD_TOL)
+
+# ---------------------------------------------------------------- mass source
+# Mass from load patterns: the downward load over standard gravity, at each joint.
+GRAV = 9.80665
+Lq1, W1, W2, f1, K2 = 3.0, 20_000.0, 4_000.0, 0.5, dict(SEC, name="B", i22=2e-4)
+mq1 = (f1 * W1 + W2) / GRAV
+Tq = {ax: 2 * math.pi * math.sqrt(mq1 / k_) for ax, k_ in {
+    "Z": 3 * E * K2["i33"] / Lq1**3, "Y": 3 * E * K2["i22"] / Lq1**3, "X": E * K2["area"] / Lq1}.items()}
+source1 = {"elements": False, "added_masses": False,
+           "patterns": [{"pattern": "W1", "scale": f1}, {"pattern": "W2", "scale": 1.0}]}
+cases1 = [{"type": "LinearStatic", "name": "S", "loads": [{"pattern": "W1", "scale": 1.0}]},
+          {"type": "Modal", "name": "M", "modes": 3}]
+
+
+def mass_model1(loads, title):
+    return model(
+        title,
+        [J("A", 0, 0, 0, FIX), JM("B", Lq1, 0, 0, None, [999.0, 999.0, 999.0, 0, 0, 0])],
+        [{"name": "F1", "i": "A", "j": "B", "section": "B"}], [K2], [{"name": "W1"}, {"name": "W2"}],
+        joint_loads=loads,
+        materials=[{"name": "STEEL", "e": E, "nu": NU, "unit_weight": 0.0, "mass_density": 7850.0}],
+        cases=cases1, schema=7, mass_source=source1)
+
+
+write("V-MASS-001", "Mass source: only patterns, leaving out density and added mass", ["F07-001", "F09-001"], mass_model1([
+    {"pattern": "W1", "joint": "B", "values": [5000.0, 0, -W1, 0, 1000.0, 0]},
+    {"pattern": "W2", "joint": "B", "values": [0, 0, -W2, 0, 0, 0]},
+], "V-MASS-001 patterns only"), {
+    "kind": "analytical", "source": "One mass on a massless cantilever: T = 2 pi sqrt(m/k), m = sum(f W)/g",
+    "derivation": ["m = (0.5 x 20000 + 4000)/9.80665", "the horizontal force and the moment of the pattern give no mass",
+                   "the density and the added mass of the model are left out by the source",
+                   "k = 3 E I33/L^3 in Z, 3 E I22/L^3 in Y, E A/L in X",
+                   "the static case still has the horizontal force: UX = F L/(E A)"]}, [
+    exp("modal_period", "M", "1", "", Tq["Z"], "s"),
+    exp("modal_period", "M", "2", "", Tq["Y"], "s"),
+    exp("modal_period", "M", "3", "", Tq["X"], "s"),
+    exp("modal_mass_ratio", "M", "1", "Z", 1.0, "1"),
+    exp("modal_mass_ratio", "M", "2", "Y", 1.0, "1"),
+    exp("modal_mass_ratio", "M", "3", "X", 1.0, "1"),
+    exp("joint_displacement", "S", "B", "UX", 5000.0 * Lq1 / (E * K2["area"]), "m"),
+], tol=MOD_TOL)
+
+# In kip and inch: elements, added mass and a uniform load with self weight.
+KIP, INCH = 4448.2216152605, 0.0254
+Lq2, Eq2, Aq2, I3q2, I2q2 = 120.0, 29000.0, 10.0, 100.0, 200.0
+gam2, rho2, add2, wq2, f2 = 0.00028, 7.3e-7, 0.02, 0.01, 0.7
+L_si, E_si, A_si = Lq2 * INCH, Eq2 * KIP / INCH**2, Aq2 * INCH**2
+I3_si, I2_si = I3q2 * INCH**4, I2q2 * INCH**4
+m_elem = 0.5 * (rho2 * KIP / INCH**4) * A_si * L_si
+m_add = add2 * KIP / INCH
+m_load = f2 * 0.5 * (wq2 * KIP / INCH + (gam2 * KIP / INCH**3) * A_si) * L_si / GRAV
+mq2 = m_elem + m_add + m_load
+write("V-MASS-002", "Mass source in kip and inch: elements, added mass, and a uniform load with self weight", ["F07-001", "F09-001", "units"], model(
+    "V-MASS-002 kip and inch",
+    [J("A", 0, 0, 0, FIX), JM("B", Lq2, 0, 0, None, [add2, add2, add2, 0, 0, 0])],
+    [{"name": "F1", "i": "A", "j": "B", "section": "B"}],
+    [{"name": "B", "material": "STEEL", "area": Aq2, "i33": I3q2, "i22": I2q2, "j": 50.0}],
+    [{"name": "D", "self_weight_multiplier": 1.0}],
+    frame_loads=[{"pattern": "D", "frame": "F1", "load": {"kind": "Uniform", "direction": "Gravity", "value": wq2}}],
+    materials=[{"name": "STEEL", "e": Eq2, "nu": NU, "unit_weight": gam2, "mass_density": rho2}],
+    units={"force": "kip", "length": "in"},
+    cases=[{"type": "Modal", "name": "M", "modes": 3}], schema=7,
+    mass_source={"elements": True, "added_masses": True, "patterns": [{"pattern": "D", "scale": f2}]}),
+    {"kind": "analytical", "source": "One mass on a cantilever, in SI: half of the bar's mass and half of its load reach the free joint",
+     "derivation": ["m = rho A L/2 + m_added + f (w + gamma A) L/(2 g), with g = 9.80665 m/s2 in SI",
+                    "the load is uniform, so each end takes half", "T = 2 pi sqrt(m/k)"]}, [
+    exp("modal_period", "M", "1", "", 2 * math.pi * math.sqrt(mq2 * L_si**3 / (3 * E_si * I3_si)), "s"),
+    exp("modal_period", "M", "2", "", 2 * math.pi * math.sqrt(mq2 * L_si**3 / (3 * E_si * I2_si)), "s"),
+    exp("modal_period", "M", "3", "", 2 * math.pi * math.sqrt(mq2 * L_si / (E_si * A_si)), "s"),
+], tol=MOD_TOL)
+
+# A slab on four springs: the area load, and a spectrum on the mass it gives.
+qq3, ax3, ay3, kq3, sa3 = 5000.0, 4.0, 3.0, 1.0e6, 1.5
+mq3 = qq3 * ax3 * ay3 / 4 / GRAV
+wq3 = math.sqrt(kq3 / mq3)
+RUZ = [True, True, False, True, True, True]
+jq3 = [JS(n_, x_, y_, 0, RUZ, [0, 0, kq3, 0, 0, 0]) for n_, x_, y_ in
+       [("A", 0, 0), ("B", ax3, 0), ("C", ax3, ay3), ("D", 0, ay3)]]
+write("V-MASS-003", "Mass source: area load on a slab on springs, with a spectrum", ["F07-001", "F09-001", "F10-001"], model(
+    "V-MASS-003 slab on springs",
+    jq3, [], [], [{"name": "Q"}],
+    materials=[{"name": "M", "e": E, "nu": NU, "unit_weight": 0.0}],
+    area_sections=[dict(name="SH", material="M", thickness=0.2)],
+    areas=[{"name": "S1", "section": "SH", "joints": ["A", "B", "C", "D"]}],
+    area_loads=[{"pattern": "Q", "area": "S1", "direction": "Gravity", "value": qq3}],
+    spectra=[{"name": "F", "points": [[0.0, sa3], [100.0, sa3]]}],
+    cases=[{"type": "Modal", "name": "M", "modes": 1},
+           {"type": "ResponseSpectrum", "name": "RZ", "modal_case": "M", "function": "F", "direction": "Z", "scale": GRAV}],
+    schema=7, mass_source={"elements": False, "added_masses": False, "patterns": [{"pattern": "Q", "scale": 1.0}]}),
+    {"kind": "analytical", "source": "One rigid mode on equal springs, with a quarter of the load at each joint",
+     "derivation": ["m = q A/(4 g) per joint", "T = 2 pi sqrt(m/k)", "u = Sa/w^2 for a flat spectrum: Sa = 1.5 g"]}, [
+    exp("modal_period", "M", "1", "", 2 * math.pi / wq3, "s"),
+    exp("modal_mass_ratio", "M", "1", "Z", 1.0, "1"),
+    exp("joint_displacement", "RZ", "A", "UZ", sa3 * GRAV / wq3**2, "m"),
+    exp("joint_displacement", "RZ", "C", "UZ", sa3 * GRAV / wq3**2, "m"),
+], tol=MOD_TOL)
+
+write("V-MASS-004", "Mass source: an upward load is negative mass, so the modes are refused and the static case runs", ["F07-001"], mass_model1([
+    {"pattern": "W1", "joint": "B", "values": [0, 0, W1, 0, 0, 0]},
+], "V-MASS-004 upward load"), {"kind": "analytical", "source": "Negative mass has no meaning: the case must end in error and say why",
+    "derivation": ["the static case is independent of the source: UZ = P L^3/(3 E I33)"]}, [
+    exp("joint_displacement", "S", "B", "UZ", W1 * Lq1**3 / (3 * E * K2["i33"]), "m"),
+], expected_status=[{"case": "M", "completion": "error", "physical_status": "indeterminate", "message_contains": "negative mass"}], tol=MOD_TOL)
 
 print("cases written to", ROOT)

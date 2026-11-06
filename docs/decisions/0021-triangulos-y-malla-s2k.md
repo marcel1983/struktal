@@ -68,5 +68,5 @@ Con OpenSeesPy 3.8 y su `ASDShellT3`. Pynite no tiene lámina de tres nudos: n/a
 
 - Una membrana de tres nudos más precisa en flexión en su plano.
 - Mallado propio de áreas (F03-008).
-- Casos modales y de espectro desde S2K, y masa desde patrones.
+- Casos modales y de espectro desde S2K, y masa desde patrones: hechos en la decisión 0022.
 - Contraste con SAP2000 cuando se revise la licencia.

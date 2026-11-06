@@ -8,7 +8,7 @@ Fecha: 2026-11-05. Estado: aceptada.
 - `load_cases[]`: `{"type": "Modal", "name", "modes"}`.
 - `{"type": "ResponseSpectrum", "name", "modal_case", "function", "direction", "scale", "combination", "damping"}`, con `response_spectra[]` como tablas de período y aceleración. `scale` convierte los valores en longitud/s² y sigue las unidades del modelo. `Cqc` es la opción por defecto, con amortiguamiento 0,05.
 
-Se añade al esquema v5, aún sin publicar. El modelo declara sus masas: **no hay una fuente de masa que las derive de los patrones de carga** (parte de F07-001).
+Se añade al esquema v5, aún sin publicar. El modelo declara sus masas: la fuente de masa desde patrones llegó después, en la decisión 0022.
 
 ## Masa
 
@@ -45,7 +45,7 @@ Iteración en subespacios, con matriz de masa semidefinida y la rigidez ya facto
 
 ## Pendiente
 
-- Fuente de masa desde patrones (F07-001), masa consistente (F07-002) y amortiguamiento distinto de un valor constante (F07-003).
+- Masa consistente (F07-002) y amortiguamiento distinto de un valor constante (F07-003).
 - Vectores Ritz (F09-002), masa faltante (F10-003), combinación direccional (F10-002) y excentricidad accidental.
-- Importar desde S2K los casos modales y de espectro.
+- Fuente de masa desde patrones e importación desde S2K: hechas en la decisión 0022.
 - Equivalencia con SAP2000: oracle_pending.

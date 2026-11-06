@@ -1,0 +1,67 @@
+File written by hand for the tests of the reader: a beam with its mass from a load pattern and an added mass, its modes, and a spectrum on them.
+
+TABLE:  "PROGRAM CONTROL"
+   ProgramName=Handwritten   CurrUnits="KN, m, C"
+
+TABLE:  "MATERIAL PROPERTIES 02 - BASIC MECHANICAL PROPERTIES"
+   Material=STEEL   UnitWeight=77   UnitMass=7.85   E1=2E+08   U12=0.3
+
+TABLE:  "FRAME SECTION PROPERTIES 01 - GENERAL"
+   SectionName=B   Material=STEEL   Area=0.01   TorsConst=2E-04   I33=1E-04   I22=2E-04   I23=0
+
+TABLE:  "JOINT COORDINATES"
+   Joint=1   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=0   Z=0
+   Joint=2   CoordSys=GLOBAL   CoordType=Cartesian   XorR=3   Y=0   Z=0
+
+TABLE:  "JOINT RESTRAINT ASSIGNMENTS"
+   Joint=1   U1=Yes   U2=Yes   U3=Yes   R1=Yes   R2=Yes   R3=Yes
+
+TABLE:  "JOINT ADDED MASS ASSIGNMENTS"
+   Joint=2   CoordSys="Joint Local"   Mass1=1   Mass2=1   Mass3=1   MMI1=0   MMI2=0   MMI3=0
+
+TABLE:  "CONNECTIVITY - FRAME"
+   Frame=F1   JointI=1   JointJ=2   IsCurved=No
+
+TABLE:  "FRAME SECTION ASSIGNMENTS"
+   Frame=F1   AnalSect=B   MatProp=Default
+
+TABLE:  "LOAD PATTERN DEFINITIONS"
+   LoadPat=DEAD   DesignType=Dead   SelfWtMult=0
+
+TABLE:  "JOINT LOADS - FORCE"
+   Joint=2   LoadPat=DEAD   CoordSys=GLOBAL   F3=-20
+
+TABLE:  "MASS SOURCE"
+   MassSource=OTHER   Elements=Yes   Masses=No   Loads=No   IsDefault=No
+   MassSource=MS1   Elements=No   Masses=Yes   Loads=Yes   IsDefault=Yes   LoadPat=DEAD   Multiplier=0.5
+
+TABLE:  "FUNCTION - RESPONSE SPECTRUM - USER"
+   Name=FLAT   Period=0   Accel=2   FuncDamp=0.05
+   Name=FLAT   Period=10   Accel=2
+
+TABLE:  "FUNCTION - TIME HISTORY - USER"
+   Name=UNUSED   Time=0   Value=1
+
+TABLE:  "LOAD CASE DEFINITIONS"
+   Case=SPZ   Type=LinRespSpec   ModalCase=MODAL
+   Case=DEAD   Type=LinStatic   InitialCond=Zero
+   Case=MODAL   Type=LinModal   InitialCond=Zero
+
+TABLE:  "CASE - STATIC 1 - LOAD ASSIGNMENTS"
+   Case=DEAD   LoadType="Load pattern"   LoadName=DEAD   LoadSF=1
+
+TABLE:  "CASE - MODAL 1 - GENERAL"
+   Case=MODAL   ModeType=Eigen   MaxNumModes=3   MinNumModes=1   EigenShift=0   EigenCutoff=0   EigenTol=1E-09   AutoShift=Yes
+
+TABLE:  "CASE - RESPONSE SPECTRUM 1 - GENERAL"
+   Case=SPZ   ModalCombo=CQC   GMCf1=1   GMCf2=0   PerRigid=SRSS   DirCombo=SRSS   MotionType=Acceleration   DampingType=Constant   ConstDamp=0.05   EccenRatio=0   NumOverride=0
+
+TABLE:  "CASE - RESPONSE SPECTRUM 2 - LOAD ASSIGNMENTS"
+   Case=SPZ   LoadType=Acceleration   LoadName=U3   CoordSys=GLOBAL   Function=FLAT   Angle=0   TransAccSF=9.80665
+
+TABLE:  "COMBINATION DEFINITIONS"
+   ComboName=WITH_SPECTRUM   ComboType="Linear Add"   CaseName=DEAD   ScaleFactor=1
+   ComboName=WITH_SPECTRUM   ComboType="Linear Add"   CaseName=SPZ   ScaleFactor=1
+   ComboName=STATIC   ComboType="Linear Add"   CaseName=DEAD   ScaleFactor=1.2
+
+END TABLE DATA

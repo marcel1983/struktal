@@ -1,0 +1,40 @@
+{
+  "case_id": "V-MASS-004",
+  "title": "Mass source: an upward load is negative mass, so the modes are refused and the static case runs",
+  "feature_ids": [
+    "F07-001"
+  ],
+  "model": "model.json",
+  "model_sha256": "b921f75db0dbe1e7873b822a71051244099a70195135ead1e4204ceefbcbc4cf",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "modes-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Negative mass has no meaning: the case must end in error and say why",
+    "derivation": [
+      "the static case is independent of the source: UZ = P L^3/(3 E I33)"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "M",
+      "completion": "error",
+      "physical_status": "indeterminate",
+      "message_contains": "negative mass"
+    }
+  ],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "S",
+      "entity": "B",
+      "component": "UZ",
+      "value": 0.009,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}
