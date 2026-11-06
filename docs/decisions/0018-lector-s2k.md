@@ -32,7 +32,7 @@ Los archivos locales se han usado solo para probar la lectura, **sin comparar co
 
 ## Lote de contraste con SAP2000
 
-`tools/gen_sap_lot.py CARPETA` escribe 4 modelos pequeños y una guía, fuera del repo: signos, ejes locales, propiedades de secciones y opciones. **No se han abierto nunca en SAP2000**, porque aquí no está instalado. Sirven para resolver lo marcado `oracle_pending`. Lo que vuelva de SAP2000 no entra en el repo público.
+`tools/gen_contrast_lot.py CARPETA` escribe 4 modelos pequeños y una guía, fuera del repo: signos, ejes locales, propiedades de secciones y opciones. **No se han abierto nunca en SAP2000**, porque aquí no está instalado. Sirven para resolver lo marcado `oracle_pending`. Lo que vuelva de SAP2000 no entra en el repo público.
 
 ## Verificación
 

@@ -3,7 +3,7 @@
 machine with a license. They are hand-written, not exports of the program, and
 have not been opened in it yet: an import error there is a result too.
 
-    python tools/gen_sap_lot.py OUTPUT_FOLDER
+    python tools/gen_contrast_lot.py OUTPUT_FOLDER
 
 What comes back from SAP2000 stays out of this public repository (decision 0018).
 """
