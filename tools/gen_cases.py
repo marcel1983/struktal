@@ -1410,4 +1410,83 @@ write("V-ENV-001", "Envelope of cases and a combination, with the governing term
     exp("joint_reaction", "ULS", "A", "FZ", vals["ULS"]["R"], "N"),
 ])
 
+# ---------------------------------------------------------------- shapes
+
+
+def rect_parts(parts):
+    """(h, b, y, z) rectangles: area and inertias by the parallel-axis theorem.
+    A different route from the outer-minus-inner formulas of the engine."""
+    area = sum(h * b for h, b, _, _ in parts)
+    i33 = sum(b * h**3 / 12 + h * b * y**2 for h, b, y, _ in parts)
+    i22 = sum(h * b**3 / 12 + h * b * z**2 for h, b, _, z in parts)
+    return area, i33, i22
+
+
+def disc(d):
+    """Area and inertia of a disc by quadrature, y = r sin t."""
+    r = d / 2
+    w = lambda t: 2 * r * math.cos(t)
+    area = simpson(lambda t: w(t) * r * math.cos(t), -math.pi / 2, math.pi / 2)
+    inertia = simpson(lambda t: (r * math.sin(t))**2 * w(t) * r * math.cos(t), -math.pi / 2, math.pi / 2)
+    return area, inertia
+
+
+def rect_torsion(a, b):
+    """Saint-Venant series, a >= b."""
+    s_ = sum(math.tanh((2 * k + 1) * math.pi * a / (2 * b)) / (2 * k + 1)**5 for k in range(100))
+    return a * b**3 / 3 * (1 - 192 / math.pi**5 * (b / a) * s_)
+
+
+h_, b_, tf_, tw_ = 0.5, 0.2, 0.02, 0.012
+hw_ = h_ - 2 * tf_
+d_ = (h_ - tf_) / 2
+w_ = (b_ - tw_) / 2
+ai, i33i, i22i = rect_parts([(tf_, b_, d_, 0.0), (tf_, b_, -d_, 0.0), (hw_, tw_, 0.0, 0.0)])
+ab, i33b, i22b = rect_parts([(tf_, b_, d_, 0.0), (tf_, b_, -d_, 0.0), (hw_, tw_, 0.0, w_), (hw_, tw_, 0.0, -w_)])
+ar, i33r, i22r = rect_parts([(h_, b_, 0.0, 0.0)])
+Dc, Dp, tp = 0.4, 0.5, 0.01
+ac, ic = disc(Dc)
+ao_, io_ = disc(Dp)
+ah_, ih_ = disc(Dp - 2 * tp)
+ap, ip = ao_ - ah_, io_ - ih_
+hm_, bm_ = h_ - tf_, b_ - tw_
+props_s = {
+    "RECT": ({"kind": "Rectangle", "depth": h_, "width": b_}, ar, i33r, i22r, rect_torsion(h_, b_), 5 / 6 * ar, 5 / 6 * ar),
+    "CIRC": ({"kind": "Circle", "diameter": Dc}, ac, ic, ic, 2 * ic, 0.9 * ac, 0.9 * ac),
+    "PIPE": ({"kind": "Pipe", "diameter": Dp, "wall": tp}, ap, ip, ip, 2 * ip, 0.5 * ap, 0.5 * ap),
+    "BOX": ({"kind": "Box", "depth": h_, "width": b_, "flange_t": tf_, "web_t": tw_}, ab, i33b, i22b,
+            2 * tf_ * tw_ * bm_**2 * hm_**2 / (bm_ * tw_ + hm_ * tf_), 2 * h_ * tw_, 2 * b_ * tf_),
+    "ISEC": ({"kind": "ISection", "depth": h_, "width": b_, "flange_t": tf_, "web_t": tw_}, ai, i33i, i22i,
+             (2 * b_ * tf_**3 + (h_ - tf_) * tw_**3) / 3, h_ * tw_, 5 / 3 * b_ * tf_),
+}
+Ls3, Pl3 = 4.0, 25_000.0
+jj_s, ff_s, jl_s, secs_s, exp_s = [], [], [], [], []
+for k_, (nm, (shape, A_, I3_, I2_, J_, As2_, As3_)) in enumerate(props_s.items()):
+    y0 = 3.0 * k_
+    secs_s.append({"name": nm, "material": "STEEL", "shape": shape})
+    jj_s += [J(nm + "0", 0, y0, 0, FIX), J(nm + "1", Ls3, y0, 0)]
+    ff_s.append({"name": "F" + nm, "i": nm + "0", "j": nm + "1", "section": nm})
+    for p_, vals_ in [("AX", [Pl3, 0, 0, 0, 0, 0]), ("Z", [0, 0, -Pl3, 0, 0, 0]), ("Y", [0, Pl3, 0, 0, 0, 0]), ("T", [0, 0, 0, Pl3, 0, 0])]:
+        jl_s.append({"pattern": p_, "joint": nm + "1", "values": vals_})
+    exp_s += [exp("joint_displacement", "AX", nm + "1", "UX", Pl3 * Ls3 / (E * A_), "m"),
+              exp("joint_displacement", "Z", nm + "1", "UZ", -(Pl3 * Ls3**3 / (3 * E * I3_) + Pl3 * Ls3 / (G * As2_)), "m"),
+              exp("joint_displacement", "Z", nm + "1", "RY", Pl3 * Ls3**2 / (2 * E * I3_), "rad"),
+              exp("joint_displacement", "Y", nm + "1", "UY", Pl3 * Ls3**3 / (3 * E * I2_) + Pl3 * Ls3 / (G * As3_), "m"),
+              exp("joint_displacement", "T", nm + "1", "RX", Pl3 * Ls3 / (G * J_), "rad")]
+# Section without its shear: the deflection is Euler-Bernoulli.
+secs_s.append({"name": "RECTEB", "material": "STEEL", "shape": props_s["RECT"][0], "neglect_shear": True})
+jj_s += [J("EB0", 0, 30, 0, FIX), J("EB1", Ls3, 30, 0)]
+ff_s.append({"name": "FEB", "i": "EB0", "j": "EB1", "section": "RECTEB"})
+jl_s.append({"pattern": "Z", "joint": "EB1", "values": [0, 0, -Pl3, 0, 0, 0]})
+exp_s.append(exp("joint_displacement", "Z", "EB1", "UZ", -Pl3 * Ls3**3 / (3 * E * i33r), "m"))
+write("V-SEC-001", "Parametric sections: axial, both bending planes with shear, and torsion", ["F02-002", "F02-003"], model(
+    "V-SEC-001 parametric sections",
+    jj_s, ff_s, secs_s, [{"name": n_} for n_ in ["AX", "Z", "Y", "T"]],
+    joint_loads=jl_s,
+    cases=[{"type": "LinearStatic", "name": n_, "loads": [{"pattern": n_, "scale": 1.0}]} for n_ in ["AX", "Z", "Y", "T"]],
+    schema=5,
+), {"kind": "analytical", "source": "Cantilever formulas, with properties computed in tools/gen_cases.py: rectangles by parallel axes, discs by quadrature",
+    "derivation": ["u = P L/(E A)", "delta = P L^3/(3 E I) + P L/(G As)", "theta_x = T L/(G J)",
+                   "As and thin-wall J follow the rules of decision 0017, which this case fixes but does not prove against SAP2000"]}, exp_s)
+
 print("cases written to", ROOT)

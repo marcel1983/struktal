@@ -24,8 +24,8 @@ Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
-- `cargo test --workspace`: 96 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 20, 0 fallos.
-- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 37/37 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `cargo test --workspace`: más de 110 pruebas, 0 fallos (ver CI). `cargo test -p struktal-math --no-default-features` (solo skyline): 20, 0 fallos.
+- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 41/41 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - `tools/compare_engines.py`: comparación opcional con OpenSeesPy y Pynite (decisión 0013). CI en `.github/workflows/ci.yml`: en verde en GitHub hasta el commit 34ef550.
 - Benchmarks: docs/benchmarks.md.
 
@@ -38,8 +38,7 @@ Actualizado: 2026-11-05. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 Objetivo del usuario: herramienta open source para su propio trabajo, con modelos que suelen tener losas o muros. Orden acordado el 2026-11-05: 1) resto de pórticos, 2) lo que pide un modelo real (secciones paramétricas, cargas, subdivisión, envolventes), 3) S2K, 4) láminas, 5) masas, modos y espectro.
 
-1. Lo que pide un modelo real: secciones paramétricas (F02-002).
-2. P13 mínimo: parser S2K con AST para las tablas de `spec/s2k-table-coverage.csv`, en modo estricto.
+1. P13 mínimo: parser S2K con AST para las tablas de `spec/s2k-table-coverage.csv`, en modo estricto.
 
 ## Comandos de reproducción
 

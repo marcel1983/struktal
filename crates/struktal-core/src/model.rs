@@ -73,10 +73,21 @@ pub struct Material {
 pub struct FrameSection {
     pub name: Name,
     pub material: Name,
+    /// Parametric shape: validation derives every property below from it, so
+    /// they must not be given as well (decision 0017).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shape: Option<SectionShape>,
+    /// With a shape: drop its automatic shear areas (Euler–Bernoulli).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub neglect_shear: bool,
+    #[serde(default)]
     pub area: f64,
+    #[serde(default)]
     pub i33: f64,
+    #[serde(default)]
     pub i22: f64,
     /// Torsional constant, independent from the inertias.
+    #[serde(default)]
     pub j: f64,
     /// Shear area for shear force V2 (bending in the 1-2 plane, with I33).
     /// 0 neglects shear deformation in that plane (decision 0007).
@@ -85,6 +96,38 @@ pub struct FrameSection {
     /// Shear area for V3 (bending in the 1-3 plane, with I22); 0 neglects it.
     #[serde(default)]
     pub as3: f64,
+}
+
+/// Parametric section. `depth` is along local axis 2 and `width` along local
+/// axis 3, so I33 is the strong-axis inertia of a section deeper than wide.
+/// Dimensions in the model's length unit.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", deny_unknown_fields)]
+pub enum SectionShape {
+    Rectangle {
+        depth: f64,
+        width: f64,
+    },
+    Circle {
+        diameter: f64,
+    },
+    Pipe {
+        diameter: f64,
+        wall: f64,
+    },
+    Box {
+        depth: f64,
+        width: f64,
+        flange_t: f64,
+        web_t: f64,
+    },
+    /// Doubly symmetric I section.
+    ISection {
+        depth: f64,
+        width: f64,
+        flange_t: f64,
+        web_t: f64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -447,6 +490,9 @@ impl Model {
             s.j *= u.factor(Dim::INERTIA);
             s.as2 *= u.factor(Dim::AREA);
             s.as3 *= u.factor(Dim::AREA);
+            if let Some(shape) = &mut s.shape {
+                shape.scale(l);
+            }
         }
         for j in &mut m.joints {
             j.x *= l;

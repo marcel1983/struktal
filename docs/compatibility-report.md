@@ -12,8 +12,8 @@ Denominador: 124 requisitos atómicos, 20 familias (+1 en esta revisión: F08-00
 |---|---|
 | verified_independent | 31 |
 | implemented | 2 |
-| partial | 6 |
-| specified | 83 |
+| partial | 7 |
+| specified | 82 |
 | blocked | 2 |
 | verified_sap | 0 |
 
@@ -25,7 +25,7 @@ Cobertura verificada independientemente: 31/124 (25 %). Cobertura contrastada co
 - Backend por defecto `faer-sparse-ldlt` (decisión 0005); `skyline-ldlt` como referencia.
 - Diagnóstico de mecanismo con vectores del espacio nulo verificados: nulidad exacta cuando hay hueco espectral, modos con DOF dominantes y nudos afectados (decisión 0006); rechazo explícito de clases de matriz no admitidas.
 - CLI con manifiesto, hash de snapshot y estados por caso.
-- Banco de 40 casos analíticos, todos pasan con ambos backends (rtol 1e-8).
+- Banco de 41 casos analíticos, todos pasan con ambos backends (rtol 1e-8).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 
@@ -33,7 +33,8 @@ Cobertura verificada independientemente: 31/124 (25 %). Cobertura contrastada co
 |---|---|
 | Convención de signos de V2, V3, M2, M3 | Propia (decisión 0003); mapeo SAP pendiente de oráculo. |
 | Ejes locales de barras verticales/casi verticales | Implementado según la ayuda [S06]; umbral sin confirmar. |
-| Deformación por cortante | Implementada (decisión 0007), pero el área de cortante debe darse a mano en la sección general; SAP2000 la calcula de la forma del perfil. Hasta F02-002, un modelo sin As se comporta como Euler–Bernoulli. |
+| Deformación por cortante | Implementada (decisión 0007). Con una forma, As es automática por reglas de ingeniería (decisión 0017), sin contrastar con los valores de SAP2000; una sección general sin As se comporta como Euler–Bernoulli. |
+| Secciones paramétricas | J de pared delgada y As por reglas de ingeniería; sin acuerdos de perfiles laminados, sin T, canal, ángulo ni tablas. |
 | Carga uniforme en barras inclinadas | Por longitud real; las opciones de proyección no están implementadas. |
 | Malla analítica | Subdivisión de barras por número de tramos y en nudos (decisión 0015); sin longitud máxima, y la tolerancia frente a SAP2000 está sin confirmar. |
 | Offsets | Solo vectores globales; sin puntos cardinales ni factor de zona rígida. Zonas rígidas sin peso: sin confirmar. |

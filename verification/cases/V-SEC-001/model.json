@@ -1,0 +1,596 @@
+{
+  "schema_version": 5,
+  "title": "V-SEC-001 parametric sections",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "RECT",
+      "material": "STEEL",
+      "shape": {
+        "kind": "Rectangle",
+        "depth": 0.5,
+        "width": 0.2
+      }
+    },
+    {
+      "name": "CIRC",
+      "material": "STEEL",
+      "shape": {
+        "kind": "Circle",
+        "diameter": 0.4
+      }
+    },
+    {
+      "name": "PIPE",
+      "material": "STEEL",
+      "shape": {
+        "kind": "Pipe",
+        "diameter": 0.5,
+        "wall": 0.01
+      }
+    },
+    {
+      "name": "BOX",
+      "material": "STEEL",
+      "shape": {
+        "kind": "Box",
+        "depth": 0.5,
+        "width": 0.2,
+        "flange_t": 0.02,
+        "web_t": 0.012
+      }
+    },
+    {
+      "name": "ISEC",
+      "material": "STEEL",
+      "shape": {
+        "kind": "ISection",
+        "depth": 0.5,
+        "width": 0.2,
+        "flange_t": 0.02,
+        "web_t": 0.012
+      }
+    },
+    {
+      "name": "RECTEB",
+      "material": "STEEL",
+      "shape": {
+        "kind": "Rectangle",
+        "depth": 0.5,
+        "width": 0.2
+      },
+      "neglect_shear": true
+    }
+  ],
+  "joints": [
+    {
+      "name": "RECT0",
+      "x": 0,
+      "y": 0.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "RECT1",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "CIRC0",
+      "x": 0,
+      "y": 3.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "CIRC1",
+      "x": 4.0,
+      "y": 3.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "PIPE0",
+      "x": 0,
+      "y": 6.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "PIPE1",
+      "x": 4.0,
+      "y": 6.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "BOX0",
+      "x": 0,
+      "y": 9.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "BOX1",
+      "x": 4.0,
+      "y": 9.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "ISEC0",
+      "x": 0,
+      "y": 12.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "ISEC1",
+      "x": 4.0,
+      "y": 12.0,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "EB0",
+      "x": 0,
+      "y": 30,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "EB1",
+      "x": 4.0,
+      "y": 30,
+      "z": 0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "FRECT",
+      "i": "RECT0",
+      "j": "RECT1",
+      "section": "RECT"
+    },
+    {
+      "name": "FCIRC",
+      "i": "CIRC0",
+      "j": "CIRC1",
+      "section": "CIRC"
+    },
+    {
+      "name": "FPIPE",
+      "i": "PIPE0",
+      "j": "PIPE1",
+      "section": "PIPE"
+    },
+    {
+      "name": "FBOX",
+      "i": "BOX0",
+      "j": "BOX1",
+      "section": "BOX"
+    },
+    {
+      "name": "FISEC",
+      "i": "ISEC0",
+      "j": "ISEC1",
+      "section": "ISEC"
+    },
+    {
+      "name": "FEB",
+      "i": "EB0",
+      "j": "EB1",
+      "section": "RECTEB"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "AX"
+    },
+    {
+      "name": "Z"
+    },
+    {
+      "name": "Y"
+    },
+    {
+      "name": "T"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "AX",
+      "joint": "RECT1",
+      "values": [
+        25000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Z",
+      "joint": "RECT1",
+      "values": [
+        0,
+        0,
+        -25000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Y",
+      "joint": "RECT1",
+      "values": [
+        0,
+        25000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "T",
+      "joint": "RECT1",
+      "values": [
+        0,
+        0,
+        0,
+        25000.0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "AX",
+      "joint": "CIRC1",
+      "values": [
+        25000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Z",
+      "joint": "CIRC1",
+      "values": [
+        0,
+        0,
+        -25000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Y",
+      "joint": "CIRC1",
+      "values": [
+        0,
+        25000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "T",
+      "joint": "CIRC1",
+      "values": [
+        0,
+        0,
+        0,
+        25000.0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "AX",
+      "joint": "PIPE1",
+      "values": [
+        25000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Z",
+      "joint": "PIPE1",
+      "values": [
+        0,
+        0,
+        -25000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Y",
+      "joint": "PIPE1",
+      "values": [
+        0,
+        25000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "T",
+      "joint": "PIPE1",
+      "values": [
+        0,
+        0,
+        0,
+        25000.0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "AX",
+      "joint": "BOX1",
+      "values": [
+        25000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Z",
+      "joint": "BOX1",
+      "values": [
+        0,
+        0,
+        -25000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Y",
+      "joint": "BOX1",
+      "values": [
+        0,
+        25000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "T",
+      "joint": "BOX1",
+      "values": [
+        0,
+        0,
+        0,
+        25000.0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "AX",
+      "joint": "ISEC1",
+      "values": [
+        25000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Z",
+      "joint": "ISEC1",
+      "values": [
+        0,
+        0,
+        -25000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Y",
+      "joint": "ISEC1",
+      "values": [
+        0,
+        25000.0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "T",
+      "joint": "ISEC1",
+      "values": [
+        0,
+        0,
+        0,
+        25000.0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "Z",
+      "joint": "EB1",
+      "values": [
+        0,
+        0,
+        -25000.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "AX",
+      "loads": [
+        {
+          "pattern": "AX",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "Z",
+      "loads": [
+        {
+          "pattern": "Z",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "Y",
+      "loads": [
+        {
+          "pattern": "Y",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "T",
+      "loads": [
+        {
+          "pattern": "T",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

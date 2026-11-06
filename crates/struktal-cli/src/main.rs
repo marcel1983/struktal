@@ -201,6 +201,7 @@ fn main() -> ExitCode {
                 "analysis": ["linear_static"],
                 "combinations": ["linear_add", "envelope"],
                 "elements": ["frame3d_timoshenko (euler_bernoulli when shear area = 0)", "frame_end_releases_and_partial_fixity", "frame_rigid_end_offsets", "frame_auto_mesh"],
+                "sections": ["general", "rectangle", "circle", "pipe", "box", "i_section"],
                 "constraints": ["diaphragm", "body", "equal"],
                 "supports": ["restraints", "joint_springs_global", "imposed_displacements"],
                 "loads": ["joint_force_moment", "frame_uniform_full_length", "frame_point_force", "frame_trapezoidal", "frame_point_moment", "frame_trapezoidal_moment", "self_weight"],

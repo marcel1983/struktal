@@ -97,8 +97,13 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         for d in dirs:
             model = d / "model.json"
-            st = struktal_results(args.struktal, model)
             spec = json.loads(model.read_text(encoding="utf-8"))
+            if any(s.get("shape") for s in spec["sections"]):
+                for engine in engines:
+                    print(f"{d.name:<15} {engine:<9} {'':<8} n/a       parametric sections are not translated")
+                    totals[(engine, "n/a")] = totals.get((engine, "n/a"), 0) + 1
+                continue
+            st = struktal_results(args.struktal, model)
             joints_model = {j["name"]: j for j in spec["joints"]}
             for engine, python in engines.items():
                 out = Path(tmp) / f"{d.name}-{engine}.json"

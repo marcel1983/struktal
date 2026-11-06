@@ -103,7 +103,11 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .get("combinations")
             .and_then(|v| v.as_array())
             .is_some_and(|combos| combos.iter().any(|c| c.get("type").and_then(|t| t.as_str()) == Some("Envelope")));
-        if has_auto_mesh || has_envelope {
+        let has_shape = raw
+            .get("sections")
+            .and_then(|v| v.as_array())
+            .is_some_and(|secs| secs.iter().any(|s| s.get("shape").is_some() || s.get("neglect_shear").is_some()));
+        if has_auto_mesh || has_envelope || has_shape {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
     }
@@ -189,12 +193,48 @@ fn check_finite(v: f64, entity: &str, field: &str, issues: &mut Vec<Issue>) {
     }
 }
 
+/// Replaces each parametric shape by the properties it gives. The snapshot is
+/// the analytical model: a shape and its properties are the same section there.
+fn derive_section_properties(m: &mut Model, issues: &mut Vec<Issue>) {
+    for s in &mut m.sections {
+        let e = format!("section {}", s.name);
+        let Some(shape) = s.shape.take() else {
+            if s.neglect_shear {
+                issues.push(issue(&e, "neglect_shear", "only applies to a section with a shape"));
+            }
+            continue;
+        };
+        for (field, v) in [("area", s.area), ("i33", s.i33), ("i22", s.i22), ("j", s.j), ("as2", s.as2), ("as3", s.as3)]
+        {
+            if v != 0.0 {
+                issues.push(issue(&e, field, "given together with a shape, which already defines it"));
+            }
+        }
+        let dims = shape.dimensions();
+        for (field, v) in &dims {
+            check_positive(*v, &e, &format!("shape.{field}"), issues);
+        }
+        if dims.iter().any(|(_, v)| !v.is_finite() || *v <= 0.0) {
+            continue;
+        }
+        if let Some(why) = shape.geometry_issue() {
+            issues.push(issue(&e, "shape", why));
+            continue;
+        }
+        let p = shape.properties();
+        (s.area, s.i33, s.i22, s.j) = (p.area, p.i33, p.i22, p.j);
+        (s.as2, s.as3) = if s.neglect_shear { (0.0, 0.0) } else { (p.as2, p.as3) };
+        s.neglect_shear = false;
+    }
+}
+
 pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
     let mut issues = Vec::new();
     if input.schema_version != SCHEMA_VERSION {
         issues.push(issue("model", "schema_version", format!("expected {SCHEMA_VERSION}")));
     }
-    let m = input.to_si();
+    let mut m = input.to_si();
+    derive_section_properties(&mut m, &mut issues);
 
     let mat_idx = index_unique("material", m.materials.iter().map(|x| x.name.as_str()), &mut issues);
     let sec_idx = index_unique("section", m.sections.iter().map(|x| x.name.as_str()), &mut issues);
@@ -553,6 +593,8 @@ mod tests {
             sections: vec![FrameSection {
                 name: "B".into(),
                 material: "S".into(),
+                shape: None,
+                neglect_shear: false,
                 area: 0.01,
                 i33: 1e-4,
                 i22: 1e-4,
@@ -995,6 +1037,57 @@ mod tests {
         assert!(errs.iter().any(|i| i.cause.contains("cyclic")));
     }
 
+    fn shaped(shape: SectionShape) -> Model {
+        let mut m = cantilever();
+        let s = &mut m.sections[0];
+        s.shape = Some(shape);
+        (s.area, s.i33, s.i22, s.j) = (0.0, 0.0, 0.0, 0.0);
+        m
+    }
+
+    #[test]
+    fn shapes_give_properties_in_si_and_are_validated() {
+        let rect = SectionShape::Rectangle { depth: 500.0, width: 200.0 };
+        let mut m = shaped(rect);
+        m.units = UnitSystem { force: ForceUnit::KN, length: LengthUnit::Mm };
+        m.materials[0].e = 200.0;
+        m.joints[1].x = 3000.0;
+        let s = validate(&m).expect("ok");
+        let sec = &s.model.sections[0];
+        assert!((sec.area - 0.1).abs() < 1e-12);
+        assert!((sec.i33 - 0.2 * 0.5_f64.powi(3) / 12.0).abs() < 1e-14);
+        assert!((sec.as2 - 0.1 * 5.0 / 6.0).abs() < 1e-12);
+        assert!(sec.shape.is_none(), "the snapshot holds the properties");
+
+        let mut m = shaped(SectionShape::Rectangle { depth: 0.5, width: 0.2 });
+        m.sections[0].neglect_shear = true;
+        let s = validate(&m).expect("ok");
+        assert_eq!((s.model.sections[0].as2, s.model.sections[0].as3), (0.0, 0.0));
+
+        let mut m = shaped(rect);
+        m.sections[0].area = 0.1;
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "area"));
+        let m = shaped(SectionShape::Circle { diameter: -1.0 });
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "shape.diameter"));
+        let m = shaped(SectionShape::Pipe { diameter: 1.0, wall: 0.6 });
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "shape"));
+        let mut m = cantilever();
+        m.sections[0].neglect_shear = true;
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "neglect_shear"));
+        // A section with neither a shape nor properties is still an error.
+        let mut m = cantilever();
+        m.sections[0].area = 0.0;
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "area"));
+    }
+
+    #[test]
+    fn older_file_with_shape_rejected() {
+        let mut v: serde_json::Value =
+            serde_json::from_str(&model_to_json(&shaped(SectionShape::Circle { diameter: 1.0 }))).expect("json");
+        v["schema_version"] = 4.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 4 })));
+    }
+
     #[test]
     fn envelope_cannot_be_a_term() {
         let term = |case: &str| vec![ScaledCase { case: case.into(), scale: 1.0 }];
@@ -1024,6 +1117,8 @@ mod tests {
         mm.sections[0] = FrameSection {
             name: "B".into(),
             material: "S".into(),
+            shape: None,
+            neglect_shear: false,
             area: 1e4,
             i33: 1e8,
             i22: 1e8,

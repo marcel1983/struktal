@@ -1,6 +1,7 @@
 //! Canonical model, units and validation for struktal.
 
 pub mod model;
+pub mod section;
 pub mod units;
 pub mod validate;
 

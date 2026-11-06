@@ -1,0 +1,237 @@
+{
+  "case_id": "V-SEC-001",
+  "title": "Parametric sections: axial, both bending planes with shear, and torsion",
+  "feature_ids": [
+    "F02-002",
+    "F02-003"
+  ],
+  "model": "model.json",
+  "model_sha256": "09b35ba9b026a25ae580272c742a2228ff204b5127e46887d87f4e661952841d",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Cantilever formulas, with properties computed in tools/gen_cases.py: rectangles by parallel axes, discs by quadrature",
+    "derivation": [
+      "u = P L/(E A)",
+      "delta = P L^3/(3 E I) + P L/(G As)",
+      "theta_x = T L/(G J)",
+      "As and thin-wall J follow the rules of decision 0017, which this case fixes but does not prove against SAP2000"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "AX",
+      "entity": "RECT1",
+      "component": "UX",
+      "value": 5e-06,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "RECT1",
+      "component": "UZ",
+      "value": -0.0012956,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "RECT1",
+      "component": "RY",
+      "value": 0.00047999999999999996,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Y",
+      "entity": "RECT1",
+      "component": "UY",
+      "value": 0.008015599999999998,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "T",
+      "entity": "RECT1",
+      "component": "RX",
+      "value": 0.0013033100179397875,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "AX",
+      "entity": "CIRC1",
+      "component": "UX",
+      "value": 3.978873577297383e-06,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "CIRC1",
+      "component": "UZ",
+      "value": -0.002133560431559685,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "CIRC1",
+      "component": "RY",
+      "value": 0.0007957747154594765,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Y",
+      "entity": "CIRC1",
+      "component": "UY",
+      "value": 0.002133560431559685,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "T",
+      "entity": "CIRC1",
+      "component": "RX",
+      "value": 0.0005172535650486597,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "AX",
+      "entity": "PIPE1",
+      "component": "UX",
+      "value": 3.248060063099903e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "PIPE1",
+      "component": "UZ",
+      "value": -0.005938420190125315,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "PIPE1",
+      "component": "RY",
+      "value": 0.002163570400066545,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Y",
+      "entity": "PIPE1",
+      "component": "UY",
+      "value": 0.005938420190125315,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "T",
+      "entity": "PIPE1",
+      "component": "RX",
+      "value": 0.0014063207600432542,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "AX",
+      "entity": "BOX1",
+      "component": "UX",
+      "value": 2.626050420168067e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "BOX1",
+      "component": "UZ",
+      "value": -0.004174994035564304,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "BOX1",
+      "component": "RY",
+      "value": 0.001524997763336614,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Y",
+      "entity": "BOX1",
+      "component": "UY",
+      "value": 0.021607590275252022,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "T",
+      "entity": "BOX1",
+      "component": "RX",
+      "value": 0.003943139413887631,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "AX",
+      "entity": "ISEC1",
+      "component": "UX",
+      "value": 3.698224852071006e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "ISEC1",
+      "component": "UZ",
+      "value": -0.0049921930490621665,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "ISEC1",
+      "component": "RY",
+      "value": 0.0017908223933983123,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Y",
+      "entity": "ISEC1",
+      "component": "UY",
+      "value": 0.09994721549670615,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "T",
+      "entity": "ISEC1",
+      "component": "RX",
+      "value": 0.9678764294790342,
+      "unit": "rad"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "Z",
+      "entity": "EB1",
+      "component": "UZ",
+      "value": -0.00128,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

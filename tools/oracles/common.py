@@ -56,6 +56,8 @@ def load_model(path):
         mat["g"] = mat["g"] * stress if mat.get("g") is not None else mat["e"] / (2 * (1 + mat["nu"]))
         mat["unit_weight"] = mat.get("unit_weight", 0.0) * f / l**3
     for s in m["sections"]:
+        if s.get("shape"):
+            raise SystemExit("parametric sections are not translated: their properties would only repeat the same formulas")
         s["area"] *= l**2
         for k in ("i33", "i22", "j"):
             s[k] *= l**4
