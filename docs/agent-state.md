@@ -1,6 +1,6 @@
 # Estado del agente (para retomar sin el contexto de la conversación)
 
-Actualizado: 2026-11-06. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBILIDAD_SAP2000.md` v1 (subida por el usuario, no incluida en el repo).
+Actualizado: 2026-11-07. Guía de origen: `docs/guia/guia-agente-v1.md` (v1, 2026-10-29). Sus nombres de trabajo (`rust-fem`, `fem-*`, `fem-io-sap`) quedaron sustituidos por Struktal (decisión 0009).
 
 ## Repositorio
 
@@ -12,15 +12,15 @@ Actualizado: 2026-11-06. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 | Paquete | Estado | Evidencia |
 |---|---|---|
-| P00 | Parcial. Perfil, inventario (123 req.), convenciones, matrices S2K/API, tolerancias, formato de casos y comparador creados. Falta instalación de SAP2000, build exacto, manuales, y congelar inventario. | `spec/`, `verification/`, decisión 0004 |
-| P01 | Hecho para el subconjunto: modelo v1 serializable, validación todo-o-nada, rechazo de esquema futuro, CLI (`validate`, `solve`, `capabilities`, `verify`, `compare`), manifiesto y estados por caso. Migración: solo gancho. | `struktal-core`, `struktal-cli`, tests |
+| P00 | Parcial. Perfil, inventario (124 req.: 35 verified_independent, 14 partial, 3 implemented, 2 blocked, 70 specified), convenciones, matrices S2K/API, tolerancias, formato de casos y comparador creados. Falta instalación de SAP2000, build exacto, manuales, y congelar inventario. | `spec/`, `verification/`, decisión 0004 |
+| P01 | Hecho para el subconjunto: modelo serializable (esquema v7, con migración desde versiones anteriores), validación todo-o-nada, rechazo de esquema futuro, CLI (`validate`, `solve`, `capabilities`, `verify`, `compare`), manifiesto y estados por caso. | `struktal-core`, `struktal-cli`, tests |
 | P02 | Parcial. Tripletas→CSC determinista; backends `faer-sparse-ldlt` (por defecto, AMD, supernodal) y `skyline-ldlt` (referencia) tras el mismo contrato; residuo; presupuesto de memoria antes de reservar; espacio nulo verificado con cotas y hueco espectral (F08-007). Falta: backend para indefinidas (MUMPS u otro), ensamblaje simbólico reutilizable. | `struktal-math`, decisiones 0002, 0005 y 0006 |
 | P03 | Parcial: subdivisión de barras con procedencia (decisión 0015). Falta: mallado de áreas. | `struktal-analysis/src/mesh.rs`, V-MESH-* |
-| P04 | Parcial. Barra 3D Timoshenko/Euler–Bernoulli (As2, As3; decisión 0007), sección general, cargas nodales/uniformes/trapezoidales/puntuales/momentos en vano/peso propio con fuerzas de empotramiento exactas (decisión 0014), suma lineal. Falta: secciones paramétricas (y As automático) y variables, cargas térmicas, envolventes, importación S2K mínima. | `struktal-elements`, `struktal-analysis`, V-LIN-001..005, V-TRAP-*, V-MOM-* |
+| P04 | Parcial. Barra 3D Timoshenko/Euler–Bernoulli (As2, As3; decisión 0007), sección general, cargas nodales/uniformes/trapezoidales/puntuales/momentos en vano/peso propio con fuerzas de empotramiento exactas (decisión 0014), suma lineal y envolventes con término gobernante (decisión 0016), secciones paramétricas con As automático (decisión 0017). Falta: secciones variables, cargas térmicas (el lector S2K las rechaza explícitamente), cargas proyectadas. | `struktal-elements`, `struktal-analysis`, V-LIN-001..005, V-TRAP-*, V-MOM-* |
 | P05 | Parcial: liberaciones y fijación parcial (decisión 0008); offsets rígidos vectoriales (decisión 0010); diafragma, body y equal por eliminación exacta (decisión 0011); resortes de nudo y asientos (decisión 0012). Falta: puntos cardinales y zonas rígidas por factor, restricciones locales y weld, ejes locales de nudo, masas. | `release.rs`, `frame3d::offset_transformation`, `struktal-analysis/src/constraints.rs`, V-REL-*, V-OFF-*, V-DIA-*, V-BODY-*, V-EQ-*, V-SPR-*, V-SET-*, V-MECH-006..008 |
 | P06 (láminas) | Parcial: lámina de 4 nudos, membrana QM6, placa MITC4 y taladro Hughes-Brezzi (decisión 0019); lámina de 3 nudos con membrana constante y placa MITC3 (decisión 0021); cargas uniformes y esfuerzos. Falta: mallado propio. | `shell4.rs`, `shell3.rs`, `areas.rs`, V-SHELL-*, V-TRI-*, V-MECH-009, V-MECH-010 |
 | Dinámica | Parcial: masas, fuente de masa, modos y espectro (decisiones 0020 y 0022). Falta: masa faltante, combinación direccional, historia en el tiempo. | `eigen.rs`, `dynamics.rs`, V-MOD-*, V-SPEC-*, V-MASS-* |
-| Resto de P07–P16 | No iniciados, salvo lector S2K de P13, con malla de áreas, fuente de masa, modos y espectros (decisiones 0018, 0021 y 0022). La numeración exacta depende de la guía, que no está en el repo. | `spec/features.csv` |
+| Resto de P07–P16 | No iniciados, salvo lector S2K de P13, con malla de áreas, fuente de masa, modos y espectros (decisiones 0018, 0021 y 0022). Numeración según la guía, ahora en `docs/guia/guia-agente-v1.md`. | `spec/features.csv` |
 
 ## Último resultado de pruebas (ejecutado)
 
@@ -41,9 +41,9 @@ Actualizado: 2026-11-06. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 Objetivo del usuario: herramienta open source para su propio trabajo, con modelos que suelen tener losas o muros. Orden acordado el 2026-11-05: 1) resto de pórticos, 2) lo que pide un modelo real (secciones paramétricas, cargas, subdivisión, envolventes), 3) S2K, 4) láminas, 5) masas, modos y espectro.
 
 1. Sismo automático por coeficiente: es lo único que aún bloquea `ejemplo_lineal`, y bloquea también `ejemplo_combos_lineal` junto con las opciones de combinación automática (decisión 0023). Con eso se podría contrastar un archivo real con modos cuando se revise la licencia.
-1. Probar el importador con un modelo real del usuario, con losas o muros, su malla y un espectro: mallas y espectros completos solo se han probado con archivos escritos a mano (decisiones 0021 y 0022).
-2. Lo demás que bloquea modelos locales: cargas proyectadas, temperatura, ejes locales de nudo, I23 real, secciones con I22 o J nulas, links.
-3. Contraste con SAP2000: `tools/gen_contrast_lot.py` genera el lote; pendiente de que el usuario revise la licencia y lo ejecute en su otro equipo.
+2. Probar el importador con un modelo real del usuario, con losas o muros, su malla y un espectro: mallas y espectros completos solo se han probado con archivos escritos a mano (decisiones 0021 y 0022).
+3. Lo demás que bloquea modelos locales: cargas proyectadas, temperatura, ejes locales de nudo, I23 real, secciones con I22 o J nulas, links.
+4. Contraste con SAP2000: `tools/gen_contrast_lot.py` genera el lote; pendiente de que el usuario revise la licencia y lo ejecute en su otro equipo.
 
 ## Comandos de reproducción
 
