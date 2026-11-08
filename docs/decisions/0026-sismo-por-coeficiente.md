@@ -65,3 +65,23 @@ Mismo edificio, con factor de escala 9,8 en los espectros y sus resultados. Los 
 - **Los desplazamientos quedan un 6–7 % por debajo** en la dirección del sismo, y falta la respuesta transversal por torsión (U1 en SYD), porque falta la excentricidad del espectro.
 - **Hipótesis descartada:** un par estático por diafragma, T = e·B·F con F la fuerza de inercia del nivel combinada por CQC (de los nudos del diafragma o de todo el nivel), sumado al espectro en valor absoluto o por SRSS. Da un desplazamiento transversal 10 veces mayor que el de SAP2000, y no cuadra en la dirección principal. No se implementa ninguna regla sin confirmarla.
 - **Pendiente:** la formulación exacta de la excentricidad del espectro, a partir del manual de análisis de la versión, o un archivo igual con `EccenRatio = 0` para contrastar los desplazamientos del espectro solo.
+
+## Cuarto archivo: espectro sin excentricidad, y forma de la excentricidad (2026-11-08)
+
+Mismo edificio con `EccenRatio = 0`. Se importa sin cambios. Desplazamientos del espectro frente a SAP2000:
+
+- SXD: componentes principales −0,78 %, giros entre 0 y −1,3 %.
+- SYD: U2 −2,0 %, U3 −0,3 %, R1 −1,3 %, R3 +1,3 %.
+- Algunas componentes secundarias muy pequeñas difieren alrededor del 4 %.
+
+**El espectro sin excentricidad queda contrastado con un archivo real.**
+
+Con los resultados de SAP2000 con excentricidad (tercer archivo) y sin ella (este), su diferencia aísla el efecto de la excentricidad con datos solo de SAP2000:
+
+- **Forma confirmada:** el efecto es la respuesta a un par torsor estático por diafragma, **sumada en valor absoluto** a la del espectro. Ajustando un par por diafragma, el desajuste es del 0,13 % en 248 valores por caso. El intento anterior falló por un error de unidades en el script (par en N·m sobre un modelo en kgf·m), no por la forma.
+- **Magnitud:** con T_d = s·F_d, F_d la fuerza de inercia de los nudos del diafragma combinada por CQC:
+  - SYD: s = 1,811 m = e·18,11 m, con 18 m el ancho del diafragma normal a Y (ajuste 0,39 %);
+  - SXD: s = e·22,86 m, que no coincide ni con 6 m (normal a X) ni con 18 m (ajuste 1,46 %).
+
+  Sin explicar SXD no se implementa ninguna regla.
+- **Pendiente:** la definición exacta del par (tamaño B y fuerza F), en el manual de análisis de la versión. Con ella, la implementación es directa y ya hay dos archivos para verificarla.
