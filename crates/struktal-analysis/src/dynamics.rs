@@ -56,16 +56,17 @@ fn add_pattern_mass(s: &Snapshot, forces: &[f64], lumped: &mut [f64]) -> (Option
     (Some(note), None)
 }
 
-/// Half of each frame's mass at each end, and each area's by the share of its
-/// corners, on translations; added masses as given. Then Cᵀ M C, so a tied joint's
+/// Lumped mass per joint DOF (6 per joint, before constraints), with the note
+/// and problem of the pattern part of the mass source. Half of each frame's mass
+/// at each end, and each area's by the share of its corners, on translations;
+/// added masses as given. `assemble_lumped` then forms Cᵀ M C, so a tied joint's
 /// mass acts on its reference through the lever arm.
-pub(crate) fn assemble_mass(
+pub(crate) fn lumped_masses(
     s: &Snapshot,
-    map: &DofMap,
     frames: &[FrameData],
     areas: &[AreaData],
     pattern_forces: Option<&[f64]>,
-) -> MassMatrix {
+) -> (Vec<f64>, Option<String>, Option<String>) {
     let m = &s.model;
     let (elements, added) = m.mass_source.as_ref().map_or((true, true), |x| (x.elements, x.added_masses));
     let mut lumped = vec![0.0; 6 * m.joints.len()];
@@ -98,6 +99,15 @@ pub(crate) fn assemble_mass(
         }
     }
     let (note, problem) = pattern_forces.map_or((None, None), |f| add_pattern_mass(s, f, &mut lumped));
+    (lumped, note, problem)
+}
+
+pub(crate) fn assemble_lumped(
+    map: &DofMap,
+    lumped: &[f64],
+    note: Option<String>,
+    problem: Option<String>,
+) -> MassMatrix {
     let mut tb = TripletBuilder::new(map.n).expect("size checked with the stiffness");
     for (g, &v) in lumped.iter().enumerate() {
         if v == 0.0 {
@@ -124,6 +134,53 @@ pub(crate) fn assemble_mass(
         rigid[axis].iter().zip(&mr).map(|(a, b)| a * b).sum()
     });
     MassMatrix { m: matrix, rigid, total, problem, note }
+}
+
+/// Joint forces of each automatic seismic pattern (decision 0026), indexed by
+/// pattern, in global axes (6 per joint), with a note on how they were found.
+/// F_i = C W m_i h_i^k / Σ m_j h_j^k, W = g Σ m_j over the joints not restrained
+/// in the load direction, h from the lowest joint, m the lumped mass in the load
+/// direction. Both rules match the source program's generated forces on a real
+/// file (decision 0026).
+pub(crate) fn auto_seismic_forces(s: &Snapshot, lumped: &[f64]) -> Vec<Option<(Vec<f64>, String)>> {
+    let m = &s.model;
+    let nj = m.joints.len();
+    let base = (0..nj).map(|j| s.joint_xyz(j)[2]).fold(f64::INFINITY, f64::min);
+    m.load_patterns
+        .iter()
+        .map(|p| {
+            let a = p.auto_seismic.as_ref()?;
+            let d = a.direction.index();
+            let mut forces = vec![0.0; 6 * nj];
+            let mut weight = 0.0;
+            let mut sum = 0.0;
+            for j in 0..nj {
+                let h = s.joint_xyz(j)[2] - base;
+                let mass = lumped[6 * j + d];
+                // Mass on a restrained component reaches the support directly.
+                if !m.joints[j].restraint[d] {
+                    weight += STANDARD_GRAVITY * mass;
+                }
+                if h > 0.0 {
+                    sum += mass * h.powf(a.exponent);
+                }
+            }
+            let shear = a.coefficient * weight;
+            if sum > 0.0 {
+                for j in 0..nj {
+                    let h = s.joint_xyz(j)[2] - base;
+                    if h > 0.0 {
+                        forces[6 * j + d] = shear * lumped[6 * j + d] * h.powf(a.exponent) / sum;
+                    }
+                }
+            }
+            let note = format!(
+                "load pattern {}: automatic seismic in {:?}, W = {weight:e} N (joints free in that direction), heights from z = {base} m, V = C W = {shear:e} N",
+                p.name, a.direction
+            );
+            Some((forces, note))
+        })
+        .collect()
 }
 
 /// A solved modal case, kept for the spectra that use it.

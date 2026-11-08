@@ -20,6 +20,8 @@ const IGNORED: &[&str] = &[
     "ANALYSIS OPTIONS",
     "AREA SECTION PROPERTY",
     "ASSEMBLED JOINT MASSES",
+    // Forces the source program generated: Struktal computes its own (decision 0026).
+    "AUTO SEISMIC LOADS TO JOINTS",
     "AUTO WAVE",
     "BASE REACTIONS",
     "CABLE SECTION DEFINITIONS",
@@ -68,6 +70,9 @@ const IGNORED: &[&str] = &[
 /// Tables this importer reads.
 const READ: &[&str] = &[
     "ACTIVE DEGREES OF FREEDOM",
+    "AREA AUTO MESH ASSIGNMENTS",
+    "AREA EDGE CONSTRAINT ASSIGNMENTS",
+    "AUTO SEISMIC - USER COEFFICIENT",
     "AREA LOADS - GRAVITY",
     "AREA LOADS - UNIFORM",
     "AREA SECTION ASSIGNMENTS",
@@ -1012,6 +1017,128 @@ impl Importer<'_> {
         found
     }
 
+    /// Automatic seismic patterns by a user coefficient (decision 0026). Other
+    /// automatic loads, and options with no equivalent, are problems.
+    fn auto_seismic(&mut self, model: &mut Model) {
+        const P: &str = "LOAD PATTERN DEFINITIONS";
+        const U: &str = "AUTO SEISMIC - USER COEFFICIENT";
+        let has_diaphragm = model.constraints.iter().any(|c| matches!(c, Constraint::Diaphragm { .. }));
+        for row in self.s2k.rows(P) {
+            let Some(name) = row.get("LoadPat") else { continue };
+            match row.get("AutoLoad").unwrap_or("") {
+                "" | "None" => {}
+                "USER COEFF" => {
+                    if !self.s2k.rows(U).iter().any(|r| r.get("LoadPat") == Some(name)) {
+                        self.problem(
+                            P,
+                            row.line,
+                            format!("load pattern {name}: user coefficient without its table row"),
+                        );
+                    }
+                }
+                other => {
+                    self.problem(P, row.line, format!("load pattern {name}: automatic load '{other}' is not supported"))
+                }
+            }
+        }
+        for row in self.s2k.rows(U) {
+            let Some(name) = self.text(U, row, "LoadPat") else { continue };
+            let direction = match row.get("Dir") {
+                Some("X") => GlobalAxis::X,
+                Some("Y") => GlobalAxis::Y,
+                other => {
+                    self.problem(U, row.line, format!("load pattern {name}: direction {other:?} is not supported"));
+                    continue;
+                }
+            };
+            if row.get("EccOverride") == Some(YES) {
+                self.problem(U, row.line, format!("load pattern {name}: eccentricity overrides are not supported"));
+            }
+            if row.get("UserZ") == Some(YES) {
+                self.problem(U, row.line, format!("load pattern {name}: user-defined base and top are not supported"));
+            }
+            let ecc = self.num_or(U, row, "PercentEcc", 0.0);
+            if ecc != 0.0 {
+                if has_diaphragm {
+                    self.problem(
+                        U,
+                        row.line,
+                        format!("load pattern {name}: eccentricity applied through diaphragms is not supported"),
+                    );
+                } else {
+                    self.notes.push(format!(
+                        "load pattern {name}: eccentricity {ecc} ignored: it acts only through diaphragms, and the model has none"
+                    ));
+                }
+            }
+            let coefficient = self.need_num(U, row, "C");
+            let exponent = self.num_or(U, row, "K", 1.0);
+            match model.load_patterns.iter_mut().find(|p| p.name == name) {
+                Some(p) => p.auto_seismic = Some(AutoSeismic { direction, coefficient, exponent }),
+                None => self.problem(U, row.line, format!("unknown load pattern '{name}'")),
+            }
+        }
+    }
+
+    /// A meshing option has no effect once the file carries the analysis mesh;
+    /// an edge constraint has none if no joint lies inside an element edge.
+    fn area_mesh_options(&mut self, model: &Model) {
+        const M: &str = "AREA AUTO MESH ASSIGNMENTS";
+        const E: &str = "AREA EDGE CONSTRAINT ASSIGNMENTS";
+        for row in self.s2k.rows(M) {
+            let Some(area) = row.get("Area") else { continue };
+            if !self.area_elements.contains_key(area) {
+                self.problem(M, row.line, format!("area {area}: automatic mesh without the analysis mesh in the file"));
+            }
+        }
+        let constrained: Vec<(usize, String)> = self
+            .s2k
+            .rows(E)
+            .iter()
+            .filter(|r| r.get("Constrained") == Some(YES))
+            .filter_map(|r| r.get("Area").map(|a| (r.line, a.to_string())))
+            .collect();
+        if constrained.is_empty() {
+            return;
+        }
+        let at: HashMap<&str, [f64; 3]> = model.joints.iter().map(|j| (j.name.as_str(), [j.x, j.y, j.z])).collect();
+        let mut hanging = Vec::new();
+        for a in &model.areas {
+            let n = a.joints.len();
+            for k in 0..n {
+                let (Some(p), Some(q)) = (at.get(a.joints[k].as_str()), at.get(a.joints[(k + 1) % n].as_str())) else {
+                    continue;
+                };
+                let d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+                let len2 = d.iter().map(|c| c * c).sum::<f64>();
+                for j in &model.joints {
+                    let r = [j.x - p[0], j.y - p[1], j.z - p[2]];
+                    let t = (r[0] * d[0] + r[1] * d[1] + r[2] * d[2]) / len2;
+                    if t <= 1e-9 || t >= 1.0 - 1e-9 {
+                        continue;
+                    }
+                    let off = [r[0] - t * d[0], r[1] - t * d[1], r[2] - t * d[2]];
+                    if off.iter().map(|c| c * c).sum::<f64>().sqrt() <= 1e-6 * len2.sqrt() {
+                        hanging.push(format!("joint {} on an edge of area {}", j.name, a.name));
+                    }
+                }
+            }
+        }
+        if hanging.is_empty() {
+            self.notes.push(format!(
+                "edge constraints on {} area(s) have no effect: no joint lies inside an element edge",
+                constrained.len()
+            ));
+        } else {
+            let line = constrained[0].0;
+            self.problem(
+                E,
+                line,
+                format!("edge constraints would tie joints, which is not supported: {}", hanging.join("; ")),
+            );
+        }
+    }
+
     fn constraints(&mut self) -> Vec<Constraint> {
         const DIA: &str = "CONSTRAINT DEFINITIONS - DIAPHRAGM";
         const BODY: &str = "CONSTRAINT DEFINITIONS - BODY";
@@ -1534,7 +1661,7 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
     for row in s2k.rows(P) {
         let Some(name) = im.text(P, row, "LoadPat") else { continue };
         let self_weight_multiplier = im.num_or(P, row, "SelfWtMult", 0.0);
-        load_patterns.push(LoadPattern { name, self_weight_multiplier });
+        load_patterns.push(LoadPattern { name, self_weight_multiplier, auto_seismic: None });
     }
 
     let constraints = im.constraints();
@@ -1562,6 +1689,8 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
     };
     im.loads(&mut model, &|f| frame_names.iter().any(|n| n == f));
     im.area_loads(&mut model);
+    im.auto_seismic(&mut model);
+    im.area_mesh_options(&model);
     im.cases(&mut model);
     im.combinations(&mut model);
     im.drop_orphan_joints(&mut model);
@@ -1659,6 +1788,41 @@ mod tests {
         let text = BASE.replace("I23=0   AS2=5", &null.replace("MMod=0", "MMod=1"));
         let err = import(&parse(&text).expect("parse")).expect_err("mass only");
         assert!(err.iter().any(|p| p.to_string().contains("mass with no stiffness")), "{err:?}");
+    }
+
+    #[test]
+    fn user_coefficient_seismic_is_read_and_other_options_refused() {
+        let seismic = |dir: &str, ecc: &str| {
+            BASE.replace(
+                "LoadPat=P1   SelfWtMult=1\n",
+                "LoadPat=P1   SelfWtMult=1\n   LoadPat=SX   SelfWtMult=0   AutoLoad=\"USER COEFF\"\n",
+            ) + &format!(
+                "TABLE:  \"AUTO SEISMIC - USER COEFFICIENT\"\n   LoadPat=SX   Dir={dir}   PercentEcc={ecc}   EccOverride=No   UserZ=No   C=0.2   K=1.5\n"
+            ) + "TABLE:  \"AUTO SEISMIC LOADS TO JOINTS\"\n   LoadPat=SX   JointElem=9   FX=1   X=0   Y=0   Z=1\n"
+        };
+        let im = import_text(&seismic("X", "0.05"));
+        let p = im.model.load_patterns.iter().find(|p| p.name == "SX").expect("pattern");
+        assert_eq!(p.auto_seismic, Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.2, exponent: 1.5 }));
+        assert!(im.notes.iter().any(|n| n.contains("eccentricity 0.05 ignored")));
+        let err = import(&parse(&seismic("XEccY", "0")).expect("parse")).expect_err("direction");
+        assert!(err.iter().any(|p| p.to_string().contains("direction")), "{err:?}");
+        let other = BASE.replace(
+            "LoadPat=P1   SelfWtMult=1\n",
+            "LoadPat=P1   SelfWtMult=1\n   LoadPat=E   AutoLoad=\"ASCE 7-16\"\n",
+        );
+        let err = import(&parse(&other).expect("parse")).expect_err("other code");
+        assert!(err.iter().any(|p| p.to_string().contains("automatic load 'ASCE 7-16'")), "{err:?}");
+    }
+
+    #[test]
+    fn mesh_options_need_the_mesh_and_edge_constraints_no_hanging_joints() {
+        let auto_mesh = "TABLE:  \"AREA AUTO MESH ASSIGNMENTS\"\n   Area=A9   MeshType=\"Maximum Size\"\n";
+        let err = import(&parse(&format!("{BASE}{auto_mesh}")).expect("parse")).expect_err("no mesh");
+        assert!(err.iter().any(|p| p.to_string().contains("without the analysis mesh")), "{err:?}");
+        // An edge constraint with nothing to tie is accepted with a note.
+        let edge = "TABLE:  \"AREA EDGE CONSTRAINT ASSIGNMENTS\"\n   Area=A9   Constrained=Yes\n";
+        let im = import_text(&format!("{BASE}{edge}"));
+        assert!(im.notes.iter().any(|n| n.contains("edge constraints on 1 area(s) have no effect")));
     }
 
     #[test]

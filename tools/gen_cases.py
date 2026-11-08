@@ -2189,4 +2189,53 @@ write("V-MECH-011", "A joint held only by a load-only frame is a mechanism", ["F
     expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"},
                      {"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "moves 1/3 joints"}])
 
+# ---------------------------------------------------------------- automatic seismic
+# Cantilever column with added masses at z = 3 and 6 m, and a free joint at z = 0
+# with mass (it counts in W but takes no force, h = 0). No element mass.
+# V = C g (m1 + m2 + m0); F_i = V m_i h_i^k / sum m h^k.
+Ls_, gS = 6.0, 9.80665
+mS = {"A": 0.0, "Z0": 500.0, "M1": 2000.0, "M2": 1500.0}
+zS = {"A": 0.0, "Z0": 0.0, "M1": 3.0, "M2": 6.0}
+Cs = 0.3
+SECs = {"name": "COL", "material": "STEEL", "area": 0.02, "i33": 4e-4, "i22": 4e-4, "j": 8e-4}
+mats_s = [{"name": "STEEL", "e": E, "nu": NU, "unit_weight": 0.0, "mass_density": 0.0}]
+EIs = E * SECs["i22"]
+def seismic_forces(k):
+    W = gS * (mS["Z0"] + mS["M1"] + mS["M2"])
+    V = Cs * W
+    den = sum(mS[j] * zS[j] ** k for j in ("M1", "M2"))
+    return V, {j: V * mS[j] * zS[j] ** k / den for j in ("M1", "M2")}
+def tip_x(F1, F2):
+    a = zS["M1"]
+    return F1 * a**2 * (3 * Ls_ - a) / (6 * EIs) + F2 * Ls_**3 / (3 * EIs)
+exp_s = []
+for case, k in (("SX1", 1.0), ("SX2", 2.0)):
+    V, F = seismic_forces(k)
+    exp_s += [exp("joint_reaction", case, "A", "FX", -V, "N"),
+              exp("joint_reaction", case, "A", "MY", -(F["M1"] * zS["M1"] + F["M2"] * zS["M2"]), "N*m"),
+              exp("joint_displacement", case, "M2", "UX", tip_x(F["M1"], F["M2"]), "m")]
+def JMs(name, z, r=None, mass=0.0):
+    j = J(name, 0, 0, z, r)
+    if mass:
+        j["added_mass"] = [mass, mass, mass, 0, 0, 0]
+    return j
+mdl_s = model(
+    "V-SEIS-001 automatic seismic by user coefficient",
+    [JMs("A", 0, FIX), JMs("Z0", 0, [False, False, True, True, True, True], mS["Z0"]),
+     JMs("M1", 3, None, mS["M1"]), JMs("M2", 6, None, mS["M2"])],
+    [{"name": "C1", "i": "A", "j": "M1", "section": "COL"}, {"name": "C2", "i": "M1", "j": "M2", "section": "COL"},
+     {"name": "TIE", "i": "A", "j": "Z0", "section": "COL"}],
+    [SECs], [{"name": "SX1", "auto_seismic": {"direction": "X", "coefficient": Cs, "exponent": 1.0}},
+             {"name": "SX2", "auto_seismic": {"direction": "X", "coefficient": Cs, "exponent": 2.0}}],
+    cases=[{"type": "LinearStatic", "name": "SX1", "loads": [{"pattern": "SX1", "scale": 1.0}]},
+           {"type": "LinearStatic", "name": "SX2", "loads": [{"pattern": "SX2", "scale": 1.0}]}],
+    materials=mats_s, schema=9,
+)
+mdl_s["joints"][1]["x"] = 1.0
+write("V-SEIS-001", "Automatic seismic by a user coefficient, k = 1 and 2", ["F06-010"], mdl_s,
+      {"kind": "analytical", "source": "Hand computation of the user-coefficient rule; cantilever deflection by superposition",
+       "derivation": ["W = g (sum of masses on joints free in X)", "V = C W", "F_i = V m_i h_i^k / sum m h^k",
+                      "a joint at the base level with mass counts in W and takes no force",
+                      "tip = F1 a^2 (3L - a)/(6 E I) + F2 L^3/(3 E I)"]}, exp_s)
+
 print("cases written to", ROOT)

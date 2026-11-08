@@ -19,7 +19,8 @@ use crate::units::{Dim, UnitSystem};
 /// (decision 0015).
 /// v7 (2026-11-06): mass_source. Older files have none (decision 0022).
 /// v8 (2026-11-08): load-only frames. Older files have none (decision 0024).
-pub const SCHEMA_VERSION: u32 = 8;
+/// v9 (2026-11-08): automatic seismic loads by a user coefficient (decision 0026).
+pub const SCHEMA_VERSION: u32 = 9;
 
 pub type Name = String;
 
@@ -428,6 +429,30 @@ pub struct LoadPattern {
     /// Multiplier on material unit weight × area, acting in global −Z.
     #[serde(default)]
     pub self_weight_multiplier: f64,
+    /// Lateral forces computed from the masses (decision 0026).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_seismic: Option<AutoSeismic>,
+}
+
+/// Equivalent lateral forces by a user coefficient: base shear V = C W, with W
+/// the weight of the masses on joints free in the load direction, distributed as
+/// F_i = V m_i h_i^k / Σ m_j h_j^k. The masses are the lumped translational
+/// masses of the mass source in the load direction; h is measured from the
+/// lowest joint of the model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutoSeismic {
+    /// X or Y.
+    pub direction: GlobalAxis,
+    /// C: base shear over weight.
+    pub coefficient: f64,
+    /// k: exponent of the height.
+    #[serde(default = "one")]
+    pub exponent: f64,
+}
+
+fn one() -> f64 {
+    1.0
 }
 
 /// Concentrated joint load in global axes: [FX, FY, FZ, MX, MY, MZ].

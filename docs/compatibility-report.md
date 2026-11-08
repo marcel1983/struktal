@@ -12,8 +12,8 @@ Denominador: 125 requisitos atómicos, 20 familias (+1 en esta revisión: F01-01
 |---|---|
 | verified_independent | 36 |
 | implemented | 3 |
-| partial | 14 |
-| specified | 70 |
+| partial | 15 |
+| specified | 69 |
 | blocked | 2 |
 | verified_sap | 0 |
 
@@ -28,7 +28,8 @@ Cobertura verificada independientemente: 36/125 (29 %). Cobertura contrastada co
 - Láminas de 3 y 4 nudos para losas y muros, con taladro sin rigidez ficticia (decisiones 0019 y 0021).
 - Masas concentradas, fuente de masa con elementos, masas añadidas y patrones, modos propios y espectro de respuesta con CQC y SRSS (decisiones 0020 y 0022).
 - Barras «solo carga» para cargas lineales sobre otros elementos (decisión 0024).
-- Banco de 64 casos, 63 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
+- Sismo automático por coeficiente de usuario, con las masas del análisis modal (decisión 0026).
+- Banco de 65 casos, 64 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 
@@ -46,7 +47,7 @@ Cobertura verificada independientemente: 36/125 (29 %). Cobertura contrastada co
 | Restricciones | Un apoyo sobre una componente atada se rechaza; body sin selección de componentes; locales y weld no implementados. |
 | Desplazamientos impuestos | Un valor sobre una componente sin apoyo ni resorte es un error en Struktal; se cree que SAP2000 lo ignora. Sin confirmar. |
 | Resortes de nudo | Solo lineales y en ejes globales. |
-| Intercambio S2K/OAPI | Lector S2K estricto de barras y áreas, con su malla de análisis, fuente de masa, modos y espectros (decisiones 0018, 0021 y 0022), probado con una malla real (placa gruesa de 576 láminas, 0,18 % frente a los desplazamientos de SAP2000, decisión 0024); espectro completo real sin probar; sin escritura ni OAPI. |
+| Intercambio S2K/OAPI | Lector S2K estricto de barras y áreas, con su malla de análisis, fuente de masa, modos y espectros (decisiones 0018, 0021 y 0022), probado con una malla real (placa gruesa de 576 láminas, 0,18 % frente a los desplazamientos de SAP2000, decisión 0024); primer edificio real (decisión 0026): peso, cortante basal y reacciones idénticos, periodos principales dentro del 0,8 %, desplazamientos entre −0,5 % y −4,7 %; espectro completo real sin probar; sin escritura ni OAPI. |
 | Recuento de modos de mecanismo | Exacto con hueco espectral; por encima de ~10⁵ ecuaciones puede quedar como cota inferior (F08-007, decisión 0006). Formato de aviso de SAP2000 no comparado. |
 
 ## Bloqueos

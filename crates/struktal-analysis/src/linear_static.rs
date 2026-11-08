@@ -163,7 +163,13 @@ fn add_resultant(res: &mut [f64; 6], at: Vec3, force: Vec3) {
     }
 }
 
-fn build_case_loads(s: &Snapshot, frames: &[FrameData], area_data: &[AreaData], loads: &[(usize, f64)]) -> CaseLoads {
+fn build_case_loads(
+    s: &Snapshot,
+    frames: &[FrameData],
+    area_data: &[AreaData],
+    loads: &[(usize, f64)],
+    seismic: &[Option<Vec<f64>>],
+) -> CaseLoads {
     let m = &s.model;
     let ndof = 6 * m.joints.len();
     let mut joint_loads = vec![0.0; ndof];
@@ -191,6 +197,22 @@ fn build_case_loads(s: &Snapshot, frames: &[FrameData], area_data: &[AreaData], 
         add_resultant(&mut resultant, at, [0, 1, 2].map(|k| sc * jl.values[k]));
         for k in 0..3 {
             resultant[3 + k] += sc * jl.values[3 + k];
+        }
+    }
+    // Automatic seismic patterns: forces at joints, computed from the masses.
+    for (&p, &sc) in &scale_of {
+        let Some(Some(forces)) = seismic.get(p) else { continue };
+        if sc == 0.0 {
+            continue;
+        }
+        for (j, f) in forces.chunks(6).enumerate() {
+            if f.iter().all(|&v| v == 0.0) {
+                continue;
+            }
+            for d in 0..6 {
+                joint_loads[6 * j + d] += sc * f[d];
+            }
+            add_resultant(&mut resultant, s.joint_xyz(j), [0, 1, 2].map(|k| sc * f[k]));
         }
     }
     let mut imposed = vec![0.0; ndof];
@@ -910,14 +932,34 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     };
 
     let dynamic = m.load_cases.iter().any(|c| !matches!(c, LoadCase::LinearStatic { .. }));
-    let mass = dynamic.then(|| {
+    let seismic_needed = m.load_patterns.iter().any(|p| p.auto_seismic.is_some());
+    // The mass source never includes an automatic seismic pattern (validated),
+    // so its pattern forces need no seismic forces.
+    let lumped = (dynamic || seismic_needed).then(|| {
         let forces = m.mass_source.as_ref().filter(|x| !x.patterns.is_empty()).map(|x| {
             let pats: Vec<(usize, f64)> = x.patterns.iter().map(|p| (s.pattern_index[&p.pattern], p.scale)).collect();
-            build_case_loads(s, &frames, &area_data, &pats).f_full
+            build_case_loads(s, &frames, &area_data, &pats, &[]).f_full
         });
-        dynamics::assemble_mass(s, &map, &frames, &area_data, forces.as_deref())
+        dynamics::lumped_masses(s, &frames, &area_data, forces.as_deref())
     });
-    let no_loads = build_case_loads(s, &frames, &area_data, &[]);
+    let mut seismic: Vec<Option<Vec<f64>>> = vec![None; m.load_patterns.len()];
+    if seismic_needed && let Some((l, _, problem)) = &lumped {
+        if let Some(p) = problem {
+            manifest.messages.push(format!("automatic seismic loads use a mass source with a problem: {p}"));
+        }
+        for (k, entry) in dynamics::auto_seismic_forces(s, l).into_iter().enumerate() {
+            if let Some((forces, note)) = entry {
+                manifest.messages.push(note);
+                seismic[k] = Some(forces);
+            }
+        }
+    }
+    let mass = if dynamic {
+        lumped.clone().map(|(l, note, problem)| dynamics::assemble_lumped(&map, &l, note, problem))
+    } else {
+        None
+    };
+    let no_loads = build_case_loads(s, &frames, &area_data, &[], &seismic);
     let mut modal_cache: HashMap<&str, dynamics::Solved> = HashMap::new();
 
     for case in &m.load_cases {
@@ -959,7 +1001,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             }
         };
         let pats: Vec<(usize, f64)> = loads.iter().map(|sp| (s.pattern_index[&sp.pattern], sp.scale)).collect();
-        let cl = build_case_loads(s, &frames, &area_data, &pats);
+        let cl = build_case_loads(s, &frames, &area_data, &pats, &seismic);
         let rhs = map.reduce(&effective_loads(s, &frames, &area_data, &cl));
         let t_solve = Instant::now();
         let x = factor.as_ref().map(|f| f.solve(&rhs)).unwrap_or_default();
