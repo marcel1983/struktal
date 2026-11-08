@@ -35,6 +35,7 @@ Actualizado: 2026-11-08. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 1. Backend para matrices indefinidas (pandeo, multiplicadores): MUMPS por FFI u otra opción; faer LBLᵀ intranodal descartado. Los diafragmas ya no lo necesitan (decisión 0011).
 2. Convención de signos de salida compatible con SAP2000: requiere oráculo.
+3. Láminas alabeadas (decisión 0025): el taladro débil (G/1000) no converge en superficies alabeadas (viga torcida +30 %), y uno fuerte rigidiza muros. Opciones: A) mantener el rechazo (actual), B) membrana con taladro propio (Allman / Ibrahimbegovic) más corrección de alabeo. Pendiente: el usuario comprobará cómo resuelve PAS la viga torcida (desplazamientos de punta IN/OUT, o su código de láminas como referencia).
 
 ## Siguiente paso concreto
 
