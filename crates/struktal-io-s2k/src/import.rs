@@ -20,6 +20,9 @@ const IGNORED: &[&str] = &[
     "ANALYSIS OPTIONS",
     "AREA SECTION PROPERTY",
     "ASSEMBLED JOINT MASSES",
+    // Forces the source program generated: Struktal computes its own (decision 0026).
+    "AUTO SEISMIC LOADS TO HORIZONTAL DIAPHRAGMS",
+    "AUTO SEISMIC LOADS TO JOINTS",
     "AUTO WAVE",
     "BASE REACTIONS",
     "CABLE SECTION DEFINITIONS",
@@ -68,6 +71,9 @@ const IGNORED: &[&str] = &[
 /// Tables this importer reads.
 const READ: &[&str] = &[
     "ACTIVE DEGREES OF FREEDOM",
+    "AREA AUTO MESH ASSIGNMENTS",
+    "AREA EDGE CONSTRAINT ASSIGNMENTS",
+    "AUTO SEISMIC - USER COEFFICIENT",
     "AREA LOADS - GRAVITY",
     "AREA LOADS - UNIFORM",
     "AREA SECTION ASSIGNMENTS",
@@ -140,6 +146,9 @@ struct Importer<'a> {
     notes: Vec<String>,
     /// Object name to the names of its elements, when the file has a mesh.
     area_elements: HashMap<String, Vec<String>>,
+    /// Sections whose six stiffness modifiers are all zero: their frames are
+    /// imported as load-only frames (decision 0024).
+    null_sections: std::collections::HashSet<String>,
 }
 
 const YES: &str = "Yes";
@@ -195,6 +204,15 @@ impl Importer<'_> {
                 None
             }
         }
+    }
+
+    /// Like `opt_num`, but an empty value means the field is absent. Only for
+    /// fields the source format leaves empty on purpose.
+    fn opt_num_or_blank(&mut self, table: &str, row: &Row, key: &str) -> Option<f64> {
+        if row.get(key).is_some_and(|v| v.trim().is_empty()) {
+            return None;
+        }
+        self.opt_num(table, row, key)
     }
 
     /// A number with a default that means "no effect".
@@ -268,10 +286,11 @@ impl Importer<'_> {
         for row in self.s2k.rows(T) {
             let Some(name) = self.text(T, row, "Material") else { continue };
             let e = self.need_num(T, row, "E1");
-            let g = self.opt_num(T, row, "G12");
-            // Uniaxial materials such as tendons have neither: a bar using one
-            // would need G, so it is made invalid only if a section uses it.
-            let nu = self.opt_num(T, row, "U12").unwrap_or(0.0);
+            // Uniaxial materials such as tendons and rebar have neither, and
+            // the file writes the fields empty (`G12=`): a bar using one would
+            // need G, so it is made invalid only if a section uses it.
+            let g = self.opt_num_or_blank(T, row, "G12");
+            let nu = self.opt_num_or_blank(T, row, "U12").unwrap_or(0.0);
             let unit_weight = self.num_or(T, row, "UnitWeight", 0.0);
             let mass_density = self.num_or(T, row, "UnitMass", 0.0);
             out.push(Material { name, e, nu, g, unit_weight, mass_density });
@@ -309,21 +328,42 @@ impl Importer<'_> {
                     self.problem(T, row.line, format!("section {name}: shear center offset {label} is not supported"));
                 }
             }
-            let a_mod = self.num_or(T, row, "AMod", 1.0);
+            let mut a_mod = self.num_or(T, row, "AMod", 1.0);
             let w_mod = self.num_or(T, row, "WMod", 1.0);
+            let m_mod = self.num_or(T, row, "MMod", 1.0);
+            let stiffness_mods =
+                ["AMod", "A2Mod", "A3Mod", "JMod", "I2Mod", "I3Mod"].map(|k| self.num_or(T, row, k, 1.0));
+            // A section with no stiffness at all is how the source format puts a
+            // line load on other elements: its frames become load-only frames,
+            // which keep the section only to compute their fixed-end forces.
+            let null = stiffness_mods == [0.0; 6];
+            if null {
+                if m_mod != 0.0 {
+                    self.problem(T, row.line, format!("section {name}: mass with no stiffness is not supported"));
+                }
+                self.null_sections.insert(name.clone());
+                a_mod = 1.0;
+            }
+            let modifier = |s: &mut Self, key: &str| if null { 1.0 } else { s.num_or(T, row, key, 1.0) };
+            let (i3, i2, jm, a2, a3) = (
+                modifier(self, "I3Mod"),
+                modifier(self, "I2Mod"),
+                modifier(self, "JMod"),
+                modifier(self, "A2Mod"),
+                modifier(self, "A3Mod"),
+            );
             let section = FrameSection {
                 name: name.clone(),
                 material: material.clone(),
                 shape: None,
                 neglect_shear: false,
                 area: self.need_num(T, row, "Area") * a_mod,
-                i33: self.need_num(T, row, "I33") * self.num_or(T, row, "I3Mod", 1.0),
-                i22: self.need_num(T, row, "I22") * self.num_or(T, row, "I2Mod", 1.0),
-                j: self.need_num(T, row, "TorsConst") * self.num_or(T, row, "JMod", 1.0),
-                as2: self.num_or(T, row, "AS2", 0.0) * self.num_or(T, row, "A2Mod", 1.0),
-                as3: self.num_or(T, row, "AS3", 0.0) * self.num_or(T, row, "A3Mod", 1.0),
+                i33: self.need_num(T, row, "I33") * i3,
+                i22: self.need_num(T, row, "I22") * i2,
+                j: self.need_num(T, row, "TorsConst") * jm,
+                as2: self.num_or(T, row, "AS2", 0.0) * a2,
+                as3: self.num_or(T, row, "AS3", 0.0) * a3,
             };
-            let m_mod = self.num_or(T, row, "MMod", 1.0);
             let section = with_unit_factors(section, w_mod / a_mod, m_mod / a_mod, materials);
             out.insert(name, (section, a_mod));
         }
@@ -498,7 +538,17 @@ impl Importer<'_> {
                 continue;
             };
             index.insert(name.clone(), frames.len());
-            frames.push(Frame { name, i, j, section, angle_deg: 0.0, releases: None, offsets: None, auto_mesh: None });
+            frames.push(Frame {
+                name,
+                i,
+                j,
+                section,
+                angle_deg: 0.0,
+                releases: None,
+                offsets: None,
+                auto_mesh: None,
+                load_only: false,
+            });
         }
 
         const LA: &str = "FRAME LOCAL AXES ASSIGNMENTS 1 - TYPICAL";
@@ -575,10 +625,31 @@ impl Importer<'_> {
             }
         }
 
+        let mut load_only = 0;
+        for f in frames.iter_mut() {
+            if self.null_sections.contains(&f.section) {
+                f.load_only = true;
+                load_only += 1;
+            }
+        }
+        if load_only > 0 {
+            self.notes.push(format!(
+                "{load_only} frame(s) with all stiffness modifiers 0 imported as load-only frames: no stiffness, no mass, their loads reach the joints (decision 0024)"
+            ));
+        }
+
         const MODS: &str = "FRAME PROPERTY MODIFIERS";
         for row in self.s2k.rows(MODS) {
             let Some(f) = self.frame_of(MODS, row, &index) else { continue };
             let name = frames[f].name.clone();
+            if frames[f].load_only {
+                self.problem(
+                    MODS,
+                    row.line,
+                    format!("frame {name}: property modifiers on a load-only frame are not supported"),
+                );
+                continue;
+            }
             let Some((base, _)) = sections.get(&frames[f].section).cloned() else { continue };
             let fa = self.num_or(MODS, row, "AMod", 1.0) * self.num_or(MODS, row, "EAModifier", 1.0);
             let f2 = self.num_or(MODS, row, "I22Mod", 1.0) * self.num_or(MODS, row, "EIModifier", 1.0);
@@ -945,6 +1016,122 @@ impl Importer<'_> {
             self.problem(table, row.line, format!("unknown frame {name}"));
         }
         found
+    }
+
+    /// Automatic seismic patterns by a user coefficient (decision 0026). Other
+    /// automatic loads, and options with no equivalent, are problems.
+    fn auto_seismic(&mut self, model: &mut Model) {
+        const P: &str = "LOAD PATTERN DEFINITIONS";
+        const U: &str = "AUTO SEISMIC - USER COEFFICIENT";
+        let has_diaphragm =
+            model.constraints.iter().any(|c| matches!(c, Constraint::Diaphragm { axis: GlobalAxis::Z, .. }));
+        for row in self.s2k.rows(P) {
+            let Some(name) = row.get("LoadPat") else { continue };
+            match row.get("AutoLoad").unwrap_or("") {
+                "" | "None" => {}
+                "USER COEFF" => {
+                    if !self.s2k.rows(U).iter().any(|r| r.get("LoadPat") == Some(name)) {
+                        self.problem(
+                            P,
+                            row.line,
+                            format!("load pattern {name}: user coefficient without its table row"),
+                        );
+                    }
+                }
+                other => {
+                    self.problem(P, row.line, format!("load pattern {name}: automatic load '{other}' is not supported"))
+                }
+            }
+        }
+        for row in self.s2k.rows(U) {
+            let Some(name) = self.text(U, row, "LoadPat") else { continue };
+            let direction = match row.get("Dir") {
+                Some("X") => GlobalAxis::X,
+                Some("Y") => GlobalAxis::Y,
+                other => {
+                    self.problem(U, row.line, format!("load pattern {name}: direction {other:?} is not supported"));
+                    continue;
+                }
+            };
+            if row.get("EccOverride") == Some(YES) {
+                self.problem(U, row.line, format!("load pattern {name}: eccentricity overrides are not supported"));
+            }
+            if row.get("UserZ") == Some(YES) {
+                self.problem(U, row.line, format!("load pattern {name}: user-defined base and top are not supported"));
+            }
+            let mut eccentricity = self.num_or(U, row, "PercentEcc", 0.0);
+            if eccentricity != 0.0 && !has_diaphragm {
+                self.notes.push(format!(
+                    "load pattern {name}: eccentricity {eccentricity} ignored: it acts only through diaphragms, and the model has none"
+                ));
+                eccentricity = 0.0;
+            }
+            let coefficient = self.need_num(U, row, "C");
+            let exponent = self.num_or(U, row, "K", 1.0);
+            match model.load_patterns.iter_mut().find(|p| p.name == name) {
+                Some(p) => p.auto_seismic = Some(AutoSeismic { direction, coefficient, exponent, eccentricity }),
+                None => self.problem(U, row.line, format!("unknown load pattern '{name}'")),
+            }
+        }
+    }
+
+    /// A meshing option has no effect once the file carries the analysis mesh;
+    /// an edge constraint has none if no joint lies inside an element edge.
+    fn area_mesh_options(&mut self, model: &Model) {
+        const M: &str = "AREA AUTO MESH ASSIGNMENTS";
+        const E: &str = "AREA EDGE CONSTRAINT ASSIGNMENTS";
+        for row in self.s2k.rows(M) {
+            let Some(area) = row.get("Area") else { continue };
+            if !self.area_elements.contains_key(area) {
+                self.problem(M, row.line, format!("area {area}: automatic mesh without the analysis mesh in the file"));
+            }
+        }
+        let constrained: Vec<(usize, String)> = self
+            .s2k
+            .rows(E)
+            .iter()
+            .filter(|r| r.get("Constrained") == Some(YES))
+            .filter_map(|r| r.get("Area").map(|a| (r.line, a.to_string())))
+            .collect();
+        if constrained.is_empty() {
+            return;
+        }
+        let at: HashMap<&str, [f64; 3]> = model.joints.iter().map(|j| (j.name.as_str(), [j.x, j.y, j.z])).collect();
+        let mut hanging = Vec::new();
+        for a in &model.areas {
+            let n = a.joints.len();
+            for k in 0..n {
+                let (Some(p), Some(q)) = (at.get(a.joints[k].as_str()), at.get(a.joints[(k + 1) % n].as_str())) else {
+                    continue;
+                };
+                let d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+                let len2 = d.iter().map(|c| c * c).sum::<f64>();
+                for j in &model.joints {
+                    let r = [j.x - p[0], j.y - p[1], j.z - p[2]];
+                    let t = (r[0] * d[0] + r[1] * d[1] + r[2] * d[2]) / len2;
+                    if t <= 1e-9 || t >= 1.0 - 1e-9 {
+                        continue;
+                    }
+                    let off = [r[0] - t * d[0], r[1] - t * d[1], r[2] - t * d[2]];
+                    if off.iter().map(|c| c * c).sum::<f64>().sqrt() <= 1e-6 * len2.sqrt() {
+                        hanging.push(format!("joint {} on an edge of area {}", j.name, a.name));
+                    }
+                }
+            }
+        }
+        if hanging.is_empty() {
+            self.notes.push(format!(
+                "edge constraints on {} area(s) have no effect: no joint lies inside an element edge",
+                constrained.len()
+            ));
+        } else {
+            let line = constrained[0].0;
+            self.problem(
+                E,
+                line,
+                format!("edge constraints would tie joints, which is not supported: {}", hanging.join("; ")),
+            );
+        }
     }
 
     fn constraints(&mut self) -> Vec<Constraint> {
@@ -1326,7 +1513,28 @@ impl Importer<'_> {
         let scale = number(load, "TransAccSF", None)?;
         let function = load.get("Function").ok_or("it has no Function")?.to_string();
 
-        let rows: Vec<&Row> = self.s2k.rows(F).iter().filter(|r| r.get("Name") == Some(&function)).collect();
+        let mut rows: Vec<&Row> = self.s2k.rows(F).iter().filter(|r| r.get("Name") == Some(&function)).collect();
+        if rows.is_empty() {
+            // A code-defined function also lists its curve as periods and
+            // accelerations: that curve is read as given, and the code formula
+            // is not recomputed (decision 0026).
+            for t in
+                self.s2k.tables.iter().filter(|t| t.name.starts_with("FUNCTION - RESPONSE SPECTRUM - ") && t.name != F)
+            {
+                let own: Vec<&Row> = t.rows.iter().filter(|r| r.get("Name") == Some(&function)).collect();
+                if !own.is_empty() && own.iter().all(|r| r.get("Period").is_some() && r.get("Accel").is_some()) {
+                    let note = format!(
+                        "function {function}: curve read as tabulated in {}, without recomputing it from its code parameters",
+                        t.name
+                    );
+                    if !self.notes.contains(&note) {
+                        self.notes.push(note);
+                    }
+                    rows = own;
+                    break;
+                }
+            }
+        }
         if rows.is_empty() {
             return Err(format!("its function {function} is not a table in {F}"));
         }
@@ -1422,7 +1630,13 @@ fn with_unit_factors(mut section: FrameSection, weight: f64, mass: f64, material
 /// Reads a parsed file into a model in its declared units. The result still
 /// has to pass `struktal_core::validate`.
 pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
-    let mut im = Importer { s2k, problems: Vec::new(), notes: Vec::new(), area_elements: HashMap::new() };
+    let mut im = Importer {
+        s2k,
+        problems: Vec::new(),
+        notes: Vec::new(),
+        area_elements: HashMap::new(),
+        null_sections: Default::default(),
+    };
     let ignored_tables = im.check_tables();
     let units = im.units();
 
@@ -1463,7 +1677,7 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
     for row in s2k.rows(P) {
         let Some(name) = im.text(P, row, "LoadPat") else { continue };
         let self_weight_multiplier = im.num_or(P, row, "SelfWtMult", 0.0);
-        load_patterns.push(LoadPattern { name, self_weight_multiplier });
+        load_patterns.push(LoadPattern { name, self_weight_multiplier, auto_seismic: None });
     }
 
     let constraints = im.constraints();
@@ -1491,6 +1705,8 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
     };
     im.loads(&mut model, &|f| frame_names.iter().any(|n| n == f));
     im.area_loads(&mut model);
+    im.auto_seismic(&mut model);
+    im.area_mesh_options(&model);
     im.cases(&mut model);
     im.combinations(&mut model);
     im.drop_orphan_joints(&mut model);
@@ -1558,6 +1774,95 @@ mod tests {
         let im = import_text(&text.replace(from, to));
         assert!(!im.model.load_cases.iter().any(|c| c.name() == "SP"), "{to}");
         im.notes.join("\n")
+    }
+
+    #[test]
+    fn empty_shear_modulus_and_poisson_of_uniaxial_materials_are_absent() {
+        // Tendon and rebar rows leave G12 and U12 empty.
+        let text = BASE.replace("   Material=UNUSED   E1=1\n", "   Material=UNUSED   E1=1   G12=   U12=\n");
+        import_text(&text);
+        // Other empty numbers are still problems.
+        let text = BASE.replace("   Material=UNUSED   E1=1\n", "   Material=UNUSED   E1=1   UnitWeight=\n");
+        let err = import(&parse(&text).expect("parse")).expect_err("empty unit weight");
+        assert!(err.iter().any(|p| p.to_string().contains("UnitWeight")), "{err:?}");
+    }
+
+    #[test]
+    fn a_section_with_no_stiffness_gives_load_only_frames() {
+        let null = "I23=0   AMod=0   A2Mod=0   A3Mod=0   JMod=0   I2Mod=0   I3Mod=0   MMod=0   WMod=0   AS2=5";
+        let text = BASE.replace("I23=0   AS2=5", null);
+        let im = import_text(&text);
+        let f = &im.model.frames[0];
+        assert!(f.load_only);
+        let sec = im.model.sections.iter().find(|s| s.name == f.section).expect("section");
+        // The section keeps its own properties for the fixed-end forces.
+        assert_eq!((sec.area, sec.i33, sec.i22, sec.j), (10.0, 100.0, 50.0, 20.0));
+        let mat = im.model.materials.iter().find(|m| m.name == sec.material).expect("material");
+        assert_eq!((mat.unit_weight, mat.mass_density), (0.0, 0.0));
+        assert!(im.notes.iter().any(|n| n.contains("load-only")));
+        // Mass without stiffness has no equivalent.
+        let text = BASE.replace("I23=0   AS2=5", &null.replace("MMod=0", "MMod=1"));
+        let err = import(&parse(&text).expect("parse")).expect_err("mass only");
+        assert!(err.iter().any(|p| p.to_string().contains("mass with no stiffness")), "{err:?}");
+    }
+
+    #[test]
+    fn user_coefficient_seismic_is_read_and_other_options_refused() {
+        let seismic = |dir: &str, ecc: &str| {
+            BASE.replace(
+                "LoadPat=P1   SelfWtMult=1\n",
+                "LoadPat=P1   SelfWtMult=1\n   LoadPat=SX   SelfWtMult=0   AutoLoad=\"USER COEFF\"\n",
+            ) + &format!(
+                "TABLE:  \"AUTO SEISMIC - USER COEFFICIENT\"\n   LoadPat=SX   Dir={dir}   PercentEcc={ecc}   EccOverride=No   UserZ=No   C=0.2   K=1.5\n"
+            ) + "TABLE:  \"AUTO SEISMIC LOADS TO JOINTS\"\n   LoadPat=SX   JointElem=9   FX=1   X=0   Y=0   Z=1\n"
+        };
+        let im = import_text(&seismic("X", "0.05"));
+        let p = im.model.load_patterns.iter().find(|p| p.name == "SX").expect("pattern");
+        assert_eq!(
+            p.auto_seismic,
+            Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.2, exponent: 1.5, eccentricity: 0.0 })
+        );
+        assert!(im.notes.iter().any(|n| n.contains("eccentricity 0.05 ignored")));
+        let err = import(&parse(&seismic("XEccY", "0")).expect("parse")).expect_err("direction");
+        assert!(err.iter().any(|p| p.to_string().contains("direction")), "{err:?}");
+        let other = BASE.replace(
+            "LoadPat=P1   SelfWtMult=1\n",
+            "LoadPat=P1   SelfWtMult=1\n   LoadPat=E   AutoLoad=\"ASCE 7-16\"\n",
+        );
+        let err = import(&parse(&other).expect("parse")).expect_err("other code");
+        assert!(err.iter().any(|p| p.to_string().contains("automatic load 'ASCE 7-16'")), "{err:?}");
+    }
+
+    #[test]
+    fn eccentricity_kept_with_diaphragms_and_code_spectra_read_as_tabulated() {
+        let text = with_spectrum("")
+            .replace(
+                "LoadPat=P1   SelfWtMult=1\n",
+                "LoadPat=P1   SelfWtMult=1\n   LoadPat=SX   AutoLoad=\"USER COEFF\"\n",
+            )
+            .replace(
+                "TABLE:  \"FUNCTION - RESPONSE SPECTRUM - USER\"",
+                "TABLE:  \"FUNCTION - RESPONSE SPECTRUM - CODE X\"",
+            )
+            + "TABLE:  \"AUTO SEISMIC - USER COEFFICIENT\"\n   LoadPat=SX   Dir=X   PercentEcc=0.05   C=0.2\n"
+            + "TABLE:  \"CONSTRAINT DEFINITIONS - DIAPHRAGM\"\n   Name=D1   CoordSys=GLOBAL   Axis=Z\n"
+            + "TABLE:  \"JOINT CONSTRAINT ASSIGNMENTS\"\n   Joint=1   Constraint=D1   Type=Diaphragm\n   Joint=2   Constraint=D1   Type=Diaphragm\n";
+        let im = import_text(&text);
+        let p = im.model.load_patterns.iter().find(|p| p.name == "SX").expect("pattern");
+        assert_eq!(p.auto_seismic.as_ref().map(|a| a.eccentricity), Some(0.05));
+        assert!(im.model.load_cases.iter().any(|c| c.name() == "SP"), "{:?}", im.notes);
+        assert_eq!(im.notes.iter().filter(|n| n.contains("curve read as tabulated")).count(), 1);
+    }
+
+    #[test]
+    fn mesh_options_need_the_mesh_and_edge_constraints_no_hanging_joints() {
+        let auto_mesh = "TABLE:  \"AREA AUTO MESH ASSIGNMENTS\"\n   Area=A9   MeshType=\"Maximum Size\"\n";
+        let err = import(&parse(&format!("{BASE}{auto_mesh}")).expect("parse")).expect_err("no mesh");
+        assert!(err.iter().any(|p| p.to_string().contains("without the analysis mesh")), "{err:?}");
+        // An edge constraint with nothing to tie is accepted with a note.
+        let edge = "TABLE:  \"AREA EDGE CONSTRAINT ASSIGNMENTS\"\n   Area=A9   Constrained=Yes\n";
+        let im = import_text(&format!("{BASE}{edge}"));
+        assert!(im.notes.iter().any(|n| n.contains("edge constraints on 1 area(s) have no effect")));
     }
 
     #[test]

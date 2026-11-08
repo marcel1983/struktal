@@ -1,0 +1,77 @@
+{
+  "case_id": "V-SEIS-001",
+  "title": "Automatic seismic by a user coefficient, k = 1 and 2",
+  "feature_ids": [
+    "F06-010"
+  ],
+  "model": "model.json",
+  "model_sha256": "3d5e485a0237bb60380ff25180898fbd46ec7b84d904312be264ef8a56086269",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Hand computation of the user-coefficient rule; cantilever deflection by superposition",
+    "derivation": [
+      "W = g (sum of masses on joints free in X)",
+      "V = C W",
+      "F_i = V m_i h_i^k / sum m h^k",
+      "a joint at the base level with mass counts in W and takes no force",
+      "tip = F1 a^2 (3L - a)/(6 E I) + F2 L^3/(3 E I)"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_reaction",
+      "case": "SX1",
+      "entity": "A",
+      "component": "FX",
+      "value": -11767.98,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SX1",
+      "entity": "A",
+      "component": "MY",
+      "value": -56486.304,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SX1",
+      "entity": "M2",
+      "component": "UX",
+      "value": 0.00767860695,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SX2",
+      "entity": "A",
+      "component": "FX",
+      "value": -11767.98,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SX2",
+      "entity": "A",
+      "component": "MY",
+      "value": -61781.895000000004,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SX2",
+      "entity": "M2",
+      "component": "UX",
+      "value": 0.008770822593750002,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

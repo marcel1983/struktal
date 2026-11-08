@@ -1,0 +1,70 @@
+{
+  "case_id": "V-SEIS-002",
+  "title": "Automatic seismic: accidental eccentricity through a diaphragm",
+  "feature_ids": [
+    "F06-010",
+    "F04-005"
+  ],
+  "model": "model.json",
+  "model_sha256": "2af0b3b5a60cbbd2c50a7005b7a40bb4b467f5a2448669aa287ec18b3ab5739d",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Statics of the generated forces; eccentric moment e B F on each diaphragm joint",
+    "derivation": [
+      "V = C g (m1 + m2), F = V/2 at each top joint",
+      "MZ_i = -e B F_i, B = diaphragm size along Y",
+      "column shear = k u_i: the torque splits the base shear unequally",
+      "sum of base MZ = B V/2 + e B V",
+      "u = V/(2k) -/+ theta B/2, theta = -e B V/(2 k (B/2)^2 + 2 G J/L), k = 3 E I/L^3"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_reaction",
+      "case": "SX",
+      "entity": "A1",
+      "component": "FX",
+      "value": -2755.429463414634,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SX",
+      "entity": "A2",
+      "component": "FX",
+      "value": -3128.5605365853658,
+      "unit": "N"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SX",
+      "entity": "T1",
+      "component": "UX",
+      "value": 0.00030998581463414636,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SX",
+      "entity": "T2",
+      "component": "UX",
+      "value": 0.0003519630603658537,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SX",
+      "entity": "T1",
+      "component": "RZ",
+      "value": -1.049431143292683e-05,
+      "unit": "rad"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

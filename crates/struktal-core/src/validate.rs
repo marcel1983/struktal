@@ -58,7 +58,8 @@ impl std::error::Error for LoadError {}
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
 /// behavior); v2 → v3 adds no offsets, constraints, springs or imposed
 /// displacements; v3 → v4 only adds load kinds; v4 → v5 adds no subdivision;
-/// v5 → v6 only allows areas of three joints; v6 → v7 only adds a mass source.
+/// v5 → v6 only allows areas of three joints; v6 → v7 only adds a mass source;
+/// v7 → v8 only adds load-only frames; v8 → v9 only adds automatic seismic loads.
 /// Missing fields already default to that, so only the version number changes.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
@@ -94,6 +95,22 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
         if has_offsets || has_springs || raw.get("constraints").is_some() || raw.get("joint_displacements").is_some() {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
+    }
+    if ver < 9
+        && raw
+            .get("load_patterns")
+            .and_then(|v| v.as_array())
+            .is_some_and(|ps| ps.iter().any(|p| p.get("auto_seismic").is_some()))
+    {
+        return Err(LoadError::UnsupportedSchema { found: ver });
+    }
+    if ver < 8
+        && raw
+            .get("frames")
+            .and_then(|v| v.as_array())
+            .is_some_and(|frames| frames.iter().any(|f| f.get("load_only").is_some()))
+    {
+        return Err(LoadError::UnsupportedSchema { found: ver });
     }
     if ver < 7 && raw.get("mass_source").is_some() {
         return Err(LoadError::UnsupportedSchema { found: ver });
@@ -274,6 +291,13 @@ fn check_mass_and_spectra(m: &Model, issues: &mut Vec<Issue>) {
                     "mass_source",
                     "patterns",
                     format!("scale of '{}' must be finite and >= 0", p.pattern),
+                ));
+            }
+            if m.load_patterns.iter().any(|x| x.name == p.pattern && x.auto_seismic.is_some()) {
+                issues.push(issue(
+                    "mass_source",
+                    "patterns",
+                    format!("'{}' is an automatic seismic pattern, which is computed from the masses", p.pattern),
                 ));
             }
         }
@@ -521,6 +545,9 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
             issues.push(issue(&e, "section", format!("unknown section '{}'", f.section)));
         }
         check_finite(f.angle_deg, &e, "angle_deg", &mut issues);
+        if f.load_only && (f.releases.is_some() || f.offsets.is_some()) {
+            issues.push(issue(&e, "load_only", "a load-only frame cannot have releases or offsets"));
+        }
         if let Some(r) = &f.releases {
             for (end, rel, springs) in [("i", &r.i, &r.i_springs), ("j", &r.j, &r.j_springs)] {
                 for c in 0..6 {
@@ -614,6 +641,33 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
     }
 
     for p in &m.load_patterns {
+        if let Some(a) = &p.auto_seismic {
+            let e = format!("load pattern {}", p.name);
+            if a.direction == GlobalAxis::Z {
+                issues.push(issue(&e, "auto_seismic.direction", "must be X or Y"));
+            }
+            if !a.coefficient.is_finite() || a.coefficient < 0.0 {
+                issues.push(issue(
+                    &e,
+                    "auto_seismic.coefficient",
+                    format!("must be finite and >= 0, got {}", a.coefficient),
+                ));
+            }
+            if !a.exponent.is_finite() || a.exponent <= 0.0 {
+                issues.push(issue(&e, "auto_seismic.exponent", format!("must be finite and > 0, got {}", a.exponent)));
+            }
+            if !a.eccentricity.is_finite() {
+                issues.push(issue(&e, "auto_seismic.eccentricity", "must be finite"));
+            } else if a.eccentricity != 0.0
+                && !m.constraints.iter().any(|c| matches!(c, Constraint::Diaphragm { axis: GlobalAxis::Z, .. }))
+            {
+                issues.push(issue(
+                    &e,
+                    "auto_seismic.eccentricity",
+                    "acts through horizontal diaphragms, and there are none",
+                ));
+            }
+        }
         check_finite(
             p.self_weight_multiplier,
             &format!("load pattern {}", p.name),
@@ -842,6 +896,7 @@ mod tests {
                 releases: None,
                 offsets: None,
                 auto_mesh: None,
+                load_only: false,
             }],
             area_sections: vec![],
             areas: vec![],
@@ -849,7 +904,7 @@ mod tests {
             response_spectra: vec![],
             mass_source: None,
             constraints: vec![],
-            load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0 }],
+            load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0, auto_seismic: None }],
             joint_loads: vec![JointLoad {
                 pattern: "P".into(),
                 joint: "2".into(),
@@ -983,6 +1038,46 @@ mod tests {
         let r = s.model.frames[0].releases.as_ref().expect("rel");
         assert!((r.j_springs[1] - 2.0e6).abs() < 1e-6); // kN/mm -> N/m
         assert!((r.j_springs[5] - 3.0).abs() < 1e-12); // 3 kN·mm = 3 N·m
+    }
+
+    #[test]
+    fn load_only_frames_need_v8_and_no_releases() {
+        let mut m = cantilever();
+        m.frames[0].load_only = true;
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        assert_eq!(v["frames"][0]["load_only"], true);
+        v["schema_version"] = 7.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 7 })));
+        m.frames[0].releases = Some(EndReleases { j: [false, false, false, false, false, true], ..Default::default() });
+        assert!(validate(&m).expect_err("releases").iter().any(|i| i.field == "load_only"));
+        // Not written when false, so ordinary files do not change.
+        assert!(!model_to_json(&cantilever()).contains("load_only"));
+    }
+
+    #[test]
+    fn auto_seismic_needs_v9_a_horizontal_axis_and_stays_out_of_the_mass_source() {
+        let mut m = cantilever();
+        m.load_patterns[0].auto_seismic =
+            Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.2, exponent: 1.0, eccentricity: 0.0 });
+        assert!(validate(&m).is_ok());
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 8.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 8 })));
+        let mut bad = m.clone();
+        bad.load_patterns[0].auto_seismic =
+            Some(AutoSeismic { direction: GlobalAxis::Z, coefficient: -1.0, exponent: 0.0, eccentricity: 0.05 });
+        let errs = validate(&bad).expect_err("bad");
+        for f in
+            ["auto_seismic.direction", "auto_seismic.coefficient", "auto_seismic.exponent", "auto_seismic.eccentricity"]
+        {
+            assert!(errs.iter().any(|i| i.field == f), "{f}");
+        }
+        m.mass_source = Some(MassSource {
+            elements: true,
+            added_masses: true,
+            patterns: vec![ScaledPattern { pattern: "P".into(), scale: 1.0 }],
+        });
+        assert!(validate(&m).expect_err("mass").iter().any(|i| i.cause.contains("automatic seismic")));
     }
 
     #[test]

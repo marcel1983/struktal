@@ -215,6 +215,7 @@ pub fn expand(s: &Snapshot) -> Result<(Option<Snapshot>, Mesh), String> {
                 releases: (piece_releases != EndReleases::default()).then_some(piece_releases),
                 offsets: (piece_offsets != EndOffsets::default()).then_some(piece_offsets),
                 auto_mesh: None,
+                load_only: fr.load_only,
             });
             for l in &loads {
                 if let Some(load) = cut_load(&l.load, bounds[k], bounds[k + 1], is_last) {

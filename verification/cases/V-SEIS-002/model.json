@@ -1,0 +1,151 @@
+{
+  "constraints": [
+    {
+      "kind": "Diaphragm",
+      "name": "D",
+      "axis": "Z",
+      "joints": [
+        "T1",
+        "T2"
+      ]
+    }
+  ],
+  "schema_version": 9,
+  "title": "V-SEIS-002 eccentricity through a diaphragm",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0,
+      "mass_density": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "COL",
+      "material": "STEEL",
+      "area": 0.02,
+      "i33": 0.0004,
+      "i22": 0.0004,
+      "j": 0.0008
+    }
+  ],
+  "joints": [
+    {
+      "name": "A1",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "A2",
+      "x": 0,
+      "y": 4.0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "T1",
+      "x": 0,
+      "y": 0,
+      "z": 3,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "added_mass": [
+        1000.0,
+        1000.0,
+        1000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "T2",
+      "x": 0,
+      "y": 4.0,
+      "z": 3,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "added_mass": [
+        1000.0,
+        1000.0,
+        1000.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "C1",
+      "i": "A1",
+      "j": "T1",
+      "section": "COL"
+    },
+    {
+      "name": "C2",
+      "i": "A2",
+      "j": "T2",
+      "section": "COL"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "SX",
+      "auto_seismic": {
+        "direction": "X",
+        "coefficient": 0.3,
+        "eccentricity": 0.05
+      }
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "SX",
+      "loads": [
+        {
+          "pattern": "SX",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

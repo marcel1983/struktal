@@ -2140,4 +2140,139 @@ write("V-MASS-004", "Mass source: an upward load is negative mass, so the modes 
     exp("joint_displacement", "S", "B", "UZ", W1 * Lq1**3 / (3 * E * K2["i33"]), "m"),
 ], expected_status=[{"case": "M", "completion": "error", "physical_status": "indeterminate", "message_contains": "negative mass"}], tol=MOD_TOL)
 
+# ---------------------------------------------------------------- load-only frames
+# Simply supported beam A-M-B; a load-only frame over M-B carries a downward
+# uniform load. Its fixed-end forces reach M and B, so the nodal response is
+# that of the beam with the load on its right half (Euler-Bernoulli).
+Ln, qn = 6.0, 12_000.0
+EIn = E * SEC["i33"]
+a_n = Ln / 2
+def Mn(x):  # sagging moment, load q on [a_n, L]
+    RA = qn * (Ln - a_n) * ((Ln - a_n) / 2) / Ln
+    return RA * x - (qn * (x - a_n) ** 2 / 2 if x > a_n else 0.0)
+RAn = qn * (Ln - a_n) ** 2 / (2 * Ln)
+RBn = qn * (Ln - a_n) - RAn
+m_mid = lambda x: x / 2 if x <= a_n else (Ln - x) / 2     # unit downward load at M
+m_rotA = lambda x: 1 - x / Ln                             # unit moment at A
+defl_mid = simpson(lambda x: Mn(x) * m_mid(x) / EIn, 0, a_n) + simpson(lambda x: Mn(x) * m_mid(x) / EIn, a_n, Ln)
+rot_a = simpson(lambda x: Mn(x) * m_rotA(x) / EIn, 0, a_n) + simpson(lambda x: Mn(x) * m_rotA(x) / EIn, a_n, Ln)
+PINn = [True, True, True, True, False, False]
+ROLn = [False, True, True, False, False, False]
+write("V-NULL-001", "Load-only frame: a line load delivered to a simply supported beam", ["F01-013", "F06-003"], model(
+    "V-NULL-001 load-only frame",
+    [J("A", 0, 0, 0, PINn), J("M", a_n, 0, 0), J("B", Ln, 0, 0, ROLn)],
+    [{"name": "F1", "i": "A", "j": "M", "section": "B"}, {"name": "F2", "i": "M", "j": "B", "section": "B"},
+     {"name": "N", "i": "M", "j": "B", "section": "B", "load_only": True}],
+    [SEC], [{"name": "L"}],
+    frame_loads=[{"pattern": "L", "frame": "N", "load": {"kind": "Uniform", "direction": "Gravity", "value": qn}}],
+    schema=8,
+), {"kind": "analytical", "source": "Simply supported beam with a uniform load on its right half; unit-load method with Simpson integration",
+    "derivation": ["R_A = q b^2/(2 L), R_B = q b - R_A, b = L/2", "deflection and end rotation by virtual work",
+                   "the load-only frame adds no stiffness: the response is that of the beam alone"]}, [
+    exp("joint_reaction", "LC1", "A", "FZ", RAn, "N"),
+    exp("joint_reaction", "LC1", "B", "FZ", RBn, "N"),
+    exp("joint_displacement", "LC1", "M", "UZ", -defl_mid, "m"),
+    exp("joint_displacement", "LC1", "A", "RY", rot_a, "rad"),
+    exp("frame_station", "LC1", "F1", "M3", Mn(a_n), "N*m", 1.0),
+])
+
+# A load-only frame is not a support: alone, it leaves its far joint free.
+write("V-MECH-011", "A joint held only by a load-only frame is a mechanism", ["F01-013", "F08", "stability"], model(
+    "V-MECH-011 load-only frame does not hold a joint",
+    [J("1", 0, 0, 0, FIX), J("2", 3, 0, 0), J("3", 6, 0, 0)],
+    [{"name": "F1", "i": "1", "j": "2", "section": "B"},
+     {"name": "N", "i": "2", "j": "3", "section": "B", "load_only": True}],
+    [SEC], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "2", "values": [0, 0, -1000.0, 0, 0, 0]}],
+    schema=8,
+), {"kind": "analytical", "source": "Joint 3 has no stiffness: six free rigid-body components", "derivation": ["nullity(K) = 6"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"},
+                     {"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "moves 1/3 joints"}])
+
+# ---------------------------------------------------------------- automatic seismic
+# Cantilever column with added masses at z = 3 and 6 m, and a free joint at z = 0
+# with mass (it counts in W but takes no force, h = 0). No element mass.
+# V = C g (m1 + m2 + m0); F_i = V m_i h_i^k / sum m h^k.
+Ls_, gS = 6.0, 9.80665
+mS = {"A": 0.0, "Z0": 500.0, "M1": 2000.0, "M2": 1500.0}
+zS = {"A": 0.0, "Z0": 0.0, "M1": 3.0, "M2": 6.0}
+Cs = 0.3
+SECs = {"name": "COL", "material": "STEEL", "area": 0.02, "i33": 4e-4, "i22": 4e-4, "j": 8e-4}
+mats_s = [{"name": "STEEL", "e": E, "nu": NU, "unit_weight": 0.0, "mass_density": 0.0}]
+EIs = E * SECs["i22"]
+def seismic_forces(k):
+    W = gS * (mS["Z0"] + mS["M1"] + mS["M2"])
+    V = Cs * W
+    den = sum(mS[j] * zS[j] ** k for j in ("M1", "M2"))
+    return V, {j: V * mS[j] * zS[j] ** k / den for j in ("M1", "M2")}
+def tip_x(F1, F2):
+    a = zS["M1"]
+    return F1 * a**2 * (3 * Ls_ - a) / (6 * EIs) + F2 * Ls_**3 / (3 * EIs)
+exp_s = []
+for case, k in (("SX1", 1.0), ("SX2", 2.0)):
+    V, F = seismic_forces(k)
+    exp_s += [exp("joint_reaction", case, "A", "FX", -V, "N"),
+              exp("joint_reaction", case, "A", "MY", -(F["M1"] * zS["M1"] + F["M2"] * zS["M2"]), "N*m"),
+              exp("joint_displacement", case, "M2", "UX", tip_x(F["M1"], F["M2"]), "m")]
+def JMs(name, z, r=None, mass=0.0):
+    j = J(name, 0, 0, z, r)
+    if mass:
+        j["added_mass"] = [mass, mass, mass, 0, 0, 0]
+    return j
+mdl_s = model(
+    "V-SEIS-001 automatic seismic by user coefficient",
+    [JMs("A", 0, FIX), JMs("Z0", 0, [False, False, True, True, True, True], mS["Z0"]),
+     JMs("M1", 3, None, mS["M1"]), JMs("M2", 6, None, mS["M2"])],
+    [{"name": "C1", "i": "A", "j": "M1", "section": "COL"}, {"name": "C2", "i": "M1", "j": "M2", "section": "COL"},
+     {"name": "TIE", "i": "A", "j": "Z0", "section": "COL"}],
+    [SECs], [{"name": "SX1", "auto_seismic": {"direction": "X", "coefficient": Cs, "exponent": 1.0}},
+             {"name": "SX2", "auto_seismic": {"direction": "X", "coefficient": Cs, "exponent": 2.0}}],
+    cases=[{"type": "LinearStatic", "name": "SX1", "loads": [{"pattern": "SX1", "scale": 1.0}]},
+           {"type": "LinearStatic", "name": "SX2", "loads": [{"pattern": "SX2", "scale": 1.0}]}],
+    materials=mats_s, schema=9,
+)
+mdl_s["joints"][1]["x"] = 1.0
+write("V-SEIS-001", "Automatic seismic by a user coefficient, k = 1 and 2", ["F06-010"], mdl_s,
+      {"kind": "analytical", "source": "Hand computation of the user-coefficient rule; cantilever deflection by superposition",
+       "derivation": ["W = g (sum of masses on joints free in X)", "V = C W", "F_i = V m_i h_i^k / sum m h^k",
+                      "a joint at the base level with mass counts in W and takes no force",
+                      "tip = F1 a^2 (3L - a)/(6 E I) + F2 L^3/(3 E I)"]}, exp_s)
+
+# Eccentricity through a diaphragm: two equal masses at (0, 0, 3) and (0, B, 3)
+# on two cantilever columns tied by a diaphragm. Each takes V/2 in X and
+# MZ = -e B (V/2). Base: FX = -V, MZ = B V/2 + e B V (moment of the forces at
+# y = B about the origin is -B V/2, then the reaction cancels both).
+Be, ee, me = 4.0, 0.05, 1000.0
+Ve = Cs * gS * 2 * me
+# Diaphragm motion: translation u = V/(2k), k = 3EI/L^3 per column; rotation
+# theta = T/K, T = -e B V, K = 2 k (B/2)^2 + 2 G J/L (column twist, tied RZ).
+Lc_ = 3.0
+k_col = 3 * EIs / Lc_**3
+K_rot = 2 * k_col * (Be / 2) ** 2 + 2 * (E / (2 * (1 + NU))) * SECs["j"] / Lc_
+theta_e = -ee * Be * Ve / K_rot
+u_mid = Ve / (2 * k_col)
+# Each column's shear follows its own top displacement: the torque is resisted
+# by the couple of the two shears and by the column twist.
+exp_e = [exp("joint_reaction", "SX", "A1", "FX", -k_col * (u_mid + theta_e * Be / 2), "N"),
+         exp("joint_reaction", "SX", "A2", "FX", -k_col * (u_mid - theta_e * Be / 2), "N"),
+         exp("joint_displacement", "SX", "T1", "UX", u_mid + theta_e * Be / 2, "m"),
+         exp("joint_displacement", "SX", "T2", "UX", u_mid - theta_e * Be / 2, "m"),
+         exp("joint_displacement", "SX", "T1", "RZ", theta_e, "rad")]
+mdl_e = model(
+    "V-SEIS-002 eccentricity through a diaphragm",
+    [J("A1", 0, 0, 0, FIX), J("A2", 0, Be, 0, FIX), JMs("T1", 3, None, me), JMs("T2", 3, None, me)],
+    [{"name": "C1", "i": "A1", "j": "T1", "section": "COL"}, {"name": "C2", "i": "A2", "j": "T2", "section": "COL"}],
+    [SECs], [{"name": "SX", "auto_seismic": {"direction": "X", "coefficient": Cs, "eccentricity": ee}}],
+    cases=[{"type": "LinearStatic", "name": "SX", "loads": [{"pattern": "SX", "scale": 1.0}]}],
+    materials=mats_s, schema=9,
+    constraints=[{"kind": "Diaphragm", "name": "D", "axis": "Z", "joints": ["T1", "T2"]}],
+)
+mdl_e["joints"][3]["y"] = Be
+write("V-SEIS-002", "Automatic seismic: accidental eccentricity through a diaphragm", ["F06-010", "F04-005"], mdl_e,
+      {"kind": "analytical", "source": "Statics of the generated forces; eccentric moment e B F on each diaphragm joint",
+       "derivation": ["V = C g (m1 + m2), F = V/2 at each top joint", "MZ_i = -e B F_i, B = diaphragm size along Y",
+                      "column shear = k u_i: the torque splits the base shear unequally",
+                      "sum of base MZ = B V/2 + e B V",
+                      "u = V/(2k) -/+ theta B/2, theta = -e B V/(2 k (B/2)^2 + 2 G J/L), k = 3 E I/L^3"]}, exp_e)
+
 print("cases written to", ROOT)
