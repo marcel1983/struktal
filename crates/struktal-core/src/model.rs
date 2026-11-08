@@ -18,7 +18,8 @@ use crate::units::{Dim, UnitSystem};
 /// v5 (2026-11-05): automatic subdivision of frames. Older files have none
 /// (decision 0015).
 /// v7 (2026-11-06): mass_source. Older files have none (decision 0022).
-pub const SCHEMA_VERSION: u32 = 7;
+/// v8 (2026-11-08): load-only frames. Older files have none (decision 0024).
+pub const SCHEMA_VERSION: u32 = 8;
 
 pub type Name = String;
 
@@ -192,6 +193,11 @@ pub struct Frame {
     /// Automatic subdivision for analysis (decision 0015).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_mesh: Option<AutoMesh>,
+    /// A frame with no stiffness and no mass that only delivers its loads to
+    /// its joints, as the fixed-end forces of a prismatic member with its
+    /// section (decision 0024). Used to apply line loads along other elements.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub load_only: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

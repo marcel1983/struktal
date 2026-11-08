@@ -78,6 +78,9 @@ pub(crate) fn assemble_mass(
     }
     if elements {
         for (fd, &(_, _, sec, mat)) in frames.iter().zip(&s.frame_refs) {
+            if fd.load_only {
+                continue;
+            }
             let half = 0.5 * m.materials[mat].mass_density * m.sections[sec].area * fd.length;
             for d in 0..3 {
                 lumped[fd.dofs[d]] += half;

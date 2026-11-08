@@ -58,7 +58,8 @@ impl std::error::Error for LoadError {}
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
 /// behavior); v2 → v3 adds no offsets, constraints, springs or imposed
 /// displacements; v3 → v4 only adds load kinds; v4 → v5 adds no subdivision;
-/// v5 → v6 only allows areas of three joints; v6 → v7 only adds a mass source.
+/// v5 → v6 only allows areas of three joints; v6 → v7 only adds a mass source;
+/// v7 → v8 only adds load-only frames.
 /// Missing fields already default to that, so only the version number changes.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
@@ -94,6 +95,14 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
         if has_offsets || has_springs || raw.get("constraints").is_some() || raw.get("joint_displacements").is_some() {
             return Err(LoadError::UnsupportedSchema { found: ver });
         }
+    }
+    if ver < 8
+        && raw
+            .get("frames")
+            .and_then(|v| v.as_array())
+            .is_some_and(|frames| frames.iter().any(|f| f.get("load_only").is_some()))
+    {
+        return Err(LoadError::UnsupportedSchema { found: ver });
     }
     if ver < 7 && raw.get("mass_source").is_some() {
         return Err(LoadError::UnsupportedSchema { found: ver });
@@ -521,6 +530,9 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
             issues.push(issue(&e, "section", format!("unknown section '{}'", f.section)));
         }
         check_finite(f.angle_deg, &e, "angle_deg", &mut issues);
+        if f.load_only && (f.releases.is_some() || f.offsets.is_some()) {
+            issues.push(issue(&e, "load_only", "a load-only frame cannot have releases or offsets"));
+        }
         if let Some(r) = &f.releases {
             for (end, rel, springs) in [("i", &r.i, &r.i_springs), ("j", &r.j, &r.j_springs)] {
                 for c in 0..6 {
@@ -842,6 +854,7 @@ mod tests {
                 releases: None,
                 offsets: None,
                 auto_mesh: None,
+                load_only: false,
             }],
             area_sections: vec![],
             areas: vec![],
@@ -983,6 +996,20 @@ mod tests {
         let r = s.model.frames[0].releases.as_ref().expect("rel");
         assert!((r.j_springs[1] - 2.0e6).abs() < 1e-6); // kN/mm -> N/m
         assert!((r.j_springs[5] - 3.0).abs() < 1e-12); // 3 kN·mm = 3 N·m
+    }
+
+    #[test]
+    fn load_only_frames_need_v8_and_no_releases() {
+        let mut m = cantilever();
+        m.frames[0].load_only = true;
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        assert_eq!(v["frames"][0]["load_only"], true);
+        v["schema_version"] = 7.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 7 })));
+        m.frames[0].releases = Some(EndReleases { j: [false, false, false, false, false, true], ..Default::default() });
+        assert!(validate(&m).expect_err("releases").iter().any(|i| i.field == "load_only"));
+        // Not written when false, so ordinary files do not change.
+        assert!(!model_to_json(&cantilever()).contains("load_only"));
     }
 
     #[test]

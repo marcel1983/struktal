@@ -2140,4 +2140,53 @@ write("V-MASS-004", "Mass source: an upward load is negative mass, so the modes 
     exp("joint_displacement", "S", "B", "UZ", W1 * Lq1**3 / (3 * E * K2["i33"]), "m"),
 ], expected_status=[{"case": "M", "completion": "error", "physical_status": "indeterminate", "message_contains": "negative mass"}], tol=MOD_TOL)
 
+# ---------------------------------------------------------------- load-only frames
+# Simply supported beam A-M-B; a load-only frame over M-B carries a downward
+# uniform load. Its fixed-end forces reach M and B, so the nodal response is
+# that of the beam with the load on its right half (Euler-Bernoulli).
+Ln, qn = 6.0, 12_000.0
+EIn = E * SEC["i33"]
+a_n = Ln / 2
+def Mn(x):  # sagging moment, load q on [a_n, L]
+    RA = qn * (Ln - a_n) * ((Ln - a_n) / 2) / Ln
+    return RA * x - (qn * (x - a_n) ** 2 / 2 if x > a_n else 0.0)
+RAn = qn * (Ln - a_n) ** 2 / (2 * Ln)
+RBn = qn * (Ln - a_n) - RAn
+m_mid = lambda x: x / 2 if x <= a_n else (Ln - x) / 2     # unit downward load at M
+m_rotA = lambda x: 1 - x / Ln                             # unit moment at A
+defl_mid = simpson(lambda x: Mn(x) * m_mid(x) / EIn, 0, a_n) + simpson(lambda x: Mn(x) * m_mid(x) / EIn, a_n, Ln)
+rot_a = simpson(lambda x: Mn(x) * m_rotA(x) / EIn, 0, a_n) + simpson(lambda x: Mn(x) * m_rotA(x) / EIn, a_n, Ln)
+PINn = [True, True, True, True, False, False]
+ROLn = [False, True, True, False, False, False]
+write("V-NULL-001", "Load-only frame: a line load delivered to a simply supported beam", ["F01-013", "F06-003"], model(
+    "V-NULL-001 load-only frame",
+    [J("A", 0, 0, 0, PINn), J("M", a_n, 0, 0), J("B", Ln, 0, 0, ROLn)],
+    [{"name": "F1", "i": "A", "j": "M", "section": "B"}, {"name": "F2", "i": "M", "j": "B", "section": "B"},
+     {"name": "N", "i": "M", "j": "B", "section": "B", "load_only": True}],
+    [SEC], [{"name": "L"}],
+    frame_loads=[{"pattern": "L", "frame": "N", "load": {"kind": "Uniform", "direction": "Gravity", "value": qn}}],
+    schema=8,
+), {"kind": "analytical", "source": "Simply supported beam with a uniform load on its right half; unit-load method with Simpson integration",
+    "derivation": ["R_A = q b^2/(2 L), R_B = q b - R_A, b = L/2", "deflection and end rotation by virtual work",
+                   "the load-only frame adds no stiffness: the response is that of the beam alone"]}, [
+    exp("joint_reaction", "LC1", "A", "FZ", RAn, "N"),
+    exp("joint_reaction", "LC1", "B", "FZ", RBn, "N"),
+    exp("joint_displacement", "LC1", "M", "UZ", -defl_mid, "m"),
+    exp("joint_displacement", "LC1", "A", "RY", rot_a, "rad"),
+    exp("frame_station", "LC1", "F1", "M3", Mn(a_n), "N*m", 1.0),
+])
+
+# A load-only frame is not a support: alone, it leaves its far joint free.
+write("V-MECH-011", "A joint held only by a load-only frame is a mechanism", ["F01-013", "F08", "stability"], model(
+    "V-MECH-011 load-only frame does not hold a joint",
+    [J("1", 0, 0, 0, FIX), J("2", 3, 0, 0), J("3", 6, 0, 0)],
+    [{"name": "F1", "i": "1", "j": "2", "section": "B"},
+     {"name": "N", "i": "2", "j": "3", "section": "B", "load_only": True}],
+    [SEC], [{"name": "L"}],
+    joint_loads=[{"pattern": "L", "joint": "2", "values": [0, 0, -1000.0, 0, 0, 0]}],
+    schema=8,
+), {"kind": "analytical", "source": "Joint 3 has no stiffness: six free rigid-body components", "derivation": ["nullity(K) = 6"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"},
+                     {"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "moves 1/3 joints"}])
+
 print("cases written to", ROOT)
