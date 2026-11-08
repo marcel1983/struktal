@@ -45,3 +45,14 @@ Hecho localmente; el archivo y sus resultados no entran en el repositorio (decis
 | Flecha máxima DEAD | −4,7 % |
 
 Las diferencias de desplazamientos y periodos son de formulación: la lámina delgada del programa de origen frente a MITC4, en una malla de 1,2 m. El peso y las cargas son idénticos.
+
+## Ampliación: excentricidad por diafragmas y espectros de norma (segundo archivo del usuario)
+
+Mismo edificio con dos diafragmas rígidos horizontales, excentricidad del 5 % y dos casos de espectro con una función ASCE 7-22.
+
+- **Excentricidad accidental** (`auto_seismic.eccentricity`). Cada nudo de un diafragma horizontal recibe además **MZ = −e·B·F_i en X y +e·B·F_i en Y**, donde B es el tamaño del diafragma, medido entre sus propios nudos, normal a la carga. Equivale a desplazar la carga +e·B en el eje normal. Los nudos fuera de diafragmas no reciben momento. La regla se dedujo y comprobó con el archivo: los 32 nudos de diafragma sin ningún desajuste, los 120 restantes con MZ = 0, y el MZ total de cada diafragma igual a su tabla de cargas por diafragma. La validación exige al menos un diafragma horizontal si e ≠ 0. Sin diafragmas, el lector la ignora con una nota. **Pendiente de confirmar con otro archivo:** si B es el tamaño de los nudos del diafragma o el de todo el nivel; aquí coinciden. Con un solo patrón se aplica el signo positivo; los patrones de signo opuesto los define el usuario.
+- **Corrección encontrada por la verificación:** la resultante aplicada que usa la comprobación de equilibrio no incluía los momentos de excentricidad. Daba un desequilibrio del 5 % en V-SEIS-002. Las cargas sí se aplicaban bien.
+- **Espectro de una función de norma:** si la función no está en la tabla de usuario, se lee la curva **tabulada** que el archivo trae para ella (periodo, aceleración), con una nota, sin recalcularla desde los parámetros de la norma.
+- V-SEIS-002: dos columnas atadas por un diafragma, con referencia a mano de reacciones, traslación y giro del diafragma (rigidez lateral 3EI/L³ y torsión GJ/L).
+
+Contraste local (sin publicar): reacciones en la base DEAD, SX y SY **idénticas, incluido el torsor por excentricidad** (−325 864,4 y −12 864,0 kgf·m); desplazamientos principales dentro del 1–2 %; periodos principales dentro del 1,4 %, y modos altos hasta −6,5 %. El archivo no trae resultados de los casos de espectro, así que no se pudieron comparar. La función ASCE está en g y los casos usan factor de escala 1: se avisó al usuario de que probablemente debería ser 9,80665.

@@ -2238,4 +2238,41 @@ write("V-SEIS-001", "Automatic seismic by a user coefficient, k = 1 and 2", ["F0
                       "a joint at the base level with mass counts in W and takes no force",
                       "tip = F1 a^2 (3L - a)/(6 E I) + F2 L^3/(3 E I)"]}, exp_s)
 
+# Eccentricity through a diaphragm: two equal masses at (0, 0, 3) and (0, B, 3)
+# on two cantilever columns tied by a diaphragm. Each takes V/2 in X and
+# MZ = -e B (V/2). Base: FX = -V, MZ = B V/2 + e B V (moment of the forces at
+# y = B about the origin is -B V/2, then the reaction cancels both).
+Be, ee, me = 4.0, 0.05, 1000.0
+Ve = Cs * gS * 2 * me
+# Diaphragm motion: translation u = V/(2k), k = 3EI/L^3 per column; rotation
+# theta = T/K, T = -e B V, K = 2 k (B/2)^2 + 2 G J/L (column twist, tied RZ).
+Lc_ = 3.0
+k_col = 3 * EIs / Lc_**3
+K_rot = 2 * k_col * (Be / 2) ** 2 + 2 * (E / (2 * (1 + NU))) * SECs["j"] / Lc_
+theta_e = -ee * Be * Ve / K_rot
+u_mid = Ve / (2 * k_col)
+# Each column's shear follows its own top displacement: the torque is resisted
+# by the couple of the two shears and by the column twist.
+exp_e = [exp("joint_reaction", "SX", "A1", "FX", -k_col * (u_mid + theta_e * Be / 2), "N"),
+         exp("joint_reaction", "SX", "A2", "FX", -k_col * (u_mid - theta_e * Be / 2), "N"),
+         exp("joint_displacement", "SX", "T1", "UX", u_mid + theta_e * Be / 2, "m"),
+         exp("joint_displacement", "SX", "T2", "UX", u_mid - theta_e * Be / 2, "m"),
+         exp("joint_displacement", "SX", "T1", "RZ", theta_e, "rad")]
+mdl_e = model(
+    "V-SEIS-002 eccentricity through a diaphragm",
+    [J("A1", 0, 0, 0, FIX), J("A2", 0, Be, 0, FIX), JMs("T1", 3, None, me), JMs("T2", 3, None, me)],
+    [{"name": "C1", "i": "A1", "j": "T1", "section": "COL"}, {"name": "C2", "i": "A2", "j": "T2", "section": "COL"}],
+    [SECs], [{"name": "SX", "auto_seismic": {"direction": "X", "coefficient": Cs, "eccentricity": ee}}],
+    cases=[{"type": "LinearStatic", "name": "SX", "loads": [{"pattern": "SX", "scale": 1.0}]}],
+    materials=mats_s, schema=9,
+    constraints=[{"kind": "Diaphragm", "name": "D", "axis": "Z", "joints": ["T1", "T2"]}],
+)
+mdl_e["joints"][3]["y"] = Be
+write("V-SEIS-002", "Automatic seismic: accidental eccentricity through a diaphragm", ["F06-010", "F04-005"], mdl_e,
+      {"kind": "analytical", "source": "Statics of the generated forces; eccentric moment e B F on each diaphragm joint",
+       "derivation": ["V = C g (m1 + m2), F = V/2 at each top joint", "MZ_i = -e B F_i, B = diaphragm size along Y",
+                      "column shear = k u_i: the torque splits the base shear unequally",
+                      "sum of base MZ = B V/2 + e B V",
+                      "u = V/(2k) -/+ theta B/2, theta = -e B V/(2 k (B/2)^2 + 2 G J/L), k = 3 E I/L^3"]}, exp_e)
+
 print("cases written to", ROOT)

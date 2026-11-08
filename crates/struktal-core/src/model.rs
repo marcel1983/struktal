@@ -449,6 +449,12 @@ pub struct AutoSeismic {
     /// k: exponent of the height.
     #[serde(default = "one")]
     pub exponent: f64,
+    /// Accidental eccentricity as a ratio of the diaphragm size normal to the
+    /// load. Each joint of a horizontal diaphragm also takes MZ = e B F
+    /// (−e B F for X loads): the load shifted +e B along the normal axis. It
+    /// acts only on joints of diaphragms (decision 0026).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub eccentricity: f64,
 }
 
 fn one() -> f64 {

@@ -26,8 +26,8 @@ Actualizado: 2026-11-08. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
-- `cargo test --workspace`: 178 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 24, 0 fallos.
-- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 65/65 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `cargo test --workspace`: 179 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 24, 0 fallos.
+- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 66/66 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - `tools/compare_engines.py`: comparación opcional con OpenSeesPy y Pynite (decisión 0013); con triángulos da DIFF en V-TRI-001, explicado en la decisión 0021. CI en `.github/workflows/ci.yml`: `add290a` y `65feef9` fallaron solo en el trabajo de referencias, porque `sin` y `cos` redondean distinto entre Linux y Windows. `tools/check_cases.py` lo corrige en dos pasos, el segundo para el hash de `model.json`; CI en verde desde `199b727`. Benchmarks de los ejemplos de OpenSees: decisión 0023.
 - Benchmarks: docs/benchmarks.md.
 
@@ -41,7 +41,7 @@ Actualizado: 2026-11-08. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 Objetivo del usuario: herramienta open source para su propio trabajo, con modelos que suelen tener losas o muros. Orden acordado el 2026-11-05: 1) resto de pórticos, 2) lo que pide un modelo real (secciones paramétricas, cargas, subdivisión, envolventes), 3) S2K, 4) láminas, 5) masas, modos y espectro.
 
-1. Sismo automático por coeficiente de usuario: **hecho** (decisión 0026). Primer edificio real del usuario importado y contrastado localmente: peso, cortante basal y reacciones idénticos; periodos principales dentro del 0,8 %. Faltan sismo por normas y excentricidad con diafragmas.
+1. Sismo automático por coeficiente de usuario: **hecho** (decisión 0026). Primer edificio real del usuario importado y contrastado localmente: peso, cortante basal y reacciones idénticos; periodos principales dentro del 0,8 %. Segundo archivo con diafragmas: excentricidad hecha, reacciones y torsor idénticos. Faltan sismo por normas y contrastar un espectro con resultados (el archivo no los traía).
 1. Importador con modelos reales del usuario: placa gruesa con malla (576 láminas), contrastada localmente con sus propios resultados de SAP2000 con un 0,18 % de diferencia máxima; patch test de láminas grueso y delgado: membrana idéntica, flexión limitada por datos de entrada redondeados en el propio `.s2k` (decisión 0024). Falta un modelo con espectro y uno de edificio con muros.
 2. Lo demás que bloquea modelos locales: cargas proyectadas, temperatura, ejes locales de nudo, I23 real, secciones con I22 o J nulas, links.
 3. Contraste con SAP2000: `tools/gen_contrast_lot.py` genera el lote; pendiente de que el usuario revise la licencia y lo ejecute en su otro equipo.

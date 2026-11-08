@@ -1,6 +1,6 @@
 //! Lumped masses, natural modes and response spectra (decision 0020).
 
-use struktal_core::{ModalCombination, Snapshot, SpectrumFunction};
+use struktal_core::{Constraint, GlobalAxis, ModalCombination, Snapshot, SpectrumFunction};
 use struktal_math::Csc;
 use struktal_math::eigen;
 use struktal_math::factor::Factor;
@@ -174,9 +174,26 @@ pub(crate) fn auto_seismic_forces(s: &Snapshot, lumped: &[f64]) -> Vec<Option<(V
                     }
                 }
             }
+            // Accidental eccentricity: on each joint of a horizontal diaphragm,
+            // MZ = ∓ e B F, B the diaphragm size normal to the load.
+            let mut eccentric = 0;
+            if a.eccentricity != 0.0 {
+                let normal = 1 - d; // X load: size along Y; Y load: along X
+                let sign = if d == 0 { -1.0 } else { 1.0 };
+                for c in &m.constraints {
+                    let Constraint::Diaphragm { axis: GlobalAxis::Z, joints, .. } = c else { continue };
+                    let idx: Vec<usize> = joints.iter().map(|n| s.joint_index[n]).collect();
+                    let coords = idx.iter().map(|&j| s.joint_xyz(j)[normal]);
+                    let size = coords.clone().fold(f64::NEG_INFINITY, f64::max) - coords.fold(f64::INFINITY, f64::min);
+                    for &j in &idx {
+                        forces[6 * j + 5] += sign * a.eccentricity * size * forces[6 * j + d];
+                    }
+                    eccentric += 1;
+                }
+            }
             let note = format!(
-                "load pattern {}: automatic seismic in {:?}, W = {weight:e} N (joints free in that direction), heights from z = {base} m, V = C W = {shear:e} N",
-                p.name, a.direction
+                "load pattern {}: automatic seismic in {:?}, W = {weight:e} N (joints free in that direction), heights from z = {base} m, V = C W = {shear:e} N; eccentricity {} on {eccentric} diaphragm(s)",
+                p.name, a.direction, a.eccentricity
             );
             Some((forces, note))
         })

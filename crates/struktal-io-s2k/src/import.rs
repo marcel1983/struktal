@@ -21,6 +21,7 @@ const IGNORED: &[&str] = &[
     "AREA SECTION PROPERTY",
     "ASSEMBLED JOINT MASSES",
     // Forces the source program generated: Struktal computes its own (decision 0026).
+    "AUTO SEISMIC LOADS TO HORIZONTAL DIAPHRAGMS",
     "AUTO SEISMIC LOADS TO JOINTS",
     "AUTO WAVE",
     "BASE REACTIONS",
@@ -1022,7 +1023,8 @@ impl Importer<'_> {
     fn auto_seismic(&mut self, model: &mut Model) {
         const P: &str = "LOAD PATTERN DEFINITIONS";
         const U: &str = "AUTO SEISMIC - USER COEFFICIENT";
-        let has_diaphragm = model.constraints.iter().any(|c| matches!(c, Constraint::Diaphragm { .. }));
+        let has_diaphragm =
+            model.constraints.iter().any(|c| matches!(c, Constraint::Diaphragm { axis: GlobalAxis::Z, .. }));
         for row in self.s2k.rows(P) {
             let Some(name) = row.get("LoadPat") else { continue };
             match row.get("AutoLoad").unwrap_or("") {
@@ -1057,24 +1059,17 @@ impl Importer<'_> {
             if row.get("UserZ") == Some(YES) {
                 self.problem(U, row.line, format!("load pattern {name}: user-defined base and top are not supported"));
             }
-            let ecc = self.num_or(U, row, "PercentEcc", 0.0);
-            if ecc != 0.0 {
-                if has_diaphragm {
-                    self.problem(
-                        U,
-                        row.line,
-                        format!("load pattern {name}: eccentricity applied through diaphragms is not supported"),
-                    );
-                } else {
-                    self.notes.push(format!(
-                        "load pattern {name}: eccentricity {ecc} ignored: it acts only through diaphragms, and the model has none"
-                    ));
-                }
+            let mut eccentricity = self.num_or(U, row, "PercentEcc", 0.0);
+            if eccentricity != 0.0 && !has_diaphragm {
+                self.notes.push(format!(
+                    "load pattern {name}: eccentricity {eccentricity} ignored: it acts only through diaphragms, and the model has none"
+                ));
+                eccentricity = 0.0;
             }
             let coefficient = self.need_num(U, row, "C");
             let exponent = self.num_or(U, row, "K", 1.0);
             match model.load_patterns.iter_mut().find(|p| p.name == name) {
-                Some(p) => p.auto_seismic = Some(AutoSeismic { direction, coefficient, exponent }),
+                Some(p) => p.auto_seismic = Some(AutoSeismic { direction, coefficient, exponent, eccentricity }),
                 None => self.problem(U, row.line, format!("unknown load pattern '{name}'")),
             }
         }
@@ -1518,7 +1513,28 @@ impl Importer<'_> {
         let scale = number(load, "TransAccSF", None)?;
         let function = load.get("Function").ok_or("it has no Function")?.to_string();
 
-        let rows: Vec<&Row> = self.s2k.rows(F).iter().filter(|r| r.get("Name") == Some(&function)).collect();
+        let mut rows: Vec<&Row> = self.s2k.rows(F).iter().filter(|r| r.get("Name") == Some(&function)).collect();
+        if rows.is_empty() {
+            // A code-defined function also lists its curve as periods and
+            // accelerations: that curve is read as given, and the code formula
+            // is not recomputed (decision 0026).
+            for t in
+                self.s2k.tables.iter().filter(|t| t.name.starts_with("FUNCTION - RESPONSE SPECTRUM - ") && t.name != F)
+            {
+                let own: Vec<&Row> = t.rows.iter().filter(|r| r.get("Name") == Some(&function)).collect();
+                if !own.is_empty() && own.iter().all(|r| r.get("Period").is_some() && r.get("Accel").is_some()) {
+                    let note = format!(
+                        "function {function}: curve read as tabulated in {}, without recomputing it from its code parameters",
+                        t.name
+                    );
+                    if !self.notes.contains(&note) {
+                        self.notes.push(note);
+                    }
+                    rows = own;
+                    break;
+                }
+            }
+        }
         if rows.is_empty() {
             return Err(format!("its function {function} is not a table in {F}"));
         }
@@ -1802,7 +1818,10 @@ mod tests {
         };
         let im = import_text(&seismic("X", "0.05"));
         let p = im.model.load_patterns.iter().find(|p| p.name == "SX").expect("pattern");
-        assert_eq!(p.auto_seismic, Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.2, exponent: 1.5 }));
+        assert_eq!(
+            p.auto_seismic,
+            Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.2, exponent: 1.5, eccentricity: 0.0 })
+        );
         assert!(im.notes.iter().any(|n| n.contains("eccentricity 0.05 ignored")));
         let err = import(&parse(&seismic("XEccY", "0")).expect("parse")).expect_err("direction");
         assert!(err.iter().any(|p| p.to_string().contains("direction")), "{err:?}");
@@ -1812,6 +1831,27 @@ mod tests {
         );
         let err = import(&parse(&other).expect("parse")).expect_err("other code");
         assert!(err.iter().any(|p| p.to_string().contains("automatic load 'ASCE 7-16'")), "{err:?}");
+    }
+
+    #[test]
+    fn eccentricity_kept_with_diaphragms_and_code_spectra_read_as_tabulated() {
+        let text = with_spectrum("")
+            .replace(
+                "LoadPat=P1   SelfWtMult=1\n",
+                "LoadPat=P1   SelfWtMult=1\n   LoadPat=SX   AutoLoad=\"USER COEFF\"\n",
+            )
+            .replace(
+                "TABLE:  \"FUNCTION - RESPONSE SPECTRUM - USER\"",
+                "TABLE:  \"FUNCTION - RESPONSE SPECTRUM - CODE X\"",
+            )
+            + "TABLE:  \"AUTO SEISMIC - USER COEFFICIENT\"\n   LoadPat=SX   Dir=X   PercentEcc=0.05   C=0.2\n"
+            + "TABLE:  \"CONSTRAINT DEFINITIONS - DIAPHRAGM\"\n   Name=D1   CoordSys=GLOBAL   Axis=Z\n"
+            + "TABLE:  \"JOINT CONSTRAINT ASSIGNMENTS\"\n   Joint=1   Constraint=D1   Type=Diaphragm\n   Joint=2   Constraint=D1   Type=Diaphragm\n";
+        let im = import_text(&text);
+        let p = im.model.load_patterns.iter().find(|p| p.name == "SX").expect("pattern");
+        assert_eq!(p.auto_seismic.as_ref().map(|a| a.eccentricity), Some(0.05));
+        assert!(im.model.load_cases.iter().any(|c| c.name() == "SP"), "{:?}", im.notes);
+        assert_eq!(im.notes.iter().filter(|n| n.contains("curve read as tabulated")).count(), 1);
     }
 
     #[test]

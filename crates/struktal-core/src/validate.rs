@@ -656,6 +656,17 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
             if !a.exponent.is_finite() || a.exponent <= 0.0 {
                 issues.push(issue(&e, "auto_seismic.exponent", format!("must be finite and > 0, got {}", a.exponent)));
             }
+            if !a.eccentricity.is_finite() {
+                issues.push(issue(&e, "auto_seismic.eccentricity", "must be finite"));
+            } else if a.eccentricity != 0.0
+                && !m.constraints.iter().any(|c| matches!(c, Constraint::Diaphragm { axis: GlobalAxis::Z, .. }))
+            {
+                issues.push(issue(
+                    &e,
+                    "auto_seismic.eccentricity",
+                    "acts through horizontal diaphragms, and there are none",
+                ));
+            }
         }
         check_finite(
             p.self_weight_multiplier,
@@ -1047,16 +1058,18 @@ mod tests {
     fn auto_seismic_needs_v9_a_horizontal_axis_and_stays_out_of_the_mass_source() {
         let mut m = cantilever();
         m.load_patterns[0].auto_seismic =
-            Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.2, exponent: 1.0 });
+            Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.2, exponent: 1.0, eccentricity: 0.0 });
         assert!(validate(&m).is_ok());
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 8.into();
         assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 8 })));
         let mut bad = m.clone();
         bad.load_patterns[0].auto_seismic =
-            Some(AutoSeismic { direction: GlobalAxis::Z, coefficient: -1.0, exponent: 0.0 });
+            Some(AutoSeismic { direction: GlobalAxis::Z, coefficient: -1.0, exponent: 0.0, eccentricity: 0.05 });
         let errs = validate(&bad).expect_err("bad");
-        for f in ["auto_seismic.direction", "auto_seismic.coefficient", "auto_seismic.exponent"] {
+        for f in
+            ["auto_seismic.direction", "auto_seismic.coefficient", "auto_seismic.exponent", "auto_seismic.eccentricity"]
+        {
             assert!(errs.iter().any(|i| i.field == f), "{f}");
         }
         m.mass_source = Some(MassSource {

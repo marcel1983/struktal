@@ -28,8 +28,8 @@ Cobertura verificada independientemente: 36/125 (29 %). Cobertura contrastada co
 - Láminas de 3 y 4 nudos para losas y muros, con taladro sin rigidez ficticia (decisiones 0019 y 0021).
 - Masas concentradas, fuente de masa con elementos, masas añadidas y patrones, modos propios y espectro de respuesta con CQC y SRSS (decisiones 0020 y 0022).
 - Barras «solo carga» para cargas lineales sobre otros elementos (decisión 0024).
-- Sismo automático por coeficiente de usuario, con las masas del análisis modal (decisión 0026).
-- Banco de 65 casos, 64 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
+- Sismo automático por coeficiente de usuario, con las masas del análisis modal y excentricidad accidental por diafragmas (decisión 0026).
+- Banco de 66 casos, 65 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 

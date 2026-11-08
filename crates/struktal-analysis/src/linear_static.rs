@@ -213,6 +213,10 @@ fn build_case_loads(
                 joint_loads[6 * j + d] += sc * f[d];
             }
             add_resultant(&mut resultant, s.joint_xyz(j), [0, 1, 2].map(|k| sc * f[k]));
+            // Eccentric moments.
+            for k in 0..3 {
+                resultant[3 + k] += sc * f[3 + k];
+            }
         }
     }
     let mut imposed = vec![0.0; ndof];
