@@ -56,3 +56,12 @@ Mismo edificio con dos diafragmas rígidos horizontales, excentricidad del 5 % y
 - V-SEIS-002: dos columnas atadas por un diafragma, con referencia a mano de reacciones, traslación y giro del diafragma (rigidez lateral 3EI/L³ y torsión GJ/L).
 
 Contraste local (sin publicar): reacciones en la base DEAD, SX y SY **idénticas, incluido el torsor por excentricidad** (−325 864,4 y −12 864,0 kgf·m); desplazamientos principales dentro del 1–2 %; periodos principales dentro del 1,4 %, y modos altos hasta −6,5 %. El archivo no trae resultados de los casos de espectro, así que no se pudieron comparar. La función ASCE está en g y los casos usan factor de escala 1: se avisó al usuario de que probablemente debería ser 9,80665.
+
+## Tercer archivo: espectro con resultados (2026-11-08)
+
+Mismo edificio, con factor de escala 9,8 en los espectros y sus resultados. Los dos casos tienen excentricidad en el espectro (`EccenRatio` 0,05 y 0,10), que el lector rechaza. En una copia local con `EccenRatio = 0`:
+
+- **El espectro es correcto.** El cortante basal por CQC con los modos de SAP2000 y la curva tabulada reproduce **exactamente** el de SAP2000 (137 436 y 328 064 kgf); con los modos de Struktal sale +0,5 % y +0,03 %.
+- **Los desplazamientos quedan un 6–7 % por debajo** en la dirección del sismo, y falta la respuesta transversal por torsión (U1 en SYD), porque falta la excentricidad del espectro.
+- **Hipótesis descartada:** un par estático por diafragma, T = e·B·F con F la fuerza de inercia del nivel combinada por CQC (de los nudos del diafragma o de todo el nivel), sumado al espectro en valor absoluto o por SRSS. Da un desplazamiento transversal 10 veces mayor que el de SAP2000, y no cuadra en la dirección principal. No se implementa ninguna regla sin confirmarla.
+- **Pendiente:** la formulación exacta de la excentricidad del espectro, a partir del manual de análisis de la versión, o un archivo igual con `EccenRatio = 0` para contrastar los desplazamientos del espectro solo.
