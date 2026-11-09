@@ -264,6 +264,10 @@ def main(engine, version, solve_case, solve_modes=None):
         if case["type"] != "LinearStatic":
             results[case["name"]] = {"status": "skipped", "reason": f"{case['type']} is not compared"}
             continue
+        automatic = {p["name"] for p in m.get("load_patterns", []) if p.get("auto_seismic")}
+        if any(sp["pattern"] in automatic and sp["scale"] != 0 for sp in case["loads"]):
+            results[case["name"]] = {"status": "skipped", "reason": "automatic seismic loads are not translated"}
+            continue
         try:
             joints = solve_case(m, case_loads(m, case))
             results[case["name"]] = {"status": "ok", "joints": joints}

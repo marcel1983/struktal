@@ -98,6 +98,13 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     if ver < 7 && raw.get("mass_source").is_some() {
         return Err(LoadError::UnsupportedSchema { found: ver });
     }
+    let has_auto_seismic = raw
+        .get("load_patterns")
+        .and_then(|v| v.as_array())
+        .is_some_and(|patterns| patterns.iter().any(|p| p.get("auto_seismic").is_some()));
+    if ver < 8 && has_auto_seismic {
+        return Err(LoadError::UnsupportedSchema { found: ver });
+    }
     if ver < 6 {
         let has_triangle = raw.get("areas").and_then(|v| v.as_array()).is_some_and(|areas| {
             areas.iter().any(|a| a.get("joints").and_then(|j| j.as_array()).is_some_and(|j| j.len() != 4))
@@ -268,6 +275,13 @@ fn check_mass_and_spectra(m: &Model, issues: &mut Vec<Issue>) {
         for p in &source.patterns {
             if !m.load_patterns.iter().any(|x| x.name == p.pattern) {
                 issues.push(issue("mass_source", "patterns", format!("unknown load pattern '{}'", p.pattern)));
+            }
+            if m.load_patterns.iter().any(|x| x.name == p.pattern && x.auto_seismic.is_some()) {
+                issues.push(issue(
+                    "mass_source",
+                    "patterns",
+                    format!("'{}' is computed from the mass, so it cannot give mass", p.pattern),
+                ));
             }
             if !p.scale.is_finite() || p.scale < 0.0 {
                 issues.push(issue(
@@ -620,6 +634,17 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
             "self_weight_multiplier",
             &mut issues,
         );
+        if let Some(a) = &p.auto_seismic {
+            let e = format!("load pattern {}", p.name);
+            if a.direction == GlobalAxis::Z {
+                issues.push(issue(&e, "auto_seismic.direction", "must be X or Y"));
+            }
+            for (v, field) in [(a.coefficient, "auto_seismic.coefficient"), (a.exponent, "auto_seismic.exponent")] {
+                if !v.is_finite() || v < 0.0 {
+                    issues.push(issue(&e, field, "must be finite and >= 0"));
+                }
+            }
+        }
     }
     for (k, jl) in m.joint_loads.iter().enumerate() {
         let e = format!("joint load #{k}");
@@ -849,7 +874,7 @@ mod tests {
             response_spectra: vec![],
             mass_source: None,
             constraints: vec![],
-            load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0 }],
+            load_patterns: vec![LoadPattern { name: "P".into(), self_weight_multiplier: 0.0, auto_seismic: None }],
             joint_loads: vec![JointLoad {
                 pattern: "P".into(),
                 joint: "2".into(),
@@ -1336,6 +1361,30 @@ mod tests {
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 6.into();
         assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 6 })));
+    }
+
+    #[test]
+    fn auto_seismic_needs_schema_8_a_lateral_direction_and_no_mass_role() {
+        let mut m = cantilever();
+        m.load_patterns[0].auto_seismic =
+            Some(AutoSeismic { direction: GlobalAxis::Z, coefficient: -0.1, exponent: f64::NAN });
+        m.mass_source = Some(MassSource {
+            elements: true,
+            added_masses: true,
+            patterns: vec![ScaledPattern { pattern: m.load_patterns[0].name.clone(), scale: 1.0 }],
+        });
+        let text = format!("{:?}", validate(&m).expect_err("invalid"));
+        for cause in ["X or Y", "coefficient", "exponent", "cannot give mass"] {
+            assert!(text.contains(cause), "{cause}: {text}");
+        }
+
+        m.mass_source = None;
+        m.load_patterns[0].auto_seismic =
+            Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.1, exponent: 1.0 });
+        validate(&m).expect("valid");
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 7.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 7 })));
     }
 
     #[test]

@@ -8,7 +8,10 @@ MATERIAL PROPERTIES 02 - BASIC MECHANICAL PROPERTIES,*,pending,specified,specifi
 FRAME SECTION PROPERTIES 01 - GENERAL,*,pending,specified,specified,F02-001/F02-002,specified,
 FRAME SECTION ASSIGNMENTS,*,pending,specified,specified,F01-002,specified,
 FRAME LOCAL AXES ASSIGNMENTS 1 - TYPICAL,*,pending,specified,specified,F02-008,specified,
-LOAD PATTERN DEFINITIONS,*,pending,specified,specified,F06-001/F06-005,specified,
+LOAD PATTERN DEFINITIONS,*,pending,specified,specified,F06-001/F06-005,specified,AutoLoad: solo None y USER COEFF (decisión 0024)
+AUTO SEISMIC - USER COEFFICIENT,*,pending,implemented,specified,F06-010,partial,"X o Y, sin UserZ; excentricidad solo sin diafragmas, y se deja fuera con nota; decisión 0024"
+AUTO SEISMIC LOADS TO JOINTS,*,pending,n/a,n/a,F06-010,n/a,Fuerzas calculadas por el programa de origen: se ignoran y se recalculan (decisión 0024)
+AUTO COMBINATION OPTION DATA 01 - GENERAL,*,pending,implemented,specified,F16-*,partial,Solo AutoGen=No; decisión 0024
 JOINT LOADS - FORCE,*,pending,specified,specified,F06-002,specified,
 FRAME LOADS - DISTRIBUTED,*,pending,specified,specified,F06-003/F06-006,specified,
 FRAME LOADS - POINT,*,pending,specified,specified,F06-004,specified,

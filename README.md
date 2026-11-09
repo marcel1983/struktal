@@ -2,7 +2,7 @@
 
 Motor de elementos finitos en Rust con el objetivo, **todavía no verificado**, de cubrir el perfil `sap2000-ultimate-27.1.0-target` (ver `spec/sap_profile.yaml`).
 
-La versión 0.1.0 es un subconjunto: análisis estático lineal, modos propios y espectro de respuesta de pórticos 3D (Timoshenko, o Euler–Bernoulli si el área de cortante es 0) y láminas de 3 y 4 nudos, con liberaciones, offsets rígidos, restricciones (diafragma, body, equal), resortes de nudo, asientos y diagnóstico de mecanismos. No es equivalente a SAP2000. Cobertura y discrepancias en `docs/compatibility-report.md`; estado para retomar el trabajo en `docs/agent-state.md`.
+La versión 0.1.0 es un subconjunto: análisis estático lineal, modos propios y espectro de respuesta de pórticos 3D (Timoshenko, o Euler–Bernoulli si el área de cortante es 0) y láminas de 3 y 4 nudos, con liberaciones, offsets rígidos, restricciones (diafragma, body, equal), resortes de nudo, asientos, carga sísmica por coeficiente y diagnóstico de mecanismos. No es equivalente a SAP2000. Cobertura y discrepancias en `docs/compatibility-report.md`; estado para retomar el trabajo en `docs/agent-state.md`.
 
 ## Uso
 
@@ -22,11 +22,11 @@ Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 en
 
 | Ruta | Contenido |
 |---|---|
-| `crates/struktal-core` | Modelo canónico (esquema v7, migra los anteriores), unidades, validación, hash de snapshot |
+| `crates/struktal-core` | Modelo canónico (esquema v8, migra los anteriores), unidades, validación, hash de snapshot |
 | `crates/struktal-math` | Tripletas/CSC, contrato de solver; backends `faer-sparse-ldlt` (por defecto) y `skyline-ldlt` (referencia) |
 | `crates/struktal-elements` | Barra 3D con cortante, liberaciones, offsets, ejes locales, cargas equivalentes, acciones en estaciones |
 | `crates/struktal-analysis` | Estática lineal, restricciones por eliminación, combinaciones, resultados, manifiesto, estados por caso |
-| `crates/struktal-io-s2k` | Lector S2K estricto: barras, áreas con su malla, fuente de masa, modos y espectros; rechaza lo que no puede representar |
+| `crates/struktal-io-s2k` | Lector S2K estricto: barras, áreas con su malla, fuente de masa, modos, espectros y sismo por coeficiente; rechaza lo que no puede representar |
 | `crates/struktal-cli` | Binario `struktal` y comparador de verificación |
 | `spec/` | Perfil, inventario de requisitos, convenciones, cobertura S2K/API, capacidades de solver |
 | `verification/` | Casos con referencia analítica independiente, tolerancias, oráculos externos |

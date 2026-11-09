@@ -1,6 +1,6 @@
 //! Lumped masses, natural modes and response spectra (decision 0020).
 
-use struktal_core::{ModalCombination, Snapshot, SpectrumFunction};
+use struktal_core::{AutoSeismic, ModalCombination, Snapshot, SpectrumFunction};
 use struktal_math::Csc;
 use struktal_math::eigen;
 use struktal_math::factor::Factor;
@@ -27,6 +27,8 @@ pub(crate) struct MassMatrix {
 const STANDARD_GRAVITY: f64 = 9.80665;
 /// Below this fraction of the largest load, an upward force is rounding.
 const UPWARD_TOL_REL: f64 = 1e-9;
+/// Below this fraction of the model height, a joint is at the base.
+const HEIGHT_TOL_REL: f64 = 1e-9;
 
 /// Adds the mass of the nodal forces of the source patterns: the downward force
 /// over gravity, on the three translations. An upward force would be negative
@@ -56,16 +58,22 @@ fn add_pattern_mass(s: &Snapshot, forces: &[f64], lumped: &mut [f64]) -> (Option
     (Some(note), None)
 }
 
+/// Lumped mass per global DOF of the analysis mesh, before constraints.
+pub(crate) struct Lumped {
+    pub values: Vec<f64>,
+    pub note: Option<String>,
+    /// Why this mass cannot be used.
+    pub problem: Option<String>,
+}
+
 /// Half of each frame's mass at each end, and each area's by the share of its
-/// corners, on translations; added masses as given. Then Cᵀ M C, so a tied joint's
-/// mass acts on its reference through the lever arm.
-pub(crate) fn assemble_mass(
+/// corners, on translations; added masses as given; and the source patterns.
+pub(crate) fn lumped_mass(
     s: &Snapshot,
-    map: &DofMap,
     frames: &[FrameData],
     areas: &[AreaData],
     pattern_forces: Option<&[f64]>,
-) -> MassMatrix {
+) -> Lumped {
     let m = &s.model;
     let (elements, added) = m.mass_source.as_ref().map_or((true, true), |x| (x.elements, x.added_masses));
     let mut lumped = vec![0.0; 6 * m.joints.len()];
@@ -95,8 +103,13 @@ pub(crate) fn assemble_mass(
         }
     }
     let (note, problem) = pattern_forces.map_or((None, None), |f| add_pattern_mass(s, f, &mut lumped));
+    Lumped { values: lumped, note, problem }
+}
+
+/// Cᵀ M C, so a tied joint's mass acts on its reference through the lever arm.
+pub(crate) fn assemble_mass(map: &DofMap, lumped: &Lumped) -> MassMatrix {
     let mut tb = TripletBuilder::new(map.n).expect("size checked with the stiffness");
-    for (g, &v) in lumped.iter().enumerate() {
+    for (g, &v) in lumped.values.iter().enumerate() {
         if v == 0.0 {
             continue;
         }
@@ -120,7 +133,41 @@ pub(crate) fn assemble_mass(
         let mr = matrix.mul_vec(&rigid[axis]);
         rigid[axis].iter().zip(&mr).map(|(a, b)| a * b).sum()
     });
-    MassMatrix { m: matrix, rigid, total, problem, note }
+    MassMatrix { m: matrix, rigid, total, problem: lumped.problem.clone(), note: lumped.note.clone() }
+}
+
+/// Joint forces of an automatic seismic pattern for a unit scale, with a note on
+/// the weight and base shear, or why there are none (decision 0024).
+pub(crate) fn auto_seismic_forces(
+    s: &Snapshot,
+    lumped: &Lumped,
+    a: &AutoSeismic,
+) -> Result<(Vec<f64>, String), String> {
+    if let Some(why) = &lumped.problem {
+        return Err(format!("auto seismic: {why}"));
+    }
+    let d = a.direction.index();
+    let nj = s.model.joints.len();
+    let z: Vec<f64> = (0..nj).map(|j| s.joint_xyz(j)[2]).collect();
+    let low = z.iter().copied().fold(f64::INFINITY, f64::min);
+    let high = z.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    // A joint this close to the lowest one is at the base: no force, even with k = 0.
+    let base = HEIGHT_TOL_REL * (high - low);
+    let mass: Vec<f64> = (0..nj).map(|j| lumped.values[6 * j + d]).collect();
+    let weight = STANDARD_GRAVITY * mass.iter().sum::<f64>();
+    let share: Vec<f64> =
+        (0..nj).map(|j| if z[j] - low > base { mass[j] * (z[j] - low).powf(a.exponent) } else { 0.0 }).collect();
+    let sum: f64 = share.iter().sum();
+    let axis = ["X", "Y", "Z"][d];
+    if weight == 0.0 || sum == 0.0 {
+        return Err(format!("auto seismic: no mass along {axis} above the lowest joint"));
+    }
+    let shear = a.coefficient * weight;
+    let mut forces = vec![0.0; 6 * nj];
+    for j in 0..nj {
+        forces[6 * j + d] = shear * share[j] / sum;
+    }
+    Ok((forces, format!("auto seismic along {axis}: weight {weight:e} N, base shear {shear:e} N")))
 }
 
 /// A solved modal case, kept for the spectra that use it.

@@ -1,0 +1,109 @@
+{
+  "case_id": "V-SEIS-001",
+  "title": "Auto seismic load on a column with lumped masses, linear and quadratic with height",
+  "feature_ids": [
+    "F06-010",
+    "F07-001"
+  ],
+  "model": "model.json",
+  "model_sha256": "e345b3df4250c6a5c27779105601c718fc571866c07a525d4850c9923dc6b34c",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Coefficient method on lumped masses; Euler-Bernoulli cantilever under point loads",
+    "derivation": [
+      "W = g sum(m), base mass included; V = C W",
+      "F_i = V m_i h_i^k / sum(m h^k), h from the lowest joint, so the base takes no force",
+      "base reaction: FX = -V, MY = -sum(F h); in Y: FY = -V, MX = +sum(F h)",
+      "deflection at z of a load P at a: P z^2 (3a - z)/(6EI) below it, P a^2 (3z - a)/(6EI) above it"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_reaction",
+      "case": "SX",
+      "entity": "N0",
+      "component": "FX",
+      "value": -5099.458,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SX",
+      "entity": "N0",
+      "component": "MY",
+      "value": -35084.27104,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SY",
+      "entity": "N0",
+      "component": "FY",
+      "value": -15298.374,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "SY",
+      "entity": "N0",
+      "component": "MX",
+      "value": 122564.88006976742,
+      "unit": "N*m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SX",
+      "entity": "N1",
+      "component": "UX",
+      "value": 0.006746582934,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SX",
+      "entity": "N2",
+      "component": "UX",
+      "value": 0.022672190268,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SX",
+      "entity": "N3",
+      "component": "UX",
+      "value": 0.04969251839066667,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SY",
+      "entity": "N1",
+      "component": "UY",
+      "value": 0.024134963865697676,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SY",
+      "entity": "N2",
+      "component": "UY",
+      "value": 0.08313154220406975,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "SY",
+      "entity": "N3",
+      "component": "UY",
+      "value": 0.18606350897383722,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

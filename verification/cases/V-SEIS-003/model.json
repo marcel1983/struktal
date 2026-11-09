@@ -1,0 +1,125 @@
+{
+  "schema_version": 8,
+  "title": "V-SEIS-003 no mass",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "C",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002,
+      "as2": 0.0,
+      "as3": 0.0
+    }
+  ],
+  "joints": [
+    {
+      "name": "A",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "added_mass": [
+        500.0,
+        500.0,
+        500.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "B",
+      "x": 0,
+      "y": 0,
+      "z": 4.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "COL",
+      "i": "A",
+      "j": "B",
+      "section": "C"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "P"
+    },
+    {
+      "name": "EX",
+      "auto_seismic": {
+        "direction": "X",
+        "coefficient": 0.1,
+        "exponent": 1.0
+      }
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "P",
+      "joint": "B",
+      "values": [
+        1000.0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "SX",
+      "loads": [
+        {
+          "pattern": "EX",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "S",
+      "loads": [
+        {
+          "pattern": "P",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

@@ -1,0 +1,40 @@
+{
+  "case_id": "V-SEIS-003",
+  "title": "Auto seismic load with no mass above the base: an error that says why",
+  "feature_ids": [
+    "F06-010"
+  ],
+  "model": "model.json",
+  "model_sha256": "ecf6036506eb21d31b1ddffb9ead64df0dd5a8f1ce3a570d3ae965ff761f5c52",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "The only mass is at the base, where h = 0: sum(m h^k) = 0 and the load is undefined",
+    "derivation": [
+      "the other case is a cantilever: UX = P H^3/(3 EI)"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "SX",
+      "completion": "error",
+      "physical_status": "indeterminate",
+      "message_contains": "no mass along X"
+    }
+  ],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "S",
+      "entity": "B",
+      "component": "UX",
+      "value": 0.0010666666666666667,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

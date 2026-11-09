@@ -1,0 +1,53 @@
+{
+  "case_id": "V-SEIS-002",
+  "title": "Auto seismic load on the mass of a mass source, with gravity in the same case",
+  "feature_ids": [
+    "F06-010",
+    "F07-001"
+  ],
+  "model": "model.json",
+  "model_sha256": "d70c1c924244307f61a45a522ff517592b6022cbf995d6d01c1ed76859d3d014",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Coefficient method on the mass of the load pattern D; the column is a cantilever",
+    "derivation": [
+      "m = downward load / g at each joint: the arm load splits in halves, the column top adds P",
+      "both joints at the same height: F = V m / sum(m), whatever k",
+      "reactions: FX = -V, FZ = P + w L",
+      "UX at the top = V H^3/(3 EI) + M H^2/(2 EI), M = w L^2/2 from the arm; the arm takes its force axially"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_reaction",
+      "case": "S",
+      "entity": "A",
+      "component": "FX",
+      "value": -6300.000000000001,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "S",
+      "entity": "A",
+      "component": "FZ",
+      "value": 42000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "S",
+      "entity": "B",
+      "component": "UX",
+      "value": 0.01152,
+      "unit": "m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

@@ -18,7 +18,9 @@ use crate::units::{Dim, UnitSystem};
 /// v5 (2026-11-05): automatic subdivision of frames. Older files have none
 /// (decision 0015).
 /// v7 (2026-11-06): mass_source. Older files have none (decision 0022).
-pub const SCHEMA_VERSION: u32 = 7;
+/// v8 (2026-11-09): auto_seismic on load patterns. Older files have none
+/// (decision 0024).
+pub const SCHEMA_VERSION: u32 = 8;
 
 pub type Name = String;
 
@@ -422,6 +424,21 @@ pub struct LoadPattern {
     /// Multiplier on material unit weight × area, acting in global −Z.
     #[serde(default)]
     pub self_weight_multiplier: f64,
+    /// Lateral load computed from the mass of the model (decision 0024).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_seismic: Option<AutoSeismic>,
+}
+
+/// Base shear V = C W, with W the weight of the mass along `direction`, shared
+/// among the joints as F = V m h^k / Σ m h^k, h measured from the lowest joint.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutoSeismic {
+    /// X or Y.
+    pub direction: GlobalAxis,
+    pub coefficient: f64,
+    /// k: 1 gives a linear distribution with height.
+    pub exponent: f64,
 }
 
 /// Concentrated joint load in global axes: [FX, FY, FZ, MX, MY, MZ].

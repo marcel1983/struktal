@@ -1,0 +1,181 @@
+{
+  "schema_version": 8,
+  "title": "V-SEIS-001 seismic coefficient",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "C",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002,
+      "as2": 0.0,
+      "as3": 0.0
+    }
+  ],
+  "joints": [
+    {
+      "name": "N0",
+      "x": 0,
+      "y": 0,
+      "z": 0.0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "added_mass": [
+        700.0,
+        700.0,
+        700.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "N1",
+      "x": 0,
+      "y": 0,
+      "z": 3.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "added_mass": [
+        2000.0,
+        2000.0,
+        2000.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "N2",
+      "x": 0,
+      "y": 0,
+      "z": 6.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "added_mass": [
+        1500.0,
+        1500.0,
+        1500.0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "N3",
+      "x": 0,
+      "y": 0,
+      "z": 10.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "added_mass": [
+        1000.0,
+        1000.0,
+        1000.0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "frames": [
+    {
+      "name": "C0",
+      "i": "N0",
+      "j": "N1",
+      "section": "C"
+    },
+    {
+      "name": "C1",
+      "i": "N1",
+      "j": "N2",
+      "section": "C"
+    },
+    {
+      "name": "C2",
+      "i": "N2",
+      "j": "N3",
+      "section": "C"
+    }
+  ],
+  "load_patterns": [
+    {
+      "name": "EX",
+      "auto_seismic": {
+        "direction": "X",
+        "coefficient": 0.1,
+        "exponent": 1.0
+      }
+    },
+    {
+      "name": "EY",
+      "auto_seismic": {
+        "direction": "Y",
+        "coefficient": 0.2,
+        "exponent": 2.0
+      }
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "SX",
+      "loads": [
+        {
+          "pattern": "EX",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "SY",
+      "loads": [
+        {
+          "pattern": "EY",
+          "scale": 1.5
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

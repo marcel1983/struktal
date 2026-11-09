@@ -20,6 +20,8 @@ const IGNORED: &[&str] = &[
     "ANALYSIS OPTIONS",
     "AREA SECTION PROPERTY",
     "ASSEMBLED JOINT MASSES",
+    // The forces of an automatic load: they are computed again from its definition.
+    "AUTO SEISMIC LOADS TO JOINTS",
     "AUTO WAVE",
     "BASE REACTIONS",
     "CABLE SECTION DEFINITIONS",
@@ -72,6 +74,8 @@ const READ: &[&str] = &[
     "AREA LOADS - UNIFORM",
     "AREA SECTION ASSIGNMENTS",
     "AREA SECTION PROPERTIES",
+    "AUTO COMBINATION OPTION DATA 01 - GENERAL",
+    "AUTO SEISMIC - USER COEFFICIENT",
     "CONNECTIVITY - AREA",
     "CASE - MODAL 1 - GENERAL",
     "CASE - RESPONSE SPECTRUM 1 - GENERAL",
@@ -1190,8 +1194,11 @@ impl Importer<'_> {
                 Err(why) => self.notes.push(format!("case {name} not imported: {why}")),
             }
         }
-        // Without modes, the mass has no effect on anything imported.
-        if m.load_cases.iter().any(|c| matches!(c, LoadCase::Modal { .. })) {
+        // Without modes or automatic seismic loads, the mass has no effect on
+        // anything imported.
+        if m.load_cases.iter().any(|c| matches!(c, LoadCase::Modal { .. }))
+            || m.load_patterns.iter().any(|p| p.auto_seismic.is_some())
+        {
             m.mass_source = self.mass_source(m);
         }
     }
@@ -1219,6 +1226,45 @@ impl Importer<'_> {
             .and_then(|v| v.parse::<u32>().ok())
             .filter(|n| *n > 0)
             .ok_or("MaxNumModes is not a positive integer".to_string())
+    }
+
+    /// A lateral load from a user coefficient (decision 0024).
+    fn auto_seismic(&mut self, pattern: &str, line: usize, diaphragms: bool) -> Option<AutoSeismic> {
+        const T: &str = "AUTO SEISMIC - USER COEFFICIENT";
+        let s2k = self.s2k;
+        let Some(row) = s2k.rows(T).iter().find(|r| r.get("LoadPat") == Some(pattern)) else {
+            self.problem("LOAD PATTERN DEFINITIONS", line, format!("load pattern {pattern}: no row in {T}"));
+            return None;
+        };
+        let direction = match row.get("Dir") {
+            Some("X") => GlobalAxis::X,
+            Some("Y") => GlobalAxis::Y,
+            other => {
+                let why =
+                    format!("load pattern {pattern}: direction {} is not supported, only X or Y", other.unwrap_or("?"));
+                self.problem(T, row.line, why);
+                return None;
+            }
+        };
+        if row.get("UserZ") == Some(YES) {
+            self.problem(T, row.line, format!("load pattern {pattern}: a user range of heights is not supported"));
+            return None;
+        }
+        let ratio = self.num_or(T, row, "PercentEcc", 0.0);
+        let overridden = row.get("EccOverride") == Some(YES);
+        if ratio != 0.0 || overridden {
+            if diaphragms {
+                self.problem(
+                    T,
+                    row.line,
+                    format!("load pattern {pattern}: eccentricity on diaphragms is not supported"),
+                );
+                return None;
+            }
+            self.notes
+                .push(format!("load pattern {pattern}: eccentricity {ratio} left out, as the model has no diaphragms"));
+        }
+        Some(AutoSeismic { direction, coefficient: self.need_num(T, row, "C"), exponent: self.need_num(T, row, "K") })
     }
 
     fn default_mass_source(&self) -> Option<String> {
@@ -1458,15 +1504,27 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
         .cloned()
         .collect();
 
+    let constraints = im.constraints();
+    let diaphragms = constraints.iter().any(|c| matches!(c, Constraint::Diaphragm { .. }));
     const P: &str = "LOAD PATTERN DEFINITIONS";
     let mut load_patterns = Vec::new();
     for row in s2k.rows(P) {
         let Some(name) = im.text(P, row, "LoadPat") else { continue };
         let self_weight_multiplier = im.num_or(P, row, "SelfWtMult", 0.0);
-        load_patterns.push(LoadPattern { name, self_weight_multiplier });
+        let auto_seismic = match row.get("AutoLoad") {
+            None | Some("None") => None,
+            Some("USER COEFF") => im.auto_seismic(&name, row.line, diaphragms),
+            Some(other) => {
+                im.problem(P, row.line, format!("load pattern {name}: automatic load {other} is not supported"));
+                None
+            }
+        };
+        load_patterns.push(LoadPattern { name, self_weight_multiplier, auto_seismic });
     }
-
-    let constraints = im.constraints();
+    const COMBOS: &str = "AUTO COMBINATION OPTION DATA 01 - GENERAL";
+    for row in s2k.rows(COMBOS).iter().filter(|r| r.get("AutoGen") != Some("No")) {
+        im.problem(COMBOS, row.line, "automatic design combinations are not supported");
+    }
     let frame_names: Vec<String> = frames.iter().map(|f| f.name.clone()).collect();
     let mut model = Model {
         schema_version: SCHEMA_VERSION,
@@ -1736,6 +1794,58 @@ mod tests {
         let LoadCase::LinearStatic { loads, .. } = &m.load_cases[0] else { panic!("static case") };
         assert_eq!(loads[0].scale, 2.0);
         struktal_core::validate(m).expect("valid model");
+    }
+
+    /// BASE with an automatic pattern EX, its coefficient row and a mass source.
+    fn with_auto_seismic(row: &str) -> String {
+        let pattern = "   LoadPat=P1   SelfWtMult=1\n   LoadPat=EX   SelfWtMult=0   AutoLoad=\"USER COEFF\"\n";
+        format!(
+            "{}TABLE:  \"AUTO SEISMIC - USER COEFFICIENT\"\n{row}{}",
+            BASE.replace("   LoadPat=P1   SelfWtMult=1\n", pattern),
+            "TABLE:  \"MASS SOURCE\"\n   MassSource=M   Elements=Yes   Masses=Yes   Loads=No   IsDefault=Yes\n",
+        )
+    }
+
+    const COEFFICIENT: &str = "   LoadPat=EX   Dir=X   PercentEcc=0.05   EccOverride=No   UserZ=No   C=0.1   K=1.5   WeightUsed=9   BaseShear=1\n";
+
+    #[test]
+    fn a_user_coefficient_is_read_with_its_mass_source() {
+        let im = import_text(&with_auto_seismic(COEFFICIENT));
+        let p = im.model.load_patterns.iter().find(|p| p.name == "EX").expect("EX");
+        assert_eq!(p.auto_seismic, Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.1, exponent: 1.5 }));
+        assert!(im.model.mass_source.is_some(), "the load needs the mass");
+        assert!(im.notes.iter().any(|n| n.contains("eccentricity 0.05 left out")), "{:?}", im.notes);
+        struktal_core::validate(&im.model).expect("valid model");
+    }
+
+    #[test]
+    fn automatic_loads_without_an_equivalent_are_refused() {
+        for (from, to, cause) in [
+            ("Dir=X", "Dir=Z", "only X or Y"),
+            ("UserZ=No", "UserZ=Yes", "range of heights"),
+            ("LoadPat=EX   Dir", "LoadPat=OTHER   Dir", "no row in AUTO SEISMIC"),
+            ("C=0.1", "C=x", "C"),
+        ] {
+            let text = causes_of(&with_auto_seismic(&COEFFICIENT.replace(from, to)));
+            assert!(text.contains(cause), "{to}: {text}");
+        }
+        let code = with_auto_seismic(COEFFICIENT).replace("AutoLoad=\"USER COEFF\"", "AutoLoad=\"IBC2006\"");
+        let text = causes_of(&code);
+        assert!(text.contains("automatic load IBC2006"), "{text}");
+        let diaphragm = concat!(
+            "TABLE:  \"CONSTRAINT DEFINITIONS - DIAPHRAGM\"\n   Name=D1   Axis=Z\n",
+            "TABLE:  \"JOINT CONSTRAINT ASSIGNMENTS\"\n   Joint=2   Constraint=D1   Type=Diaphragm\n",
+        );
+        let text = causes_of(&format!("{}{diaphragm}", with_auto_seismic(COEFFICIENT)));
+        assert!(text.contains("eccentricity on diaphragms"), "{text}");
+    }
+
+    #[test]
+    fn automatic_design_combinations_must_be_off() {
+        let table = "TABLE:  \"AUTO COMBINATION OPTION DATA 01 - GENERAL\"\n";
+        assert!(run(&format!("{table}   DesignType=Steel   AutoGen=No\n")).is_ok());
+        let text = causes(&format!("{table}   DesignType=Steel   AutoGen=Yes\n"));
+        assert!(text.contains("automatic design combinations"), "{text}");
     }
 
     #[test]

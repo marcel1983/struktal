@@ -2140,4 +2140,100 @@ write("V-MASS-004", "Mass source: an upward load is negative mass, so the modes 
     exp("joint_displacement", "S", "B", "UZ", W1 * Lq1**3 / (3 * E * K2["i33"]), "m"),
 ], expected_status=[{"case": "M", "completion": "error", "physical_status": "indeterminate", "message_contains": "negative mass"}], tol=MOD_TOL)
 
+# ---------------------------------------------------------------- auto seismic
+# Lateral load from a coefficient: V = C W, W = g sum(m), F_i = V m_i h_i^k / sum(m h^k),
+# h from the lowest joint (decision 0024). A cantilever column with lumped masses
+# is statically determinate, so the forces show in the reactions and in the
+# deflections of a cantilever under point loads.
+EI_c = dict(SEC, name="C", as2=0.0, as3=0.0)
+hs = [0.0, 3.0, 6.0, 10.0]
+ms = [700.0, 2000.0, 1500.0, 1000.0]   # the base mass counts in W, with no force
+
+
+def seismic_forces(masses, heights, c, k):
+    low = min(heights)
+    w = GRAV * sum(masses)
+    share = [m_ * (h_ - low)**k if h_ > low else 0.0 for m_, h_ in zip(masses, heights)]
+    return [c * w * s_ / sum(share) for s_ in share]
+
+
+def cantilever_deflection(forces, heights, z, ei):
+    """Point loads on a cantilever fixed at z = 0, deflection at height z."""
+    out = 0.0
+    for p_, a_ in zip(forces, heights):
+        if p_:
+            out += p_ * z**2 * (3 * a_ - z) / (6 * ei) if z <= a_ else p_ * a_**2 * (3 * z - a_) / (6 * ei)
+    return out
+
+
+fx1 = seismic_forces(ms, hs, 0.1, 1.0)
+fy1 = seismic_forces(ms, hs, 0.2, 2.0)
+ei1 = E * EI_c["i33"]
+write("V-SEIS-001", "Auto seismic load on a column with lumped masses, linear and quadratic with height", ["F06-010", "F07-001"], model(
+    "V-SEIS-001 seismic coefficient",
+    [JM(f"N{k_}", 0, 0, h_, FIX if k_ == 0 else None, [m_, m_, m_, 0, 0, 0]) for k_, (h_, m_) in enumerate(zip(hs, ms))],
+    [{"name": f"C{k_}", "i": f"N{k_}", "j": f"N{k_ + 1}", "section": "C"} for k_ in range(3)],
+    [EI_c],
+    [{"name": "EX", "auto_seismic": {"direction": "X", "coefficient": 0.1, "exponent": 1.0}},
+     {"name": "EY", "auto_seismic": {"direction": "Y", "coefficient": 0.2, "exponent": 2.0}}],
+    cases=[{"type": "LinearStatic", "name": "SX", "loads": [{"pattern": "EX", "scale": 1.0}]},
+           {"type": "LinearStatic", "name": "SY", "loads": [{"pattern": "EY", "scale": 1.5}]}],
+    schema=8,
+), {"kind": "analytical", "source": "Coefficient method on lumped masses; Euler-Bernoulli cantilever under point loads",
+    "derivation": ["W = g sum(m), base mass included; V = C W",
+                   "F_i = V m_i h_i^k / sum(m h^k), h from the lowest joint, so the base takes no force",
+                   "base reaction: FX = -V, MY = -sum(F h); in Y: FY = -V, MX = +sum(F h)",
+                   "deflection at z of a load P at a: P z^2 (3a - z)/(6EI) below it, P a^2 (3z - a)/(6EI) above it"]}, [
+    exp("joint_reaction", "SX", "N0", "FX", -sum(fx1), "N"),
+    exp("joint_reaction", "SX", "N0", "MY", -sum(f_ * h_ for f_, h_ in zip(fx1, hs)), "N*m"),
+    exp("joint_reaction", "SY", "N0", "FY", -1.5 * sum(fy1), "N"),
+    exp("joint_reaction", "SY", "N0", "MX", 1.5 * sum(f_ * h_ for f_, h_ in zip(fy1, hs)), "N*m"),
+    *[exp("joint_displacement", "SX", f"N{k_}", "UX", cantilever_deflection(fx1, hs, hs[k_], ei1), "m") for k_ in (1, 2, 3)],
+    *[exp("joint_displacement", "SY", f"N{k_}", "UY", 1.5 * cantilever_deflection(fy1, hs, hs[k_], ei1), "m") for k_ in (1, 2, 3)],
+])
+
+# The mass from a mass source with a load pattern, and its share at both ends of
+# a loaded arm: the arm takes half its load at its tip, which is also loaded.
+Hc, La, Pd, wd = 4.0, 2.0, 30_000.0, 6_000.0
+m_top = (Pd + wd * La / 2) / GRAV
+m_tip = (wd * La / 2) / GRAV
+_, f_top, f_tip = seismic_forces([0.0, m_top, m_tip], [0.0, Hc, Hc], 0.15, 1.5)
+V2 = f_top + f_tip
+write("V-SEIS-002", "Auto seismic load on the mass of a mass source, with gravity in the same case", ["F06-010", "F07-001"], model(
+    "V-SEIS-002 mass from loads",
+    [J("A", 0, 0, 0, FIX), J("B", 0, 0, Hc), J("T", La, 0, Hc)],
+    [{"name": "COL", "i": "A", "j": "B", "section": "C"}, {"name": "ARM", "i": "B", "j": "T", "section": "C"}],
+    [EI_c], [{"name": "D"}, {"name": "EX", "auto_seismic": {"direction": "X", "coefficient": 0.15, "exponent": 1.5}}],
+    joint_loads=[{"pattern": "D", "joint": "B", "values": [0, 0, -Pd, 0, 0, 0]}],
+    frame_loads=[{"pattern": "D", "frame": "ARM", "load": {"kind": "Uniform", "direction": "Gravity", "value": wd}}],
+    materials=[{"name": "STEEL", "e": E, "nu": NU, "unit_weight": 0.0, "mass_density": 7850.0}],
+    cases=[{"type": "LinearStatic", "name": "S", "loads": [{"pattern": "D", "scale": 1.0}, {"pattern": "EX", "scale": 1.0}]}],
+    schema=8, mass_source={"elements": False, "added_masses": False, "patterns": [{"pattern": "D", "scale": 1.0}]},
+), {"kind": "analytical", "source": "Coefficient method on the mass of the load pattern D; the column is a cantilever",
+    "derivation": ["m = downward load / g at each joint: the arm load splits in halves, the column top adds P",
+                   "both joints at the same height: F = V m / sum(m), whatever k",
+                   "reactions: FX = -V, FZ = P + w L",
+                   "UX at the top = V H^3/(3 EI) + M H^2/(2 EI), M = w L^2/2 from the arm; the arm takes its force axially"]}, [
+    exp("joint_reaction", "S", "A", "FX", -V2, "N"),
+    exp("joint_reaction", "S", "A", "FZ", Pd + wd * La, "N"),
+    exp("joint_displacement", "S", "B", "UX",
+        V2 * Hc**3 / (3 * E * EI_c["i33"]) + wd * La**2 / 2 * Hc**2 / (2 * E * EI_c["i33"]), "m"),
+])
+
+# With no mass above the base there is no lateral load: the case says so, and
+# the other cases still run.
+write("V-SEIS-003", "Auto seismic load with no mass above the base: an error that says why", ["F06-010"], model(
+    "V-SEIS-003 no mass",
+    [JM("A", 0, 0, 0, FIX, [500.0, 500.0, 500.0, 0, 0, 0]), J("B", 0, 0, Hc)],
+    [{"name": "COL", "i": "A", "j": "B", "section": "C"}],
+    [EI_c], [{"name": "P"}, {"name": "EX", "auto_seismic": {"direction": "X", "coefficient": 0.1, "exponent": 1.0}}],
+    joint_loads=[{"pattern": "P", "joint": "B", "values": [1000.0, 0, 0, 0, 0, 0]}],
+    cases=[{"type": "LinearStatic", "name": "SX", "loads": [{"pattern": "EX", "scale": 1.0}]},
+           {"type": "LinearStatic", "name": "S", "loads": [{"pattern": "P", "scale": 1.0}]}],
+    schema=8,
+), {"kind": "analytical", "source": "The only mass is at the base, where h = 0: sum(m h^k) = 0 and the load is undefined",
+    "derivation": ["the other case is a cantilever: UX = P H^3/(3 EI)"]}, [
+    exp("joint_displacement", "S", "B", "UX", 1000.0 * Hc**3 / (3 * E * EI_c["i33"]), "m"),
+], expected_status=[{"case": "SX", "completion": "error", "physical_status": "indeterminate", "message_contains": "no mass along X"}])
+
 print("cases written to", ROOT)
