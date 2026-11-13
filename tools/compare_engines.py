@@ -93,31 +93,38 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--struktal", required=True)
     ap.add_argument("--engine", action="append", required=True, help="name=python, with name in " + ", ".join(RUNNERS))
-    ap.add_argument("cases", nargs="*")
+    ap.add_argument("cases", nargs="*", help="case ids, or paths to model.json files of any model")
     args = ap.parse_args()
     engines = dict(e.split("=", 1) for e in args.engine)
 
-    dirs = [ROOT / "verification" / "cases" / c for c in args.cases] or sorted((ROOT / "verification" / "cases").iterdir())
+    targets = []  # (label, model, rtol, discretized)
+    for c in args.cases or sorted(p.name for p in (ROOT / "verification" / "cases").iterdir()):
+        if c.endswith(".json"):
+            # A model with no closed form: shells always differ by formulation.
+            spec = json.loads(Path(c).read_text(encoding="utf-8"))
+            targets.append((Path(c).stem, Path(c), RTOL, bool(spec.get("areas"))))
+        else:
+            d = ROOT / "verification" / "cases" / c
+            targets.append((c, d / "model.json", case_rtol(d), case_rtol(d) > 1e-3))
     any_diff = False
     totals = {}
     with tempfile.TemporaryDirectory() as tmp:
-        for d in dirs:
-            model = d / "model.json"
+        for label, model, rtol, discretized in targets:
             spec = json.loads(model.read_text(encoding="utf-8"))
             if any(s.get("shape") for s in spec["sections"]):
                 for engine in engines:
-                    print(f"{d.name:<15} {engine:<9} {'':<8} n/a       parametric sections are not translated")
+                    print(f"{label:<15} {engine:<9} {'':<8} n/a       parametric sections are not translated")
                     totals[(engine, "n/a")] = totals.get((engine, "n/a"), 0) + 1
                 continue
             st = struktal_results(args.struktal, model)
             joints_model = {j["name"]: j for j in spec["joints"]}
             for engine, python in engines.items():
-                out = Path(tmp) / f"{d.name}-{engine}.json"
+                out = Path(tmp) / f"{label}-{engine}.json"
                 run = subprocess.run([python, str(ROOT / "tools" / "oracles" / RUNNERS[engine]), str(model), str(out)],
                                      capture_output=True, text=True, cwd=tmp)
                 if not out.exists():
                     tail = (run.stderr or run.stdout).strip().splitlines()[-1:] or ["no output"]
-                    print(f"{d.name:<15} {engine:<9} {'':<8} CRASH     {tail[0][:150]}")
+                    print(f"{label:<15} {engine:<9} {'':<8} CRASH     {tail[0][:150]}")
                     totals[(engine, "crash")] = totals.get((engine, "crash"), 0) + 1
                     continue
                 ref = json.loads(out.read_text(encoding="utf-8"))
@@ -131,8 +138,8 @@ def main():
                         pairs = list(zip(ours, r["periods"]))
                         bad = [f"mode {k + 1}: struktal {a:.8e}, engine {b:.8e}" for k, (a, b) in enumerate(pairs)
                                if abs(a - b) > 1e-6 * max(abs(a), abs(b))]
-                        state = "DIFF" if bad else "match"
-                        any_diff = any_diff or bool(bad)
+                        state = ("FORM-DIFF" if discretized else "DIFF") if bad else "match"
+                        any_diff = any_diff or (bool(bad) and not discretized)
                         worst = max((abs(a - b) / max(abs(a), abs(b)) for a, b in pairs), default=0.0)
                         detail = f"{len(pairs)} periods, worst relative difference {worst:.2g}" + ("; " + "; ".join(bad[:3]) if bad else "")
                     elif s is None or s["status"]["completion"] != "complete":
@@ -142,19 +149,20 @@ def main():
                         if r["status"] != "failed":
                             detail += "; the engine returned numbers"
                     elif r["status"] == "failed":
+                        # Struktal solved what the engine could not: as worth a look as a difference.
                         state, detail = "ENG-FAIL", r["reason"]
+                        any_diff = True
                     else:
-                        checks, worst, what, diffs = compare_case(s, r, joints_model, case_rtol(d))
+                        checks, worst, what, diffs = compare_case(s, r, joints_model, rtol)
                         # At a mesh, formulations legitimately differ: the case's
                         # own reference judges it, so this is shown but not a failure.
-                        discretized = case_rtol(d) > 1e-3
                         state = ("FORM-DIFF" if discretized else "DIFF") if diffs else "match"
                         any_diff = any_diff or (bool(diffs) and not discretized)
                         detail = f"{checks} values, worst {worst:.2g} of tolerance ({what})"
                         if diffs:
                             detail = f"{len(diffs)}/{checks} differ; " + "; ".join(diffs[:3])
                     totals[(engine, state)] = totals.get((engine, state), 0) + 1
-                    print(f"{d.name:<15} {engine:<9} {case:<8} {state:<9} {detail[:190]}")
+                    print(f"{label:<15} {engine:<9} {case:<8} {state:<9} {detail[:190]}")
     print("\nsummary:")
     for (engine, state), n in sorted(totals.items()):
         print(f"  {engine:<9} {state:<9} {n}")

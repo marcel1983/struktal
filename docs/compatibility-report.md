@@ -48,6 +48,7 @@ Cobertura verificada independientemente: 35/124 (28 %). Cobertura contrastada co
 | Desplazamientos impuestos | Un valor sobre una componente sin apoyo ni resorte es un error en Struktal; se cree que SAP2000 lo ignora. Sin confirmar. |
 | Resortes de nudo | Solo lineales y en ejes globales. |
 | Intercambio S2K/OAPI | Lector S2K estricto de barras y áreas, con su malla de análisis, fuente de masa, modos, espectros y sismo por coeficiente (decisiones 0018, 0021, 0022 y 0024), sin contrastar con SAP2000 ni probado con una malla o un espectro completo reales; sin escritura ni OAPI. |
+| Mecanismo no detectado | Un grado de libertad sin rigidez real, con solo redondeo en su diagonal, pasa el control de pivotes y da un resultado enorme como válido: nudo de dos barras articuladas cargado fuera de su plano (decisión 0013, ampliación del 2026-11-09). Pendiente de corregir. |
 | Recuento de modos de mecanismo | Exacto con hueco espectral; por encima de ~10⁵ ecuaciones puede quedar como cota inferior (F08-007, decisión 0006). Formato de aviso de SAP2000 no comparado. |
 
 ## Bloqueos

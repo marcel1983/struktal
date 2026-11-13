@@ -33,6 +33,34 @@ No se usa código de estos motores en Struktal. Los traductores en `tools/oracle
 - **OpenSees con `UmfPack`** devolvió números en 4 modelos con mecanismo (V-MECH-003, 004, 006 y 007), sin aviso. Struktal los diagnostica con su nulidad analítica. No se usa OpenSees para validar mecanismos.
 - **Pynite** no tiene deformación por cortante en barras, offsets, restricciones generales ni extremo móvil de resorte. Tiene el eje Y vertical, por lo que el traductor gira el modelo.
 
+## Ampliación del 2026-11-09
+
+El traductor, en `tools/oracles/common.py`, se ha ampliado con cinco cosas:
+
+- **Malla de barras:** corta las barras en tramos y en los nudos sobre su eje, como la malla de análisis (decisión 0015), y reparte entre los tramos las cargas de vano.
+- **Masa concentrada:** reparte la masa como la fuente de masa, incluidas láminas y patrones (decisiones 0020 y 0022). De los patrones solo traduce cargas de nudo, uniformes y de área, sin uniformes sobre barras con liberaciones.
+- **Sismo automático:** calcula la carga por coeficiente con la regla de la decisión 0024. Comprueba la estructura, pero no la regla, que es la misma en los dos lados.
+- **Espectro de respuesta en OpenSees:** cada modo se resuelve como la respuesta estática a sus fuerzas de inercia, M φ Γ Sa, y después se combina por SRSS o CQC. Los modos y la estática los pone OpenSees, y la combinación es la misma fórmula.
+- **Barras articuladas en OpenSees:** una barra con los momentos liberados en los dos extremos y la torsión en uno se traduce como cercha. Es exacto: solo trabaja axialmente, y sus cargas de vano pasan a los extremos como reacciones de viga simplemente apoyada.
+
+`compare_engines.py` también acepta la ruta de cualquier `model.json`, para comparar modelos sin solución cerrada. En un modelo con láminas, las diferencias se marcan `FORM-DIFF`. Un caso que Struktal resuelve y el motor no (`ENG-FAIL`) cuenta como diferencia.
+
+### Resultado
+
+| Motor | Coinciden | Diferencia de formulación (láminas) | `DIFF` | Solo falla el motor | Solo Struktal detecta el mecanismo | Se detienen ambos | `n/a` |
+|---|---|---|---|---|---|---|---|
+| OpenSeesPy | 60 | 6 | 2 | 1 | 6 | 6 | 12 |
+| Pynite | 33 | 4 | 0 | 0 | 0 | 8 | 48 |
+
+Ahora coinciden la fuente de masa, el espectro, el sismo automático, los modos con barras subdivididas y los de láminas. Los dos `DIFF` son los de la decisión 0021.
+
+El caso donde solo falla el motor es **un defecto de Struktal**. En `V-REL-002`, el nudo C no tiene rigidez fuera del plano de las dos barras articuladas. OpenSees lo detecta como sistema singular, y Struktal no lo detecta: con una carga en Y da UY ≈ 7·10¹³ m como resultado válido. El caso pasa porque su carga no tiene componente en Y. La causa probable es que la diagonal de ese grado de libertad es solo redondeo, y al escalarla por sí misma parece un pivote sano. Está pendiente de corregir.
+
+**Modelos locales**, sin publicar los modelos ni sus resultados:
+
+- `ejemplo_combos_lineal`: coinciden sus 10 casos, incluidos 12 modos (diferencia máxima 2,5e-12) y el sismo automático.
+- `ejemplo_lineal`: con sus 2 láminas, diferencia de formulación, hasta 0,04 % en períodos. Sin ellas coincide en todo lo traducible. El caso `cv` no se compara, porque `ElasticTimoshenkoBeam` descarta cargas puntuales.
+
 ## Resultado (2026-11-05)
 
 | Motor | Coinciden | Se detienen ambos | Solo Struktal detecta el mecanismo | `n/a` |
@@ -55,5 +83,5 @@ python tools/compare_engines.py --struktal target/debug/struktal.exe --engine op
 
 ## Pendiente
 
-- Añadir láminas, modos y P-Δ a los traductores cuando existan en Struktal.
+- Añadir P-Δ a los traductores cuando exista en Struktal. Pynite sigue sin modos.
 - Candidatos para el espectro, sin instalar ni probar: portico-core (AGPL-3.0, solo como ejecutable externo y sin leer su código para portarlo) y Open-Structures (declara licencia MIT; hay que confirmar si se puede ejecutar sin interfaz gráfica).

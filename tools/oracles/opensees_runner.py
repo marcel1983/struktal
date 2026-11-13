@@ -9,13 +9,37 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import openseespy.opensees as ops  # noqa: E402
 
-from common import Unsupported, dot, main  # noqa: E402
+from common import Unsupported, combine_modes, dot, empty_loads, lumped_mass, main, spectrum_acceleration  # noqa: E402
+
+
+def is_link(fr):
+    """Both ends pinned in bending and torsion released at one: only axial force,
+    exactly a truss, whatever its shear areas (its span loads go to the ends)."""
+    ri, rj = fr["rel_i"], fr["rel_j"]
+    return (all(ri[4:]) and all(rj[4:]) and (ri[3] or rj[3]) and not any(ri[:3]) and not any(rj[:3])
+            and not fr["rel_has_springs"])
+
+
+def to_ends(fr, span):
+    """Span loads of a pinned bar as simple-span reactions at its ends, global."""
+    if span["segments"] or span["moments"] or span["moment_segments"]:
+        raise Unsupported(f"frame {fr['orig']}: only uniform and point loads on a pinned bar")
+    ends = [[0.0] * 3, [0.0] * 3]
+    for k in range(3):
+        ends[0][k] += span["uniform"][k] * fr["length"] / 2
+        ends[1][k] += span["uniform"][k] * fr["length"] / 2
+        for rel, g in span["points"]:
+            ends[0][k] += g[k] * (1 - rel)
+            ends[1][k] += g[k] * rel
+    return ends
 
 
 def check_supported(m):
     for fr in m["frames"]:
-        if (fr.get("auto_mesh") or {}).get("at_joints"):
-            raise Unsupported(f"frame {fr['name']}: this translator does not split frames at joints")
+        if is_link(fr):
+            if any(fr["off_i"]) or any(fr["off_j"]):
+                raise Unsupported(f"frame {fr['orig']}: a pinned bar with offsets")
+            continue
         moment_only = not any(fr["rel_i"][:4]) and not any(fr["rel_j"][:4])
         if fr["rel_has_springs"] or not moment_only:
             raise Unsupported(f"frame {fr['name']}: only full M2/M3 releases map to elasticBeamColumn")
@@ -30,33 +54,59 @@ def check_supported(m):
             raise Unsupported(f"frame {fr['name']}: ElasticTimoshenkoBeam ignores the arm of joint offsets")
 
 
-def solve_modes(m, modes):
-    """Periods with the same lumped masses as Struktal: half of each bar at each end."""
-    if m.get("areas"):
-        raise Unsupported("modes of shells are not translated")
-    if any((fr.get("auto_mesh") or {}).get("segments", 1) > 1 for fr in m["frames"]):
-        # Subdivision does not change static results, but it does place the masses.
-        raise Unsupported("this translator does not subdivide frames, which moves the lumped masses")
-    empty = {"joints": {}, "imposed": {}, "frames": {fr["name"]: {"uniform": [0.0] * 3, "points": [], "segments": [], "moments": [], "moment_segments": []} for fr in m["frames"]}}
-    solve_case(m, empty)
+def eigen(m, modes):
+    """Eigenvalues and joint vectors with the lumped masses of common.lumped_mass."""
+    lumped = lumped_mass(m)
+    solve_case(m, empty_loads(m))
     tags = {j["name"]: k + 1 for k, j in enumerate(m["joints"])}
-    lumped = {j["name"]: list(j["added_mass"]) for j in m["joints"]}
-    for fr in m["frames"]:
-        half = 0.5 * fr["mat"]["mass_density"] * fr["sec"]["area"] * fr["length"]
-        for end in (fr["i"], fr["j"]):
-            for d in range(3):
-                lumped[end][d] += half
     for name, mass in lumped.items():
         if any(mass):
             ops.mass(tags[name], *mass)
-    values = ops.eigen("-fullGenLapack", modes)
-    return [2 * math.pi / math.sqrt(v) for v in values]
+    with_mass = sum(1 for j in m["joints"] for d in range(6) if lumped[j["name"]][d] > 0 and not j["restraint"][d])
+    values = ops.eigen("-fullGenLapack", min(modes, with_mass))
+    vectors = [{j["name"]: list(ops.nodeEigenvector(tags[j["name"]], k + 1)) for j in m["joints"]} for k in range(len(values))]
+    return values, vectors
+
+
+def solve_modes(m, modes):
+    return [2 * math.pi / math.sqrt(v) for v in eigen(m, modes)[0]]
+
+
+def solve_spectrum(m, case):
+    """Each mode as the static response to its inertia forces M phi Gamma Sa, which
+    gives phi Gamma Sa / w^2 and its reactions; then SRSS or CQC."""
+    modal = next(c for c in m["load_cases"] if c["name"] == case["modal_case"])
+    function = next(f for f in m["response_spectra"] if f["name"] == case["function"])
+    values, vectors = eigen(m, modal["modes"])
+    lumped = lumped_mass(m)
+    d = "XYZ".index(case["direction"])
+    per_mode, omegas = [], []
+    for value, phi in zip(values, vectors):
+        w = math.sqrt(value)
+        omegas.append(w)
+        norm = sum(lumped[n][k] * phi[n][k] ** 2 for n in phi for k in range(6))
+        gamma = sum(lumped[n][d] * phi[n][d] for n in phi) / norm
+        sa = spectrum_acceleration(function["points"], 2 * math.pi / w) * case["scale"]
+        loads = empty_loads(m)
+        for n in phi:
+            free = [not r for r in m["by_joint"][n]["restraint"]]
+            f = [lumped[n][k] * phi[n][k] * gamma * sa if free[k] else 0.0 for k in range(6)]
+            if any(f):
+                loads["joints"][n] = f
+        per_mode.append(solve_case(m, loads))
+    return combine_modes(per_mode, omegas, case)
 
 
 def solve_case(m, loads):
     check_supported(m)
+    joint_loads = {name: list(v) for name, v in loads["joints"].items()}
     for fr in m["frames"]:
         span = loads["frames"][fr["name"]]
+        if is_link(fr):
+            for end, f in zip((fr["i"], fr["j"]), to_ends(fr, span)):
+                t = joint_loads.setdefault(end, [0.0] * 6)
+                joint_loads[end] = [t[k] + (f[k] if k < 3 else 0.0) for k in range(6)]
+            continue
         if fr["sec"]["as2"] > 0 and (span["points"] or span["segments"]):
             # Uniform loads work. Any other span load only prints "load type unknown"
             # and the analysis goes on without it, returning success.
@@ -109,7 +159,11 @@ def solve_case(m, loads):
         # OpenSees local z is the vecxz direction, so its y and z are Struktal's 2 and 3.
         ops.geomTransf("Linear", k + 1, *fr["axes"][2], "-jntOffset", *fr["off_i"], *fr["off_j"])
         i, j = tags[fr["i"]], tags[fr["j"]]
-        if s["as2"] > 0:
+        if is_link(fr):
+            ops.uniaxialMaterial("Elastic", next_mat, mat["e"])
+            ops.element("Truss", next_ele, i, j, s["area"], next_mat)
+            next_mat += 1
+        elif s["as2"] > 0:
             ops.element("ElasticTimoshenkoBeam", next_ele, i, j, mat["e"], mat["g"], s["area"], s["j"], s["i22"], s["i33"],
                         s["as2"], s["as3"], k + 1)
         else:
@@ -149,7 +203,7 @@ def solve_case(m, loads):
 
     ops.timeSeries("Constant", 1)
     ops.pattern("Plain", 1, 1)
-    for name, vals in loads["joints"].items():
+    for name, vals in joint_loads.items():
         ops.load(tags[name], *vals)
     for name, vals in loads["imposed"].items():
         j = m["by_joint"][name]
@@ -158,6 +212,8 @@ def solve_case(m, loads):
                 target = tags[name] if j["restraint"][d] else ground_of[name]
                 ops.sp(target, d + 1, v)
     for fr in m["frames"]:
+        if is_link(fr):
+            continue
         span = loads["frames"][fr["name"]]
         e1, e2, e3 = fr["axes"]
         if any(v != 0.0 for v in span["uniform"]):
@@ -192,4 +248,4 @@ def solve_case(m, loads):
 
 
 if __name__ == "__main__":
-    main("OpenSeesPy", importlib.metadata.version("openseespy"), solve_case, solve_modes)
+    main("OpenSeesPy", importlib.metadata.version("openseespy"), solve_case, solve_modes, solve_spectrum)

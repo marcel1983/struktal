@@ -28,7 +28,7 @@ Actualizado: 2026-11-09. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
 - `cargo test --workspace`: 176 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 24, 0 fallos.
 - `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 65/65 `pass` con ambos; todos `oracle_pending` para SAP2000.
-- `tools/compare_engines.py`: comparación opcional con OpenSeesPy y Pynite (decisión 0013); con triángulos da DIFF en V-TRI-001, explicado en la decisión 0021. CI en `.github/workflows/ci.yml`: `add290a` y `65feef9` fallaron solo en el trabajo de referencias, porque `sin` y `cos` redondean distinto entre Linux y Windows. `tools/check_cases.py` lo corrige en dos pasos, el segundo para el hash de `model.json`; CI en verde desde `199b727`. Benchmarks de los ejemplos de OpenSees: decisión 0023.
+- `tools/compare_engines.py`: comparación opcional con OpenSeesPy y Pynite (decisión 0013); con triángulos da DIFF en V-TRI-001, explicado en la decisión 0021. CI en `.github/workflows/ci.yml`: `add290a` y `65feef9` fallaron solo en el trabajo de referencias, porque `sin` y `cos` redondean distinto entre Linux y Windows. `tools/check_cases.py` lo corrige en dos pasos, el segundo para el hash de `model.json`; CI en verde desde `199b727`. Benchmarks de los ejemplos de OpenSees: decisión 0023. Comparación ampliada con OpenSees (malla, masa, sismo, espectro): decisión 0013.
 - Benchmarks: docs/benchmarks.md.
 
 ## Decisiones pendientes
@@ -40,6 +40,7 @@ Actualizado: 2026-11-09. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 Objetivo del usuario: herramienta open source para su propio trabajo, con modelos que suelen tener losas o muros. Orden acordado el 2026-11-05: 1) resto de pórticos, 2) lo que pide un modelo real (secciones paramétricas, cargas, subdivisión, envolventes), 3) S2K, 4) láminas, 5) masas, modos y espectro.
 
+1. **Defecto:** un mecanismo cuya diagonal es solo redondeo no se detecta (`V-REL-002` cargado en Y; decisión 0013, ampliación del 2026-11-09). Corregirlo y revisar `V-REL-002`, cuyo nudo C es un mecanismo fuera del plano.
 1. Contraste con SAP2000 de `ejemplo_lineal` y `ejemplo_combos_lineal`, que ya se importan y resuelven sin modificarlos (decisión 0024), cuando se revise la licencia: modos, fuente de masa y sismo automático.
 1. Probar el importador con un modelo real del usuario, con losas o muros, su malla y un espectro: mallas y espectros completos solo se han probado con archivos escritos a mano (decisiones 0021 y 0022).
 2. Lo demás que bloquea modelos locales: cargas proyectadas, temperatura, ejes locales de nudo, I23 real, secciones con I22 o J nulas, links.

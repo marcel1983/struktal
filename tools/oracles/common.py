@@ -12,6 +12,10 @@ from pathlib import Path
 FORCE = {"N": 1.0, "kN": 1e3, "MN": 1e6, "kgf": 9.80665, "tonf": 9806.65, "lbf": 4.4482216152605, "kip": 4448.2216152605}
 LENGTH = {"m": 1.0, "cm": 0.01, "mm": 0.001, "ft": 0.3048, "in": 0.0254}
 VERTICAL_SIN_TOL = 1e-3
+GRAVITY = 9.80665          # m/s2: load of a mass source to mass, and weight of a mass
+AXIS_TOL_REL = 1e-6        # a joint this close to a frame axis connects to it (decision 0015)
+UPWARD_TOL_REL = 1e-9      # an upward mass-source load below this share is rounding
+HEIGHT_TOL_REL = 1e-9      # a joint this close to the lowest one is at the base (decision 0024)
 
 
 class Unsupported(Exception):
@@ -141,8 +145,165 @@ def load_model(path):
         for key in ("value", "value_start", "value_end"):
             if key in load:
                 load[key] *= factor
+    for c in m.get("load_cases", []):
+        if c["type"] == "ResponseSpectrum":
+            c["scale"] *= l  # the function is in g units, the scale turns it into length/s2
     m["by_joint"] = by_joint
+    expand_mesh(m)
     return m
+
+
+def expand_mesh(m):
+    """Frames as the pieces of the analysis mesh: equal divisions and, when asked,
+    the joints on their axis (decision 0015). A cut lands on a joint if one is
+    there; otherwise a new joint, which only the engines have."""
+    m["frames_orig"] = m["frames"]
+    user_joints = list(m["joints"])
+    pieces = []
+    for fr in m["frames_orig"]:
+        mesh = fr.get("auto_mesh") or {}
+        n = mesh.get("segments", 1)
+        length, xi, e1 = fr["length"], fr["xi"], fr["axes"][0]
+        tol = AXIS_TOL_REL * length
+        cuts = []
+        if (mesh.get("at_joints") or n > 1) and (any(fr["off_i"]) or any(fr["off_j"])):
+            m["unsupported"] = f"frame {fr['name']}: this translator does not split frames with offsets"
+        if mesh.get("at_joints"):
+            for j in user_joints:
+                if j["name"] in (fr["i"], fr["j"]):
+                    continue
+                d = [p - q for p, q in zip(j["xyz"], xi)]
+                along = dot(d, e1)
+                if along <= tol or along >= length - tol:
+                    continue
+                if math.sqrt(sum((d[k] - along * e1[k]) ** 2 for k in range(3))) <= tol:
+                    cuts.append((along / length, j["name"]))
+        for k in range(1, n):
+            rel = k / n
+            if all(abs(c - rel) * length > tol for c, _ in cuts):
+                cuts.append((rel, None))
+        cuts.sort(key=lambda c: c[0])
+        ends = [(0.0, fr["i"])]
+        for k, (rel, name) in enumerate(cuts):
+            if name is None:
+                name = f"{fr['name']}~{k + 1}"
+                xyz = [a + rel * length * b for a, b in zip(xi, e1)]
+                joint = {"name": name, "xyz": xyz, "x": xyz[0], "y": xyz[1], "z": xyz[2], "restraint": [False] * 6,
+                         "springs": [0.0] * 6, "added_mass": [0.0] * 6, "generated": True}
+                m["joints"].append(joint)
+                m["by_joint"][name] = joint
+            ends.append((rel, name))
+        ends.append((1.0, fr["j"]))
+        for k in range(len(ends) - 1):
+            (r0, a), (r1, b) = ends[k], ends[k + 1]
+            p = dict(fr, name=fr["name"] if len(ends) == 2 else f"{fr['name']}#{k + 1}", i=a, j=b, orig=fr["name"], r0=r0, r1=r1)
+            if len(ends) > 2:
+                p["xi"] = m["by_joint"][a]["xyz"] if k > 0 else fr["xi"]
+                p["xj"] = m["by_joint"][b]["xyz"] if k < len(ends) - 2 else fr["xj"]
+                p["length"] = math.dist(p["xi"], p["xj"])
+                p["axes"] = local_axes(p["xi"], p["xj"], fr.get("angle_deg", 0.0))
+                p["rel_i"] = fr["rel_i"] if k == 0 else [False] * 6
+                p["rel_j"] = fr["rel_j"] if k == len(ends) - 2 else [False] * 6
+                p["off_i"] = fr["off_i"] if k == 0 else [0.0] * 3
+                p["off_j"] = fr["off_j"] if k == len(ends) - 2 else [0.0] * 3
+            pieces.append(p)
+    m["frames"] = pieces
+
+
+def lumped_mass(m):
+    """Mass per joint [6], in SI, as the mass source gives it: half of each piece at
+    each end and each area by the share of its corners, on translations; added
+    masses as given; the downward load of the source patterns over gravity."""
+    if "_lumped" in m:
+        return m["_lumped"]
+    src = m.get("mass_source") or {}
+    elements, added = src.get("elements", True), src.get("added_masses", True)
+    lumped = {j["name"]: list(j["added_mass"]) if added else [0.0] * 6 for j in m["joints"]}
+    if elements:
+        for fr in m["frames"]:
+            half = 0.5 * fr["mat"]["mass_density"] * fr["sec"]["area"] * fr["length"]
+            for end in (fr["i"], fr["j"]):
+                for d in range(3):
+                    lumped[end][d] += half
+        for a in m.get("areas", []):
+            density = a["sec"]["mat"]["mass_density"] * a["sec"]["thickness"]
+            for name, share in zip(a["joints"], a["shares"]):
+                for d in range(3):
+                    lumped[name][d] += density * share
+    if src.get("patterns"):
+        loads = case_loads(m, {"loads": src["patterns"]}, automatic=False)
+        down = {name: v[2] for name, v in loads["joints"].items()}
+        for fr in m["frames"]:
+            span = loads["frames"][fr["name"]]
+            if span["points"] or span["segments"] or span["moments"] or span["moment_segments"]:
+                raise Unsupported("mass source: only joint, uniform and area loads are translated")
+            w = span["uniform"]
+            if any(w):
+                if any(fr["rel_i"]) or any(fr["rel_j"]):
+                    raise Unsupported(f"mass source: a uniform load on frame {fr['orig']}, which has releases")
+                for end in (fr["i"], fr["j"]):
+                    down[end] = down.get(end, 0.0) + w[2] * fr["length"] / 2
+        largest = max((abs(v) for v in down.values()), default=0.0)
+        for name, fz in down.items():
+            if fz > UPWARD_TOL_REL * largest and not all(m["by_joint"][name]["restraint"][:3]):
+                raise RuntimeError(f"mass source: joint {name} has a net upward load")
+            for d in range(3):
+                lumped[name][d] += max(-fz, 0.0) / GRAVITY
+    m["_lumped"] = lumped
+    return lumped
+
+
+def auto_seismic_forces(m, a):
+    """V = C g sum(m), shared as V m h^k / sum(m h^k), h from the lowest joint (decision 0024)."""
+    lumped = lumped_mass(m)
+    d = "XYZ".index(a["direction"])
+    z = {j["name"]: j["xyz"][2] for j in m["joints"]}
+    low, high = min(z.values()), max(z.values())
+    weight = GRAVITY * sum(v[d] for v in lumped.values())
+    share = {n: lumped[n][d] * (h - low) ** a["exponent"] for n, h in z.items() if h - low > HEIGHT_TOL_REL * (high - low)}
+    total = sum(share.values())
+    if weight == 0.0 or total == 0.0:
+        raise RuntimeError("auto seismic: no mass above the lowest joint")
+    return {n: [a["coefficient"] * weight * v / total if k == d else 0.0 for k in range(6)] for n, v in share.items() if v}
+
+
+def spectrum_acceleration(points, period):
+    """Linear in the period, flat beyond the ends."""
+    if period <= points[0][0]:
+        return points[0][1]
+    if period >= points[-1][0]:
+        return points[-1][1]
+    for (t0, a0), (t1, a1) in zip(points, points[1:]):
+        if t0 <= period <= t1:
+            return a0 + (a1 - a0) * (period - t0) / (t1 - t0)
+    raise ValueError(period)
+
+
+def cqc_rho(wi, wj, z):
+    r = wi / wj
+    den = (1 - r * r) ** 2 + 4 * z * z * r * (1 + r) ** 2
+    return 1.0 if den == 0 else 8 * z * z * (1 + r) * r**1.5 / den
+
+
+def combine_modes(per_mode, omegas, case):
+    """Each value combined across modes, by SRSS or CQC, as a magnitude."""
+    n = len(per_mode)
+    cqc = case.get("combination", "Cqc") == "Cqc"
+    rho = [[cqc_rho(omegas[i], omegas[j], case.get("damping", 0.05)) if cqc else float(i == j) for j in range(n)] for i in range(n)]
+
+    def comb(values):
+        return math.sqrt(max(0.0, sum(rho[i][j] * values[i] * values[j] for i in range(n) for j in range(n))))
+
+    joints = {}
+    for name in per_mode[0]:
+        joints[name] = {key: [comb([r[name][key][k] for r in per_mode]) for k in range(6)] for key in ("disp", "reaction")}
+    return joints
+
+
+def empty_loads(m):
+    return {"joints": {}, "imposed": {},
+            "frames": {fr["name"]: {"uniform": [0.0] * 3, "points": [], "segments": [], "moments": [], "moment_segments": []}
+                       for fr in m["frames"]}}
 
 
 def direction(name, axes):
@@ -153,8 +314,8 @@ def direction(name, axes):
     }[name]
 
 
-def case_loads(m, case):
-    """Loads of one case, scaled, in SI and global axes."""
+def case_loads(m, case, automatic=True):
+    """Loads of one case, scaled, in SI and global axes, on the pieces of the mesh."""
     scale = {}
     for sp in case["loads"]:
         scale[sp["pattern"]] = scale.get(sp["pattern"], 0.0) + sp["scale"]
@@ -164,6 +325,14 @@ def case_loads(m, case):
         if sc != 0.0:
             t = joints.setdefault(jl["joint"], [0.0] * 6)
             joints[jl["joint"]] = [a + sc * b for a, b in zip(t, jl["values"])]
+    for p in m.get("load_patterns", []):
+        sc = scale.get(p["name"], 0.0)
+        if p.get("auto_seismic") and sc != 0.0:
+            if not automatic:
+                raise Unsupported(f"pattern {p['name']} is computed from the mass")
+            for name, f in auto_seismic_forces(m, p["auto_seismic"]).items():
+                t = joints.setdefault(name, [0.0] * 6)
+                joints[name] = [a + sc * b for a, b in zip(t, f)]
     for jd in m.get("joint_displacements", []):
         sc = scale.get(jd["pattern"], 0.0)
         if sc != 0.0:
@@ -171,13 +340,13 @@ def case_loads(m, case):
             imposed[jd["joint"]] = [a + sc * b for a, b in zip(t, jd["values"])]
     frames = {
         fr["name"]: {"uniform": [0.0] * 3, "points": [], "segments": [], "moments": [], "moment_segments": []}
-        for fr in m["frames"]
+        for fr in m["frames_orig"]
     }
-    by_frame = {fr["name"]: fr for fr in m["frames"]}
+    by_frame = {fr["name"]: fr for fr in m["frames_orig"]}
     for p in m.get("load_patterns", []):
         sc = scale.get(p["name"], 0.0) * p.get("self_weight_multiplier", 0.0)
         if sc != 0.0:
-            for fr in m["frames"]:
+            for fr in m["frames_orig"]:
                 frames[fr["name"]]["uniform"][2] -= fr["mat"]["unit_weight"] * fr["sec"]["area"] * sc
     for fl in m.get("frame_loads", []):
         sc = scale.get(fl["pattern"], 0.0)
@@ -216,7 +385,26 @@ def case_loads(m, case):
             for name, share in zip(a["joints"], a["shares"]):
                 t = joints.setdefault(name, [0.0] * 6)
                 joints[name] = [t[k] + (w[k] * share if k < 3 else 0.0) for k in range(6)]
-    return {"joints": joints, "imposed": imposed, "frames": frames}
+    return {"joints": joints, "imposed": imposed, "frames": {p["name"]: piece_loads(frames[p["orig"]], p) for p in m["frames"]}}
+
+
+def piece_loads(span, p):
+    """The span loads of a frame that fall on one of its pieces, relative to it.
+    A concentrated load exactly at a cut goes to the piece before it."""
+    r0, r1 = p["r0"], p["r1"]
+    width = r1 - r0
+    out = {"uniform": list(span["uniform"]), "points": [], "segments": [], "moments": [], "moment_segments": []}
+    for key in ("points", "moments"):
+        for rel, g in span[key]:
+            if (rel > r0 or r0 == 0.0) and (rel <= r1 or r1 == 1.0):
+                out[key].append(((rel - r0) / width, g))
+    for key in ("segments", "moment_segments"):
+        for a, b, va, vb in span[key]:
+            lo, hi = max(a, r0), min(b, r1)
+            if lo < hi:
+                at = [[x + (y - x) * (r - a) / (b - a) for x, y in zip(va, vb)] for r in (lo, hi)]
+                out[key].append(((lo - r0) / width, (hi - r0) / width, at[0], at[1]))
+    return out
 
 
 def combine(results, m):
@@ -245,28 +433,28 @@ def combine(results, m):
             results[c["name"]] = {"status": "ok", "joints": joints}
 
 
-def main(engine, version, solve_case, solve_modes=None):
+def main(engine, version, solve_case, solve_modes=None, solve_spectrum=None):
     """Usage: runner.py model.json output.json. Engines also print to stdout."""
     m = load_model(sys.argv[1])
     results = {}
     for case in m.get("load_cases", []):
-        if case["type"] == "Modal":
-            if solve_modes is None or m.get("mass_source"):
-                results[case["name"]] = {"status": "skipped", "reason": "modes or the mass source are not translated for this engine"}
+        if m.get("unsupported"):
+            results[case["name"]] = {"status": "unsupported", "reason": m["unsupported"]}
+            continue
+        if case["type"] in ("Modal", "ResponseSpectrum"):
+            solve = solve_modes if case["type"] == "Modal" else solve_spectrum
+            if solve is None:
+                results[case["name"]] = {"status": "skipped", "reason": f"{case['type']} is not translated for this engine"}
                 continue
             try:
-                results[case["name"]] = {"status": "ok", "periods": solve_modes(m, case["modes"]), "joints": {}}
+                if case["type"] == "Modal":
+                    results[case["name"]] = {"status": "ok", "periods": solve(m, case["modes"]), "joints": {}}
+                else:
+                    results[case["name"]] = {"status": "ok", "joints": solve(m, case)}
             except Unsupported as e:
                 results[case["name"]] = {"status": "unsupported", "reason": str(e)}
             except Exception as e:  # noqa: BLE001
                 results[case["name"]] = {"status": "failed", "reason": f"{type(e).__name__}: {e}"[:300]}
-            continue
-        if case["type"] != "LinearStatic":
-            results[case["name"]] = {"status": "skipped", "reason": f"{case['type']} is not compared"}
-            continue
-        automatic = {p["name"] for p in m.get("load_patterns", []) if p.get("auto_seismic")}
-        if any(sp["pattern"] in automatic and sp["scale"] != 0 for sp in case["loads"]):
-            results[case["name"]] = {"status": "skipped", "reason": "automatic seismic loads are not translated"}
             continue
         try:
             joints = solve_case(m, case_loads(m, case))
