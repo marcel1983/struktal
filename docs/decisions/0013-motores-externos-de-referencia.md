@@ -54,7 +54,7 @@ El traductor, en `tools/oracles/common.py`, se ha ampliado con cinco cosas:
 
 Ahora coinciden la fuente de masa, el espectro, el sismo automático, los modos con barras subdivididas y los de láminas. Los dos `DIFF` son los de la decisión 0021.
 
-El caso donde solo falla el motor es **un defecto de Struktal**. En `V-REL-002`, el nudo C no tiene rigidez fuera del plano de las dos barras articuladas. OpenSees lo detecta como sistema singular, y Struktal no lo detecta: con una carga en Y da UY ≈ 7·10¹³ m como resultado válido. El caso pasa porque su carga no tiene componente en Y. La causa probable es que la diagonal de ese grado de libertad es solo redondeo, y al escalarla por sí misma parece un pivote sano. Está pendiente de corregir.
+El caso donde solo falla el motor es **un defecto de Struktal**. En `V-REL-002`, el nudo C no tiene rigidez fuera del plano de las dos barras articuladas. OpenSees lo detecta como sistema singular, y Struktal no lo detecta: con una carga en Y da UY ≈ 7·10¹³ m como resultado válido. El caso pasa porque su carga no tiene componente en Y. La causa es que la diagonal de ese grado de libertad es solo redondeo, y al escalarla por sí misma parece un pivote sano. Se corrigió en la decisión 0025.
 
 **Modelos locales**, sin publicar los modelos ni sus resultados:
 

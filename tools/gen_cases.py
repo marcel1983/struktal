@@ -523,9 +523,11 @@ ux = (N1 * n1x + N2 * n2x) * L13 / (E * At)
 uz = (N1 * n1z + N2 * n2z) * L13 / (E * At)
 ST = {"name": "TR", "material": "STEEL", "area": At, "i33": 1e-6, "i22": 1e-6, "j": 1e-6}
 truss_rel = {"i": [False, False, False, True, True, True], "j": [False, False, False, False, True, True]}
+# Two pinned bars give C no stiffness out of their plane, so UY is restrained
+# there; without it, the model is a mechanism (V-MECH-011, decision 0025).
 write("V-REL-002", "Two-bar truss built from frame members with releases", ["F04-003", "F08"], model(
     "V-REL-002 released truss",
-    [J("A", 0, 0, 0, FIX), J("B", 4, 0, 0, FIX), J("C", *Ct, [False, False, False, True, True, True])],
+    [J("A", 0, 0, 0, FIX), J("B", 4, 0, 0, FIX), J("C", *Ct, [False, True, False, True, True, True])],
     [{"name": "T1", "i": "A", "j": "C", "section": "TR", "releases": truss_rel},
      {"name": "T2", "i": "B", "j": "C", "section": "TR", "releases": truss_rel}],
     [ST], [{"name": "F"}],
@@ -1838,6 +1840,20 @@ write("V-MECH-010", "One three-node shell element with no supports", ["F03-001",
     areas=[{"name": "T", "section": "SH", "joints": ["A", "B", "C"]}],
 ), {"kind": "analytical", "source": "A free body has six rigid-body modes; a spurious mode of the element would add more", "derivation": ["nullity(K) = 6"]},
     expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "nullity = 6 (exact)"}])
+
+# Two pinned bars meeting at C, with C free out of their plane: after the
+# releases, its UY diagonal is only rounding, which a pivot test on the matrix
+# scaled by its own diagonal takes for a sound pivot (decision 0025).
+write("V-MECH-011", "Joint of two pinned bars, free out of their plane", ["F04-003", "F08", "stability"], model(
+    "V-MECH-011 pinned bars out of plane",
+    [J("A", 0, 0, 0, FIX), J("B", 4, 0, 0, FIX), J("C", *Ct, [False, False, False, True, True, True])],
+    [{"name": "T1", "i": "A", "j": "C", "section": "TR", "releases": truss_rel},
+     {"name": "T2", "i": "B", "j": "C", "section": "TR", "releases": truss_rel}],
+    [ST], [{"name": "F"}],
+    joint_loads=[{"pattern": "F", "joint": "C", "values": [Ft[0], 1000.0, Ft[2], 0, 0, 0]}], schema=2,
+), {"kind": "analytical", "source": "Bars pinned in bending at both ends carry only axial force: none out of their plane",
+    "derivation": ["the stiffness of C along Y is zero", "the model is a mechanism, whatever the load"]},
+    expected_status=[{"case": "LC1", "completion": "error", "physical_status": "mechanism", "message_contains": "joint C UY"}])
 
 # ---------------------------------------------------------------- modes
 MOD_TOL = "modes-closed-form-v1"

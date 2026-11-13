@@ -417,6 +417,49 @@ fn mechanism_report(
 }
 
 const MAX_REPORTED_MODES: usize = 24;
+/// A diagonal at or below this share of what the elements give before their end
+/// releases is rounding: the releases left that DOF with no stiffness.
+const RELEASE_NOISE_REL: f64 = 1e-10;
+
+/// Equations whose stiffness is only rounding. Pivots are judged on the matrix
+/// scaled by its own diagonal, where such a DOF looks sound (decision 0025), so
+/// its diagonal is measured here against the stiffness before condensation.
+fn rounding_only(
+    s: &Snapshot,
+    map: &DofMap,
+    frames: &[FrameData],
+    areas: &[AreaData],
+    k: &struktal_math::Csc,
+) -> Vec<usize> {
+    if frames.iter().all(|f| f.cond.is_none()) {
+        return Vec::new();
+    }
+    let mut full = vec![0.0; 6 * s.model.joints.len()];
+    for fd in frames {
+        let kg = frame3d::to_global(&fd.k_local, &fd.t);
+        for (a, &d) in fd.dofs.iter().enumerate() {
+            full[d] += kg[a][a].abs();
+        }
+    }
+    for a in areas {
+        for (r, &d) in a.dofs.iter().enumerate() {
+            full[d] += a.k_global[r][r].abs();
+        }
+    }
+    for (j, joint) in s.model.joints.iter().enumerate() {
+        for d in 0..6 {
+            full[6 * j + d] += joint.springs[d];
+        }
+    }
+    let mut reference = vec![0.0; map.n];
+    for (g, &v) in full.iter().enumerate() {
+        for &(e, c) in map.terms(g) {
+            reference[e] += c * c * v;
+        }
+    }
+    let diagonal = k.diagonal();
+    (0..map.n).filter(|&e| reference[e] > 0.0 && diagonal[e] <= RELEASE_NOISE_REL * reference[e]).collect()
+}
 
 /// Orthonormal basis (scaled coordinates, free DOFs) of the six global
 /// rigid-body motions about the centroid, used only to describe modes.
@@ -745,6 +788,42 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     }
     let k = tb.to_csc();
     manifest.timings.assembly_s = t_asm.elapsed().as_secs_f64();
+
+    let bare = rounding_only(s, &map, &frames, &area_data, &k);
+    if !bare.is_empty() {
+        let mut free_to_global = vec![0; n];
+        for (g, &e) in eq.iter().enumerate() {
+            if e != usize::MAX {
+                free_to_global[e] = g;
+            }
+        }
+        let names: Vec<String> = bare.iter().take(6).map(|&e| dof_name(s, free_to_global[e])).collect();
+        let msg = format!(
+            "mechanism: {} DOF(s) keep only rounding stiffness, at most {RELEASE_NOISE_REL:e} of what their \
+             elements give before the end releases: {}{}",
+            bare.len(),
+            names.join(", "),
+            if bare.len() > names.len() { ", ..." } else { "" }
+        );
+        manifest.messages.push(msg.clone());
+        let cases = m
+            .load_cases
+            .iter()
+            .map(|c| {
+                failed_case(c.name(), "linear_static", Completion::Error, PhysicalStatus::Mechanism, vec![msg.clone()])
+            })
+            .chain(m.combinations.iter().map(|c| {
+                failed_case(
+                    c.name(),
+                    "combination_linear_add",
+                    Completion::Error,
+                    PhysicalStatus::Indeterminate,
+                    vec!["depends on a case that did not complete".into()],
+                )
+            }))
+            .collect();
+        return RunResult { manifest, cases };
+    }
 
     let factor = if n == 0 {
         None

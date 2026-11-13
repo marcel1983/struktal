@@ -1,0 +1,34 @@
+{
+  "case_id": "V-MECH-011",
+  "title": "Joint of two pinned bars, free out of their plane",
+  "feature_ids": [
+    "F04-003",
+    "F08",
+    "stability"
+  ],
+  "model": "model.json",
+  "model_sha256": "75f59dba6eb73fcd3b25218da1354d12de37687acf223619b7bf33970e4e1710",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Bars pinned in bending at both ends carry only axial force: none out of their plane",
+    "derivation": [
+      "the stiffness of C along Y is zero",
+      "the model is a mechanism, whatever the load"
+    ]
+  },
+  "expected_status": [
+    {
+      "case": "LC1",
+      "completion": "error",
+      "physical_status": "mechanism",
+      "message_contains": "joint C UY"
+    }
+  ],
+  "expected": [],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

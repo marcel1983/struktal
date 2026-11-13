@@ -59,7 +59,7 @@
       "z": 3.0,
       "restraint": [
         false,
-        false,
+        true,
         false,
         true,
         true,

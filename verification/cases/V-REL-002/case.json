@@ -6,7 +6,7 @@
     "F08"
   ],
   "model": "model.json",
-  "model_sha256": "b96ba0a10c029efa3a33c8e01e163128563715a6944f3198051512364cefc39a",
+  "model_sha256": "fef0886351a9b448f763ae485ffce0347b79efa26af4005bf02ab63cb15b9959",
   "tolerances_file": "../../tolerances.json",
   "tolerances_id": "linear-closed-form-v1",
   "reference": {

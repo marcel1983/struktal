@@ -1,6 +1,6 @@
 # Informe de compatibilidad — perfil sap2000-ultimate-27.1.0-target
 
-Fecha: 2026-11-09. Motor struktal 0.1.0. **Estado del perfil: specified_not_verified.**
+Fecha: 2026-11-12. Motor struktal 0.1.0. **Estado del perfil: specified_not_verified.**
 
 No se ha ejecutado SAP2000. Ningún requisito está `verified_sap`. No se afirma compatibilidad con SAP2000 en ningún contrato.
 
@@ -28,7 +28,8 @@ Cobertura verificada independientemente: 35/124 (28 %). Cobertura contrastada co
 - Láminas de 3 y 4 nudos para losas y muros, con taladro sin rigidez ficticia (decisiones 0019 y 0021).
 - Masas concentradas, fuente de masa con elementos, masas añadidas y patrones, modos propios y espectro de respuesta con CQC y SRSS (decisiones 0020 y 0022).
 - Carga sísmica automática por coeficiente de usuario, desde la masa del modelo (decisión 0024).
-- Banco de 65 casos, 64 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
+- Mecanismos que las liberaciones dejan con solo redondeo en la diagonal, detectados aparte del control de pivotes (decisión 0025).
+- Banco de 66 casos, 65 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 
@@ -48,7 +49,6 @@ Cobertura verificada independientemente: 35/124 (28 %). Cobertura contrastada co
 | Desplazamientos impuestos | Un valor sobre una componente sin apoyo ni resorte es un error en Struktal; se cree que SAP2000 lo ignora. Sin confirmar. |
 | Resortes de nudo | Solo lineales y en ejes globales. |
 | Intercambio S2K/OAPI | Lector S2K estricto de barras y áreas, con su malla de análisis, fuente de masa, modos, espectros y sismo por coeficiente (decisiones 0018, 0021, 0022 y 0024), sin contrastar con SAP2000 ni probado con una malla o un espectro completo reales; sin escritura ni OAPI. |
-| Mecanismo no detectado | Un grado de libertad sin rigidez real, con solo redondeo en su diagonal, pasa el control de pivotes y da un resultado enorme como válido: nudo de dos barras articuladas cargado fuera de su plano (decisión 0013, ampliación del 2026-11-09). Pendiente de corregir. |
 | Recuento de modos de mecanismo | Exacto con hueco espectral; por encima de ~10⁵ ecuaciones puede quedar como cota inferior (F08-007, decisión 0006). Formato de aviso de SAP2000 no comparado. |
 
 ## Bloqueos
