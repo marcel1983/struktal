@@ -84,4 +84,4 @@ python tools/compare_engines.py --struktal target/debug/struktal.exe --engine op
 ## Pendiente
 
 - Añadir P-Δ a los traductores cuando exista en Struktal. Pynite sigue sin modos.
-- Candidatos para el espectro, sin instalar ni probar: portico-core (AGPL-3.0, solo como ejecutable externo y sin leer su código para portarlo) y Open-Structures (declara licencia MIT; hay que confirmar si se puede ejecutar sin interfaz gráfica).
+- Candidatos para el espectro, sin instalar ni probar: portico-core (AGPL-3.0; desde la decisión 0026 su código sería compatible, pero incorporarlo exige una decisión propia) y Open-Structures (declara licencia MIT; hay que confirmar si se puede ejecutar sin interfaz gráfica).

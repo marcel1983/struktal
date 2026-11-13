@@ -1,6 +1,6 @@
 # Informe de compatibilidad — perfil sap2000-ultimate-27.1.0-target
 
-Fecha: 2026-11-12. Motor struktal 0.1.0. **Estado del perfil: specified_not_verified.**
+Fecha: 2026-11-13. Motor struktal 0.1.0, licencia AGPL-3.0 (decisión 0026). **Estado del perfil: specified_not_verified.**
 
 No se ha ejecutado SAP2000. Ningún requisito está `verified_sap`. No se afirma compatibilidad con SAP2000 en ningún contrato.
 

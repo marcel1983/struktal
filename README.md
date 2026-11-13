@@ -39,4 +39,4 @@ SAP2000, ETABS, SAFE y CSiBridge son marcas de Computers and Structures, Inc. (C
 
 ## Licencia
 
-GPL-3.0 (ver `LICENSE`). Las dependencias usadas (faer, serde, sha2, clap) tienen licencias MIT/Apache-2.0, compatibles con GPL-3.0.
+AGPL-3.0 (ver `LICENSE`) desde el 2026-11-13; las versiones anteriores se publicaron bajo GPL-3.0 (decisión 0026). Quien ofrezca una versión modificada como servicio en red debe ofrecer su código fuente a los usuarios de ese servicio. Las dependencias usadas (faer, serde, sha2, clap) tienen licencias MIT/Apache-2.0, compatibles con AGPL-3.0.

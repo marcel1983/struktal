@@ -21,4 +21,4 @@ cargo test --workspace --locked
 cargo run -q -p struktal-cli -- verify verification/cases/*/case.json
 ```
 
-Al contribuir aceptas que tu aportación se distribuya bajo GPL-3.0 (ver `LICENSE`).
+Al contribuir aceptas que tu aportación se distribuya bajo AGPL-3.0 (ver `LICENSE`).

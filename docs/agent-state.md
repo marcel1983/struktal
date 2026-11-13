@@ -1,10 +1,10 @@
 # Estado del agente (para retomar sin el contexto de la conversación)
 
-Actualizado: 2026-11-12. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBILIDAD_SAP2000.md` v1 (subida por el usuario, no incluida en el repo).
+Actualizado: 2026-11-13. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBILIDAD_SAP2000.md` v1 (subida por el usuario, no incluida en el repo).
 
 ## Repositorio
 
-- Remoto público: https://github.com/marcel1983/struktal. Esquema de modelo v8 (v1 a v7 se migran). SHA: ver `git log -1`.
+- Remoto público: https://github.com/marcel1983/struktal. Licencia AGPL-3.0-only desde el 2026-11-13, antes GPL-3.0 (decisión 0026); no se ha incorporado código de otros motores. Esquema de modelo v8 (v1 a v7 se migran). SHA: ver `git log -1`.
 - Toolchain: rustc/cargo 1.97.0. Plataformas probadas: Linux x86_64 y Windows 10 x86_64 (MSVC); benchmarks solo en Linux.
 - Proyecto anterior del usuario, fuente de lo que se porta: PAS (fuera del repo). Portar con casos analíticos propios, sin archivos de SAP2000 ni afirmar como verificado lo que PAS afirma; ver decisiones 0010 y 0011.
 
