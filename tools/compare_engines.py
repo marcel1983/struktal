@@ -18,7 +18,11 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-RUNNERS = {"opensees": "opensees_runner.py", "pynite": "pynite_runner.py"}
+RUNNERS = {
+    "opensees": "opensees_runner.py",
+    "pynite": "pynite_runner.py",
+    "calculix": "calculix_runner.py",
+}
 COMPONENTS = ["UX", "UY", "UZ", "RX", "RY", "RZ"]
 REACTIONS = ["FX", "FY", "FZ", "MX", "MY", "MZ"]
 RTOL = 1e-6        # relative to the larger of the two values
@@ -81,10 +85,14 @@ def compare_case(st, ref, joints_model, rtol=RTOL):
             diffs.append(f"joint {name} missing in the engine")
             continue
         for d in range(6):
+            if r["disp"][d] is None:
+                continue  # the engine does not report this component
             check(j["displacement"][d], r["disp"][d], sd[0 if d < 3 else 1], f"{name} {COMPONENTS[d]}")
         info = joints_model[name]
         for d in range(6):
-            if j["reaction"] and (info.get("restraint", [False] * 6)[d] or (info.get("springs") or [0.0] * 6)[d] > 0):
+            if not j["reaction"] or r["reaction"][d] is None:
+                continue  # no reaction, or the engine does not report it
+            if info.get("restraint", [False] * 6)[d] or (info.get("springs") or [0.0] * 6)[d] > 0:
                 check(j["reaction"][d], r["reaction"][d], sr[0 if d < 3 else 1], f"{name} {REACTIONS[d]}")
     return checks, worst, what, diffs
 
