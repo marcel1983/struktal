@@ -22,6 +22,7 @@ cargo run -q -p struktal-cli -- verify verification/cases/*/case.json
 python tools/diff_s2k_import.py "verification/s2k/*.s2k"        # el importador contra el fichero
 # Segunda opinion numerica (opcional; necesita ccx en PATH):
 python tools/compare_engines.py --struktal target/debug/struktal --engine calculix=python V-SHELL-002
+FRAME3DD=/ruta/a/frame3dd python tools/compare_engines.py --struktal target/debug/struktal --engine frame3dd=python V-TRAP-001
 ```
 
 Al contribuir aceptas que tu aportación se distribuya bajo AGPL-3.0 (ver `LICENSE`).
