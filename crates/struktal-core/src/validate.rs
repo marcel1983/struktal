@@ -34,8 +34,19 @@ pub enum LoadError {
     Io(std::io::Error),
     Parse(serde_json::Error),
     MissingSchemaVersion,
-    FutureSchema { found: u32, supported: u32 },
-    UnsupportedSchema { found: u32 },
+    FutureSchema {
+        found: u32,
+        supported: u32,
+    },
+    /// The file declares an older schema but carries a field that only a newer
+    /// one defines. `field` names the offending JSON key.
+    NewerField {
+        found: u32,
+        field: String,
+    },
+    UnsupportedSchema {
+        found: u32,
+    },
 }
 
 impl fmt::Display for LoadError {
@@ -47,6 +58,9 @@ impl fmt::Display for LoadError {
             LoadError::FutureSchema { found, supported } => {
                 write!(f, "schema_version {found} is newer than the supported version {supported}; refusing to read")
             }
+            LoadError::NewerField { found, field } => {
+                write!(f, "schema_version {found} cannot hold '{field}': that field belongs to a newer schema")
+            }
             LoadError::UnsupportedSchema { found } => write!(f, "schema_version {found} is not supported"),
         }
     }
@@ -54,12 +68,38 @@ impl fmt::Display for LoadError {
 
 impl std::error::Error for LoadError {}
 
+/// True when a key is present and not `null`. A key a writer emits as `null`
+/// means the same as an absent one.
+fn is_set(value: Option<&serde_json::Value>) -> bool {
+    !matches!(value, None | Some(serde_json::Value::Null))
+}
+
+/// True when `key` holds something a newer schema would have to interpret. An
+/// absent key, an explicit `null` and an empty array all mean "nothing here", so
+/// a v1 file written by a serializer that always emits `"area_loads": []` still
+/// loads instead of being refused as a v5 file.
+fn has_value(raw: &serde_json::Value, key: &str) -> bool {
+    match raw.get(key) {
+        None | Some(serde_json::Value::Null) => false,
+        Some(serde_json::Value::Array(items)) => !items.is_empty(),
+        Some(_) => true,
+    }
+}
+
+/// The first of `keys` that `raw` carries, for the error message.
+fn first_value<'a>(raw: &'a serde_json::Value, keys: &[&'a str]) -> Option<&'a str> {
+    keys.iter().copied().find(|k| has_value(raw, k))
+}
+
 /// Reads a model from JSON, checking the schema version before the body.
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
 /// behavior); v2 → v3 adds no offsets, constraints, springs or imposed
 /// displacements; v3 → v4 only adds load kinds; v4 → v5 adds no subdivision;
 /// v5 → v6 only allows areas of three joints; v6 → v7 only adds a mass source.
 /// Missing fields already default to that, so only the version number changes.
+///
+/// A field of a newer schema is refused even when it is empty of meaning only
+/// if it carries content: `constraints: []` is the same as no constraints at all.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
     let ver = raw.get("schema_version").and_then(|v| v.as_u64()).ok_or(LoadError::MissingSchemaVersion)?;
@@ -70,15 +110,16 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     if ver < 1 {
         return Err(LoadError::UnsupportedSchema { found: ver });
     }
+    let newer = |field: &str| LoadError::NewerField { found: ver, field: field.to_string() };
     if ver == 1 {
         // Shear areas did not exist in v1; reject them instead of silently
         // giving a v1 file v2 semantics.
         let has_shear = raw
             .get("sections")
             .and_then(|v| v.as_array())
-            .is_some_and(|secs| secs.iter().any(|s| s.get("as2").is_some() || s.get("as3").is_some()));
+            .is_some_and(|secs| secs.iter().any(|s| is_set(s.get("as2")) || is_set(s.get("as3"))));
         if has_shear {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+            return Err(newer("sections[].as2 / sections[].as3"));
         }
     }
     if ver < 3 {
@@ -86,38 +127,48 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
         let has_offsets = raw
             .get("frames")
             .and_then(|v| v.as_array())
-            .is_some_and(|frames| frames.iter().any(|f| f.get("offsets").is_some()));
+            .is_some_and(|frames| frames.iter().any(|f| is_set(f.get("offsets"))));
         let has_springs = raw
             .get("joints")
             .and_then(|v| v.as_array())
-            .is_some_and(|joints| joints.iter().any(|j| j.get("springs").is_some()));
-        if has_offsets || has_springs || raw.get("constraints").is_some() || raw.get("joint_displacements").is_some() {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+            .is_some_and(|joints| joints.iter().any(|j| is_set(j.get("springs"))));
+        if has_offsets {
+            return Err(newer("frames[].offsets"));
+        }
+        if has_springs {
+            return Err(newer("joints[].springs"));
+        }
+        if has_value(&raw, "constraints") {
+            return Err(newer("constraints"));
+        }
+        if has_value(&raw, "joint_displacements") {
+            return Err(newer("joint_displacements"));
         }
     }
-    if ver < 7 && raw.get("mass_source").is_some() {
-        return Err(LoadError::UnsupportedSchema { found: ver });
+    if ver < 7 && has_value(&raw, "mass_source") {
+        return Err(newer("mass_source"));
     }
     let has_auto_seismic = raw
         .get("load_patterns")
         .and_then(|v| v.as_array())
-        .is_some_and(|patterns| patterns.iter().any(|p| p.get("auto_seismic").is_some()));
+        .is_some_and(|patterns| patterns.iter().any(|p| is_set(p.get("auto_seismic"))));
     if ver < 8 && has_auto_seismic {
-        return Err(LoadError::UnsupportedSchema { found: ver });
+        return Err(newer("load_patterns[].auto_seismic"));
     }
     if ver < 6 {
         let has_triangle = raw.get("areas").and_then(|v| v.as_array()).is_some_and(|areas| {
             areas.iter().any(|a| a.get("joints").and_then(|j| j.as_array()).is_some_and(|j| j.len() != 4))
         });
         if has_triangle {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+            return Err(newer("areas[].joints with three joints"));
         }
     }
     if ver < 5 {
+        let areas = first_value(&raw, &["area_sections", "areas", "area_loads"]);
         let has_auto_mesh = raw
             .get("frames")
             .and_then(|v| v.as_array())
-            .is_some_and(|frames| frames.iter().any(|f| f.get("auto_mesh").is_some()));
+            .is_some_and(|frames| frames.iter().any(|f| is_set(f.get("auto_mesh"))));
         let has_envelope = raw
             .get("combinations")
             .and_then(|v| v.as_array())
@@ -125,22 +176,33 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
         let has_shape = raw
             .get("sections")
             .and_then(|v| v.as_array())
-            .is_some_and(|secs| secs.iter().any(|s| s.get("shape").is_some() || s.get("neglect_shear").is_some()));
-        let has_areas = ["area_sections", "areas", "area_loads"].iter().any(|k| raw.get(*k).is_some());
-        let has_dynamics = raw.get("response_spectra").is_some()
+            .is_some_and(|secs| secs.iter().any(|s| is_set(s.get("shape")) || is_set(s.get("neglect_shear"))));
+        let has_dynamics = has_value(&raw, "response_spectra")
             || raw.get("load_cases").and_then(|v| v.as_array()).is_some_and(|cases| {
                 cases.iter().any(|c| c.get("type").and_then(|t| t.as_str()) != Some("LinearStatic"))
             })
             || raw
                 .get("materials")
                 .and_then(|v| v.as_array())
-                .is_some_and(|ms| ms.iter().any(|x| x.get("mass_density").is_some()))
+                .is_some_and(|ms| ms.iter().any(|x| is_set(x.get("mass_density"))))
             || raw
                 .get("joints")
                 .and_then(|v| v.as_array())
-                .is_some_and(|js| js.iter().any(|x| x.get("added_mass").is_some()));
-        if has_auto_mesh || has_envelope || has_shape || has_areas || has_dynamics {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+                .is_some_and(|js| js.iter().any(|x| is_set(x.get("added_mass"))));
+        if let Some(field) = areas {
+            return Err(newer(field));
+        }
+        if has_dynamics {
+            return Err(newer("response_spectra / a load case of another type / mass_density / added_mass"));
+        }
+        if has_auto_mesh {
+            return Err(newer("frames[].auto_mesh"));
+        }
+        if has_envelope {
+            return Err(newer("combinations with type Envelope"));
+        }
+        if has_shape {
+            return Err(newer("sections[].shape / sections[].neglect_shear"));
         }
     }
     if ver < 4 {
@@ -152,7 +214,7 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             })
         });
         if has_v4_load {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+            return Err(newer("frame_loads[].load.kind"));
         }
     }
     let mut model: Model = serde_json::from_value(raw).map_err(LoadError::Parse)?;
@@ -933,7 +995,7 @@ mod tests {
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
         v["schema_version"] = 1.into();
         v["sections"][0]["as2"] = 0.005.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 1 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 1, .. })));
     }
 
     #[test]
@@ -1041,12 +1103,22 @@ mod tests {
         let rejected = |change: fn(&mut serde_json::Value)| {
             let mut w = v.clone();
             change(&mut w);
-            matches!(model_from_json(&w.to_string()), Err(LoadError::UnsupportedSchema { found: 2 }))
+            matches!(model_from_json(&w.to_string()), Err(LoadError::NewerField { found: 2, .. }))
         };
         assert!(rejected(|w| w["frames"][0]["offsets"] = serde_json::json!({"i": [0.0, 0.0, 1.0]})));
-        assert!(rejected(|w| w["constraints"] = serde_json::json!([])));
-        assert!(rejected(|w| w["joint_displacements"] = serde_json::json!([])));
         assert!(rejected(|w| w["joints"][1]["springs"] = serde_json::json!([0.0, 0.0, 1.0, 0.0, 0.0, 0.0])));
+        // A field the v2 file does not use is still a v2 file: an empty array is
+        // the same as an absent field.
+        assert!(rejected(|w| w["constraints"] =
+            serde_json::json!([{"kind": "Diaphragm", "name": "D", "axis": "Z", "joints": ["2"]}])));
+        assert!(rejected(|w| w["joint_displacements"] =
+            serde_json::json!([{"pattern": "P1", "joint": "2", "values": [0.0, 0.0, -0.001, 0.0, 0.0, 0.0]}])));
+        let mut empty = v.clone();
+        empty["constraints"] = serde_json::json!([]);
+        empty["joint_displacements"] = serde_json::json!([]);
+        empty["frames"][0]["offsets"] = serde_json::Value::Null;
+        let loaded = model_from_json(&empty.to_string());
+        assert!(loaded.is_ok(), "empty v3 fields load as a v2 file: {:?}", loaded.err());
     }
 
     #[test]
@@ -1172,7 +1244,7 @@ mod tests {
         assert!(validate(&m).is_ok());
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 4.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 4 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 4, .. })));
     }
 
     #[test]
@@ -1180,7 +1252,7 @@ mod tests {
         let m = with_frame_load(FrameLoadKind::PointMoment { direction: LoadDirection::Local3, rel: 0.5, value: 1.0 });
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 3.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 3 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 3, .. })));
     }
 
     #[test]
@@ -1360,7 +1432,7 @@ mod tests {
 
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 6.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 6 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 6, .. })));
     }
 
     #[test]
@@ -1384,7 +1456,7 @@ mod tests {
         validate(&m).expect("valid");
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 7.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 7 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 7, .. })));
     }
 
     #[test]
@@ -1396,7 +1468,7 @@ mod tests {
 
         let mut v5 = serde_json::to_value(&m).expect("json");
         v5["schema_version"] = 5.into();
-        assert!(matches!(model_from_json(&v5.to_string()), Err(LoadError::UnsupportedSchema { found: 5 })));
+        assert!(matches!(model_from_json(&v5.to_string()), Err(LoadError::NewerField { found: 5, .. })));
 
         // In a line, or repeating a joint.
         let mut line = m.clone();
@@ -1573,7 +1645,47 @@ mod tests {
         let mut v: serde_json::Value =
             serde_json::from_str(&model_to_json(&shaped(SectionShape::Circle { diameter: 1.0 }))).expect("json");
         v["schema_version"] = 4.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 4 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 4, .. })));
+    }
+
+    #[test]
+    fn empty_newer_collections_do_not_make_an_older_file_newer() {
+        // A writer that always emits its keys produces `"area_loads": []` in a
+        // v1 file. An empty array means the same as an absent field, so the file
+        // is a v1 file and loads (S-02).
+        let plain: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
+        // A genuinely v1 file: no shear areas, which are the v2 fields, and no
+        // v3 springs (all-zero ones included).
+        let mut v1 = plain.clone();
+        v1["schema_version"] = 1.into();
+        for section in v1["sections"].as_array_mut().expect("sections") {
+            if let Some(map) = section.as_object_mut() {
+                map.remove("as2");
+                map.remove("as3");
+            }
+        }
+        for joint in v1["joints"].as_array_mut().expect("joints") {
+            if let Some(map) = joint.as_object_mut() {
+                map.remove("springs");
+            }
+        }
+        for frame in v1["frames"].as_array_mut().expect("frames") {
+            if let Some(map) = frame.as_object_mut() {
+                map.remove("offsets");
+            }
+        }
+        for key in ["area_sections", "areas", "area_loads"] {
+            let mut v = v1.clone();
+            v[key] = serde_json::json!([]);
+            if let Err(e) = model_from_json(&v.to_string()) {
+                panic!("empty {key} must not need a newer schema: {e}");
+            }
+        }
+        // With content it is a newer file, and the error names the field.
+        let mut v = v1.clone();
+        v["area_loads"] = serde_json::json!([{"area": "A", "direction": "Gravity", "value": 1.0}]);
+        let err = model_from_json(&v.to_string()).expect_err("must fail").to_string();
+        assert!(err.contains("area_loads"), "{err}");
     }
 
     #[test]
@@ -1593,7 +1705,7 @@ mod tests {
         }
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 4.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 4 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 4, .. })));
     }
 
     #[test]
