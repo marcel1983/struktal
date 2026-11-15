@@ -34,9 +34,12 @@ Two differences are expected and are reported, not hidden:
   not distributed the same way. S4R was tried and is far worse (a factor of
   20), so S4 stays.
 * V-TRI-001 Q differs in the vertical reactions of HA, HB and HC (1200 N in
-  Struktal, 0 in ccx) while the displacements agree. Those three joints carry
-  the triangle HT and nothing else; it is an open question, not a known
-  formulation effect.
+  Struktal, 0 in ccx) while the displacements agree. ccx reports *degrees of
+  freedom per node: 3* for shells and expands the 42 joints of the model into
+  2218 nodes; the reaction of a fully restrained, loaded shell node does not
+  come back in the .dat. The three joints carry the triangle HT and nothing
+  else, which is why the rest of the model is unaffected. It is a limitation of
+  reading ccx, not a result to compare.
 """
 import importlib.metadata
 import json

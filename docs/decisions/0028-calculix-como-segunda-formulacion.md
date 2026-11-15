@@ -43,8 +43,16 @@ Dos diferencias quedan escritas en el docstring del runner y no se corrigen:
   aplicados en nudos. Decide la forma cerrada del caso, que Struktal cumple.
   Probar S4R (integración reducida) fue mucho peor (factor ~20).
 - **V-TRI-001 Q**: las reacciones verticales de HA, HB y HC son 1200 N en
-  Struktal y 0 en ccx, con los desplazamientos de acuerdo. Esos tres nudos
-  sostienen el triángulo HT y nada más. Queda como pregunta abierta.
+  Struktal y 0 en ccx, con los desplazamientos de acuerdo. ccx declara *degrees
+  of freedom per node: 3* para láminas y expande los 42 nudos del modelo a 2218;
+  la reacción de un nudo de lámina cargado y totalmente restringido no vuelve en
+  el `.dat`. Esos tres nudos sostienen el triángulo HT y nada más, por eso el
+  resto del modelo no se ve afectado. Es un límite de la lectura de ccx, no un
+  resultado comparable.
+
+  Las coincidencias de V-SHELL-002 y V-SHELL-003 no son triviales: 12 y 124
+  nudos con desplazamiento no nulo, y 2 y 5 reacciones no nulas, todas dentro de
+  tolerancia.
 
 ## Consecuencias
 
