@@ -16,7 +16,7 @@ use struktal_math::Backend;
 #[command(
     name = "struktal",
     version,
-    about = "Linear 3D frame FEM engine (subset of the struktal SAP2000 compatibility profile)"
+    about = "Linear 3D frame FEM engine: static, modal and response-spectrum analysis of 3D frames and shells"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -146,8 +146,10 @@ fn write_out(path: Option<&Path>, text: &str) -> Result<(), Fail> {
         }
         Some(p) => {
             // Write to a temporary file then rename, so a crash never leaves a
-            // truncated results file under the final name.
-            let tmp = p.with_extension("tmp");
+            // truncated results file under the final name. The name carries the
+            // pid: two processes writing the same output must not share it.
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("struktal");
+            let tmp = p.with_file_name(format!("{name}.{}.tmp", std::process::id()));
             std::fs::write(&tmp, text).map_err(|e| Fail::Io(format!("{}: {e}", tmp.display())))?;
             std::fs::rename(&tmp, p).map_err(|e| Fail::Io(format!("{}: {e}", p.display())))
         }
