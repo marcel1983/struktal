@@ -6,6 +6,9 @@ usage: gen_grid.py NX NY LEVELS OUT.json   (bays of 6 m, storeys of 3 m)
 import json
 import sys
 
+if len(sys.argv) < 5:
+    print("uso: gen_grid.py NX NY LEVELS OUT.json   (bays of 6 m, storeys of 3 m)", file=sys.stderr)
+    raise SystemExit(2)
 nx, ny, nl, out = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 joints, frames, loads = [], [], []
 name = lambda i, j, k: f"J{i}_{j}_{k}"

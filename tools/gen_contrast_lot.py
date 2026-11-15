@@ -148,13 +148,19 @@ Estos archivos y sus resultados no van al repositorio público.
 
 
 def main():
+    if len(sys.argv) < 2:
+        # A usage error is a message, not a traceback.
+        print("uso: python tools/gen_contrast_lot.py CARPETA_DE_DESTINO", file=sys.stderr)
+        return 2
     out = Path(sys.argv[1])
     out.mkdir(parents=True, exist_ok=True)
     for name, text in LOT.items():
         (out / name).write_text(text + "END TABLE DATA\n", encoding="utf-8", newline="\n")
     (out / "LEEME.md").write_text(README, encoding="utf-8", newline="\n")
-    print(f"{len(LOT)} models written to {out}")
+    print(f"{len(LOT)} modelos escritos en {out}")
+    print("Ahora: python tools/run_sap2000_campaign.py " + str(out))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
