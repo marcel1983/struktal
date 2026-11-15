@@ -110,7 +110,18 @@ No se han abierto nunca en SAP2000: si alguno da error al importarlo, ese error 
 1. Abre cada `.s2k` con File > Import > SAP2000 .s2k Text File.
 2. Ejecuta todos los casos.
 3. Exporta a `.s2k` con File > Export, con las tablas de modelo y de resultados, incluidas `JOINT DISPLACEMENTS`, `JOINT REACTIONS`, `ELEMENT FORCES - FRAMES` y `FRAME SECTION PROPERTIES 01 - GENERAL`.
-4. Deja los archivos exportados en esta misma carpeta, y anota el build exacto.
+4. Saca ademÃ¡s un CSV por modelo con las tablas de nudos (`File > Export > Tables`, o `Display > Tables` y copiar). Una fila por caso y nudo, con columnas `Case`, `Joint` y `UX UY UZ RX RY RZ` (desplazamientos) y `FX FY FZ MX MY MZ` (reacciones).
+5. Deja los archivos exportados en esta misma carpeta, y anota el build exacto.
+
+## Comparar
+
+En el equipo con Struktal, sobre esta carpeta:
+
+    python tools/check_contrast_lot.py RUTA_DE_LA_CARPETA
+
+El informe dice, por componente, si SAP2000 coincide, si coincide **con el signo cambiado** o si difiere. Eso es lo que resuelve la convenciÃ³n de signos de V2, V3, M2 y M3 (decisiÃ³n 0003) y lo que ningÃºn orÃ¡culo open source puede decidir.
+
+Con `--sample CARPETA` escribe un CSV de ejemplo con el formato aceptado.
 
 ## Qué aclara cada uno
 

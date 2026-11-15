@@ -35,7 +35,7 @@ El importador es estricto (decisión 0027): si el fichero declara un caso de car
 | `spec/` | Perfil, inventario de requisitos, convenciones, cobertura S2K/API, capacidades de solver |
 | `verification/` | Casos con referencia analítica independiente, tolerancias, oráculos externos |
 | `docs/` | Decisiones, informe de compatibilidad, benchmarks, estado del agente |
-| `tools/` | Generadores de casos y modelos de rendimiento; comparación opcional con otros motores (decisión 0013) |
+| `tools/` | Generadores de casos y modelos de rendimiento; comparación opcional con otros motores (decisión 0013) y el colector de la campaña de contraste con SAP2000 (decisión 0027) |
 
 ## Marcas y afiliación
 
