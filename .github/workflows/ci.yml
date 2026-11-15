@@ -47,6 +47,10 @@ jobs:
           cargo build -p struktal-cli --locked
           ./target/debug/struktal verify --backend faer verification/cases/*/case.json --report verify-faer.json
           ./target/debug/struktal verify --backend skyline verification/cases/*/case.json --report verify-skyline.json
+      # The importer has to read back what the file says: geometry, frame
+      # length, area and load resultants, with no engine in between.
+      - name: The S2K importer agrees with the file it read
+        run: python tools/diff_s2k_import.py verification/s2k/*.s2k
       - uses: actions/upload-artifact@v7
         if: always()
         with:

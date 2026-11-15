@@ -19,6 +19,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo run -q -p struktal-cli -- verify verification/cases/*/case.json
+python tools/diff_s2k_import.py "verification/s2k/*.s2k"        # el importador contra el fichero
 ```
 
 Al contribuir aceptas que tu aportación se distribuya bajo AGPL-3.0 (ver `LICENSE`).

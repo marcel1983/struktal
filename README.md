@@ -15,6 +15,7 @@ cargo build --release
 ./target/release/struktal import modelo.s2k --allow-partial -o modelo.json   # deja fuera los casos que no puede representar
 ./target/release/struktal capabilities
 ./target/release/struktal verify verification/cases/*/case.json
+python tools/diff_s2k_import.py "verification/s2k/*.s2k"   # el importador dice lo mismo que el fichero
 ```
 
 Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 entrada inválida; 3 E/S.
