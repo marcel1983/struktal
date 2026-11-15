@@ -40,6 +40,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from diff_s2k_import import read_tables as read_s2k_tables  # noqa: E402
+
 COMPONENTS = ["UX", "UY", "UZ", "RX", "RY", "RZ"]
 REACTIONS = ["FX", "FY", "FZ", "MX", "MY", "MZ"]
 
@@ -104,7 +107,7 @@ def columns(rows: list[dict[str, str]]) -> tuple[str | None, str | None, dict]:
     return joint, case, components
 
 
-def values(rows: list[dict[str, str]]) -> dict:
+def values(rows: list[dict[str, str]], default_case: str = "") -> dict:
     """{case: {joint: {index: (kind, value)}}}"""
     joint_col, case_col, components = columns(rows)
     if joint_col is None or not components:
@@ -114,7 +117,7 @@ def values(rows: list[dict[str, str]]) -> dict:
         joint = row.get(joint_col, "").strip()
         if not joint:
             continue
-        case = row.get(case_col, "").strip() if case_col else ""
+        case = row.get(case_col, "").strip() if case_col else default_case
         for index, (kind, column) in components.items():
             raw = row.get(column, "").strip().replace(",", ".")
             try:
@@ -125,6 +128,20 @@ def values(rows: list[dict[str, str]]) -> dict:
             # are component 0.
             out.setdefault(case, {}).setdefault(joint, {})[(kind, index)] = value
     return out
+
+
+def rows_from_s2k(path: Path) -> list[dict[str, str]]:
+    """The joint tables of an S2K file exported by SAP2000, as flat rows.
+
+    A SAP2000 text export carries the results in the same Key=Value tables as
+    the model, so the rows go through the same reader and the same column
+    aliases as a CSV.
+    """
+    tables = read_s2k_tables(path.read_text(encoding="utf-8", errors="replace"))
+    rows: list[dict[str, str]] = []
+    for name in ("JOINT DISPLACEMENTS", "JOINT REACTIONS"):
+        rows.extend(tables.get(name, []))
+    return rows
 
 
 def load_engine(struktal: Path, model: Path, work: Path) -> dict:
@@ -211,7 +228,7 @@ def main() -> int:
         print(f"no hay binario de struktal en {struktal}", file=sys.stderr)
         return 2
 
-    models = sorted(lot.glob("*.s2k"))
+    models = sorted(p for p in lot.glob("*.s2k") if not p.stem.endswith("-sap2000"))
     if not models:
         print(f"{lot}: no hay modelos .s2k", file=sys.stderr)
         return 2
@@ -222,21 +239,29 @@ def main() -> int:
         work = Path(tmp)
         for model in models:
             csvs = sorted(lot.glob(model.stem + "*.csv"))
-            if not csvs:
-                report.append(f"## `{model.name}`\n\nSin CSV de SAP2000: no comparado.\n")
-                continue
+            exported = lot / (model.stem + "-sap2000.s2k")
             rows: list[dict[str, str]] = []
             for path in csvs:
                 rows.extend(read_table(path))
-            theirs = values(rows)
+            if not rows and exported.exists():
+                # Lo que escribe tools/run_sap2000_campaign.py: el modelo con
+                # sus resultados, en texto.
+                rows = rows_from_s2k(exported)
             ours = load_engine(struktal, model, work)
             report.append(f"## `{model.name}`\n")
             if "error" in ours:
+                # Esperable: C03 y C04 traen secciones parametricas,
+                # liberaciones y offsets que Struktal no traduce.
                 report.append(f"Struktul no pudo importar o resolver: `{ours['error']}`\n")
-                problems += 1
                 continue
+            if not rows:
+                report.append("Sin CSV ni -sap2000.s2k: no comparado.\n")
+                continue
+            # Un S2K exportado puede no repetir el caso en cada fila.
+            default_case = next(iter(ours), "") if len(ours) == 1 else ""
+            theirs = values(rows, default_case)
             if not theirs:
-                report.append(f"El CSV no tiene columnas reconocibles: {', '.join(csvs[0].name for _ in [0])}\n")
+                report.append("El fichero no tiene columnas reconocibles.\n")
                 problems += 1
                 continue
             for case_name, case in sorted(ours.items()):

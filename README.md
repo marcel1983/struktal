@@ -16,6 +16,8 @@ cargo build --release
 ./target/release/struktal capabilities
 ./target/release/struktal verify verification/cases/*/case.json
 python tools/diff_s2k_import.py "verification/s2k/*.s2k"   # el importador dice lo mismo que el fichero
+python tools/run_sap2000_campaign.py CARPETA_CON_LOTE      # resuelve el lote en SAP2000 (equipo con licencia)
+python tools/check_contrast_lot.py CARPETA_CON_LOTE        # compara y dice si el signo coincide
 ```
 
 Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 entrada inválida; 3 E/S.
