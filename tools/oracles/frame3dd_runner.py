@@ -39,8 +39,17 @@ Checked against the bundled cases (2026-11-15, Frame3DD 20140514+):
     V-TRAP-002 LC1  match, 54 values
     V-TRAP-003 LC1  match, 18 values
 
-Every other case is refused with a cause: releases, rigid offsets, constraints,
+Everything else is refused with a cause: releases, rigid offsets, constraints,
 joint springs, interior moments, a frame the mesh translator will not split.
+
+Three cases are known to differ and are *not* refused, so `compare_engines`
+reports them as DIFF and not as n/a:
+
+* V-TIM-001, three disconnected cantilevers: Frame3DD factorises them to NaN
+  (RMS equilibrium -1.#IO), while a single cantilever from the same model solves.
+* V-MOD-001 NONE, a free-free bar with no load: Struktal reports a mechanism,
+  Frame3DD returns a rigid-body displacement of 2.0.
+* V-SET-001 Q, a settlement case: Frame3DD stops while reading the reactions.
 """
 import importlib.metadata
 import math
@@ -228,7 +237,9 @@ def _parse(out, nodes):
     by_node = {number: name for name, number in nodes.items()}
     cases = {}
     for index in range(max(len(disp), len(react))):
-        joints = {}
+        # Start from every joint: Frame3DD prints no line for a node with no
+        # element, and a node with no element does not move.
+        joints = {name: {"disp": [0.0] * 6, "reaction": [0.0] * 6} for name in nodes}
         for rows, keys in ((disp[index] if index < len(disp) else [], "disp"),
                            (react[index] if index < len(react) else [], "reaction")):
             for row in rows:
@@ -237,7 +248,7 @@ def _parse(out, nodes):
                 name = by_node.get(int(row[0]))
                 if name is None:
                     continue
-                joints.setdefault(name, {"disp": [0.0] * 6, "reaction": [0.0] * 6})[keys] = row[1:7]
+                joints[name][keys] = row[1:7]
         cases[index] = joints
     return cases
 
