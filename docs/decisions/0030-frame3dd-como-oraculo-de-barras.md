@@ -62,6 +62,14 @@ un giro de `1e-4` eso son `5e-7`. Por eso `compare_engines.py` añade
 `ENGINE_ATOL = {"frame3dd": 1e-6}` a la tolerancia relativa: sin ese término,
 casos correctos fallaban por el formato de salida.
 
+## Cobertura frente a los otros orÃ¡culos
+
+Frame3DD no es el Ãºnico orÃ¡culo de barras: OpenSees cubre offsets rÃ­gidos
+(V-OFF-001, 54 valores por caso), diafragmas (V-DIA-001, 81) y resortes de nudo
+(V-SPR-001, 38). Lo que sigue sin segunda opiniÃ³n son las **liberaciones de
+extremo** (V-REL-001), los **momentos en vano** (V-MOM-001/002) y la malla con
+offsets (V-MESH-001): Frame3DD no los traduce y OpenSees tampoco.
+
 ## Consecuencias
 
 - `python tools/compare_engines.py --struktal <bin> --engine frame3dd=python V-TRAP-001`
