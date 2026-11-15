@@ -242,6 +242,8 @@ fn imported_s2k_solves_to_the_closed_form_in_si() {
     let out = bin()
         .arg("import")
         .arg(repo().join("verification/s2k/portal.s2k"))
+        // The file declares a modal case it does not define: keep it as a note.
+        .arg("--allow-partial")
         .arg("-o")
         .arg(&model)
         .output()
@@ -257,6 +259,25 @@ fn imported_s2k_solves_to_the_closed_form_in_si() {
     let delta_in = 10.0 * 120.0_f64.powi(3) / (3.0 * 29000.0 * 800.0);
     let got = tip["displacement"][0].as_f64().expect("ux");
     assert!((got - delta_in * 0.0254).abs() < 1e-12, "{got}");
+}
+
+#[test]
+fn an_s2k_with_a_case_it_cannot_read_is_refused_unless_partial_is_asked() {
+    let dir = std::env::temp_dir().join(format!("struktal-test-import-refused-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let model = dir.join("refused.json");
+    let out = bin()
+        .arg("import")
+        .arg(repo().join("verification/s2k/portal.s2k"))
+        .arg("-o")
+        .arg(&model)
+        .output()
+        .expect("run");
+    assert_eq!(out.status.code(), Some(2), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(!model.exists(), "a refused file leaves no model behind");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("case MODAL not imported"), "{err}");
+    assert!(err.contains("CASE - MODAL"), "the problem names its table: {err}");
 }
 
 #[test]

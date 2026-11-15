@@ -12,11 +12,14 @@ cargo build --release
 ./target/release/struktal solve verification/cases/V-LIN-003/model.json --stations 5 -o results.json
 ./target/release/struktal solve verification/cases/V-LIN-003/model.json --backend skyline   # backend de referencia
 ./target/release/struktal import modelo.s2k -o modelo.json
+./target/release/struktal import modelo.s2k --allow-partial -o modelo.json   # deja fuera los casos que no puede representar
 ./target/release/struktal capabilities
 ./target/release/struktal verify verification/cases/*/case.json
 ```
 
 Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 entrada inválida; 3 E/S.
+
+El importador es estricto (decisión 0027): si el fichero declara un caso de carga que no puede representar, falla con el motivo, su tabla y su línea, y no escribe modelo. Con `--allow-partial` importa el resto y lista en la salida de errores los casos que dejó fuera.
 
 ## Estructura
 
@@ -26,7 +29,7 @@ Códigos de salida: 0 éxito; 1 verificación fallida o caso no completado; 2 en
 | `crates/struktal-math` | Tripletas/CSC, contrato de solver; backends `faer-sparse-ldlt` (por defecto) y `skyline-ldlt` (referencia) |
 | `crates/struktal-elements` | Barra 3D con cortante, liberaciones, offsets, ejes locales, cargas equivalentes, acciones en estaciones |
 | `crates/struktal-analysis` | Estática lineal, restricciones por eliminación, combinaciones, resultados, manifiesto, estados por caso |
-| `crates/struktal-io-s2k` | Lector S2K estricto: barras, áreas con su malla, fuente de masa, modos, espectros y sismo por coeficiente; rechaza lo que no puede representar |
+| `crates/struktal-io-s2k` | Lector S2K estricto: barras, áreas con su malla, fuente de masa, modos, espectros y sismo por coeficiente; rechaza lo que no puede representar, y con `--allow-partial` deja fuera los casos declarando cuáles |
 | `crates/struktal-cli` | Binario `struktal` y comparador de verificación |
 | `spec/` | Perfil, inventario de requisitos, convenciones, cobertura S2K/API, capacidades de solver |
 | `verification/` | Casos con referencia analítica independiente, tolerancias, oráculos externos |

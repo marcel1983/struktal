@@ -26,10 +26,11 @@ Actualizado: 2026-11-13. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
-- `cargo test --workspace`: 176 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 24, 0 fallos.
+- `cargo test --workspace`: 180 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 24, 0 fallos.
 - `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 66/66 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - `tools/compare_engines.py`: comparación opcional con OpenSeesPy y Pynite (decisión 0013); con triángulos da DIFF en V-TRI-001, explicado en la decisión 0021. CI en `.github/workflows/ci.yml`: `add290a` y `65feef9` fallaron solo en el trabajo de referencias, porque `sin` y `cos` redondean distinto entre Linux y Windows. `tools/check_cases.py` lo corrige en dos pasos, el segundo para el hash de `model.json`; CI en verde desde `199b727`. Benchmarks de los ejemplos de OpenSees: decisión 0023. Comparación ampliada con OpenSees (malla, masa, sismo, espectro): decisión 0013.
 - Benchmarks: docs/benchmarks.md.
+- Importador S2K: desde la decisión 0027 un caso de carga que no puede representar es un problema (el fichero se rechaza y no se escribe modelo); `--allow-partial` conserva el comportamiento anterior. Probado con `verification/s2k/portal.s2k`, que declara un caso `MODAL` sin su tabla.
 
 ## Decisiones pendientes
 

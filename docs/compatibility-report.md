@@ -48,7 +48,7 @@ Cobertura verificada independientemente: 35/124 (28 %). Cobertura contrastada co
 | Restricciones | Un apoyo sobre una componente atada se rechaza; body sin selección de componentes; locales y weld no implementados. |
 | Desplazamientos impuestos | Un valor sobre una componente sin apoyo ni resorte es un error en Struktal; se cree que SAP2000 lo ignora. Sin confirmar. |
 | Resortes de nudo | Solo lineales y en ejes globales. |
-| Intercambio S2K/OAPI | Lector S2K estricto de barras y áreas, con su malla de análisis, fuente de masa, modos, espectros y sismo por coeficiente (decisiones 0018, 0021, 0022 y 0024), sin contrastar con SAP2000 ni probado con una malla o un espectro completo reales; sin escritura ni OAPI. |
+| Intercambio S2K/OAPI | Lector S2K estricto de barras y áreas, con su malla de análisis, fuente de masa, modos, espectros y sismo por coeficiente (decisiones 0018, 0021, 0022, 0024 y 0027): un caso que no puede representar es un problema y solo se deja fuera con `--allow-partial`, declarándolo; sin contrastar con SAP2000 ni probado con una malla o un espectro completo reales; sin escritura ni OAPI. |
 | Recuento de modos de mecanismo | Exacto con hueco espectral; por encima de ~10⁵ ecuaciones puede quedar como cota inferior (F08-007, decisión 0006). Formato de aviso de SAP2000 no comparado. |
 
 ## Bloqueos
