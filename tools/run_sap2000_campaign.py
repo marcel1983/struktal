@@ -3,6 +3,7 @@
 
     python tools/run_sap2000_campaign.py LOT_FOLDER
     python tools/run_sap2000_campaign.py LOT_FOLDER --dry-run
+    python tools/run_sap2000_campaign.py --list-api
 
 For every `*.s2k` in the folder it opens a new model, imports the file, runs
 every load case, and writes `<stem>-sap2000.s2k` (the model with its results, as
@@ -13,14 +14,17 @@ It needs SAP2000 with the OAPI (the API is installed with the program) and
 
     pip install comtypes
 
-Nothing here is specific to a version: the ProgID is `SAP2000v1.Helper` from
-version 21 on, and `--progid` overrides it. Every call's return code is checked
-(0 is success) and printed, because a silent failure is the one thing that would
-make the campaign look complete when it is not.
+The ProgID is `SAP2000v1.Helper` from version 21 on; `--progid` overrides it.
+`--list-api` prints the methods the helper actually offers, which is the fastest
+way to adapt to a build whose factory is called something else: this script tries
+`CreateObjectProgModel` (the documented name) and `CreateObjectProgID`, and if
+neither exists it says so and lists what is there instead of dying with an
+AttributeError.
 
-This script has not been run against SAP2000 in the repository's CI — the licence
-and the program are not there. It is written against the documented API and it
-stops at the first failing call, naming it.
+Every call's return code is checked (0 is success) and printed, because a silent
+failure is the one thing that would make the campaign look complete when it is
+not. This script has not been run against SAP2000 in the repository's CI: the
+licence and the program are not there.
 """
 from __future__ import annotations
 
@@ -47,7 +51,7 @@ def _call(label: str, ret, failures: list[str]) -> None:
 
 
 def connect(progid: str):
-    """(helper, cSapModel factory) from the COM API."""
+    """(helper, comtypes module) from the COM API."""
     try:
         import comtypes.client
     except ImportError:
@@ -63,10 +67,44 @@ def connect(progid: str):
     return helper, gen
 
 
+def new_model(helper, gen):
+    """A new model object, whatever this build calls the factory.
+
+    `CreateObjectProgModel` is the documented name; some builds expose
+    `CreateObjectProgID` instead. Try both and, if neither exists, name what the
+    interface does offer instead of raising AttributeError.
+    """
+    errors = []
+    attempts = (
+        ("CreateObjectProgModel", ("",)),
+        ("CreateObjectProgID", (DEFAULT_PROGID.split(".")[0] + ".SAP2000",)),
+        ("CreateObjectProgID", ("",)),
+    )
+    for name, args in attempts:
+        method = getattr(helper, name, None)
+        if method is None:
+            continue
+        try:
+            obj = method(*args)
+        except Exception as error:  # noqa: BLE001 - report and try the next
+            errors.append(f"{name}{args}: {error}")
+            continue
+        try:
+            return obj.QueryInterface(gen.cSapModel)
+        except Exception:  # noqa: BLE001 - it may already be the model
+            return obj
+    available = sorted(m for m in dir(helper) if not m.startswith("_"))
+    raise SapError(
+        "no pude crear el modelo ("
+        + "; ".join(errors)
+        + "). Metodos del helper: "
+        + ", ".join(available)
+    )
+
+
 def open_model(helper, gen, s2k: Path, out: Path):
     """A new model with `s2k` imported and every case solved."""
-    model = helper.CreateObjectProgModel("")
-    sap = model.QueryInterface(gen.cSapModel)
+    sap = new_model(helper, gen)
     failures: list[str] = []
     _call("File.NewFile", sap.File.NewFile(), failures)
     _call(f"File.ImportS2kTextFile({s2k.name})", sap.File.ImportS2kTextFile(str(s2k)), failures)
@@ -85,11 +123,25 @@ def open_model(helper, gen, s2k: Path, out: Path):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("lot", help="folder with the models from tools/gen_contrast_lot.py")
+    ap.add_argument("lot", nargs="?", help="folder with the models from tools/gen_contrast_lot.py")
     ap.add_argument("--progid", default=DEFAULT_PROGID, help=f"COM ProgID (default {DEFAULT_PROGID})")
     ap.add_argument("--glob", default="*.s2k", help="models to run (default *.s2k)")
     ap.add_argument("--dry-run", action="store_true", help="list what would run and exit")
+    ap.add_argument("--list-api", action="store_true", help="print the helper's methods and exit")
     args = ap.parse_args()
+
+    if args.list_api:
+        try:
+            helper, _ = connect(args.progid)
+        except SapError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
+        for name in sorted(m for m in dir(helper) if not m.startswith("_")):
+            print(name)
+        return 0
+
+    if not args.lot:
+        ap.error("falta LOT_FOLDER (o --list-api)")
 
     lot = Path(args.lot)
     models = sorted(p for p in lot.glob(args.glob) if not p.stem.endswith("-sap2000"))
