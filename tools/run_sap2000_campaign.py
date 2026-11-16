@@ -4,37 +4,40 @@
     python tools/run_sap2000_campaign.py LOT_FOLDER
     python tools/run_sap2000_campaign.py LOT_FOLDER --dry-run
     python tools/run_sap2000_campaign.py --list-api
-    python tools/run_sap2000_campaign.py --probe
 
-For every `*.s2k` in the folder it opens a new model, imports the file, runs
-every load case, and writes `<stem>-sap2000.s2k` (the model with its results, as
-text) beside it. Those are the files `tools/check_contrast_lot.py` compares.
+For every `*.s2k` in the folder it opens the file, runs every load case, and
+writes `<stem>-sap2000.s2k` (the model with its results, as text) beside it.
+Those are the files `tools/check_contrast_lot.py` compares.
 
 It needs SAP2000 with the OAPI (the API is installed with the program) and
 `comtypes`:
 
     pip install comtypes
 
-The ProgID is `SAP2000v1.Helper` from version 21 on; `--progid` overrides it.
+The sequence is the one in the official example (`CSI_OAPI_Documentation.chm`,
+`Example_Code/Example_7_(Python).htm`):
 
-**Late binding first.** `comtypes.client.CreateObject` returns a dynamic object:
-the method is resolved by name against the running program, not against the
-type library comtypes generated. That matters because the generated `cHelper`
-only knows the methods of the version it was generated from, and a newer or
-older SAP2000 exposes others — `CreateObjectProgModel` is the documented name,
-`CreateObjectProgID` is what some builds answer with. The script tries the
-dynamic object first and falls back to the generated interface.
+    helper = comtypes.client.CreateObject('SAP2000v1.Helper')
+    helper = helper.QueryInterface(comtypes.gen.SAP2000v1.cHelper)
+    mySapObject = helper.CreateObjectProgID("CSI.SAP2000.API.SapObject")
+    mySapObject.ApplicationStart()
+    SapModel = mySapObject.SapModel
+    SapModel.File.OpenFile("model.s2k")     # .s2k and .$2k are imported as text
+    SapModel.Analyze.RunAnalysis()
 
-Three modes help when a build still does not behave:
+`File.OpenFile` is what reads the text file: the API has no `ImportS2kTextFile`.
+`--program PATH` uses `helper.CreateObject(PATH)` instead of the ProgID, which
+starts the interpreter at a given path (useful for a version other than the
+latest installed).
 
-* `--list-api` prints the methods of both the dynamic object and the helper.
-* `--probe` creates the model object and prints, for each factory name, what came
-  back.
-* Without either, a failure names the call and the return code.
+The results come back through `File.Save`: the API has no table export, so the
+script writes the solved model as `.s2k` and checks that the file really is text
+before accepting it.
 
 Every call's return code is checked (0 is success). This script has not been run
 against SAP2000 in the repository's CI: the licence and the program are not
-there.
+there. `--list-api` prints the methods of the helper, `--probe` creates the
+object and prints what came back.
 """
 from __future__ import annotations
 
@@ -44,8 +47,8 @@ import time
 from pathlib import Path
 
 DEFAULT_PROGID = "SAP2000v1.Helper"
-# eFileType: 1 = SAP2000 database (.sdb), 3 = text (.s2k).
-E_FILE_SDB = 1
+SAP_PROGID = "CSI.SAP2000.API.SapObject"
+# eFileType: 3 = text (.s2k), 1 = SAP2000 database (.sdb).
 E_FILE_S2K = 3
 
 
@@ -53,15 +56,17 @@ class SapError(RuntimeError):
     """The API refused something."""
 
 
-def _call(label: str, ret, failures: list[str]) -> None:
+def _call(label: str, ret, failures: list[str]) -> bool:
     """0 is success; anything else is a failure to report."""
     if ret:
         failures.append(f"{label}: ret={ret}")
         print(f"    FALLO {label}: ret={ret}")
+        return False
+    return True
 
 
 def connect(progid: str):
-    """(dynamic object, comtypes module) from the COM API."""
+    """(dynamic helper, comtypes module) from the COM API."""
     try:
         import comtypes.client
     except ImportError:
@@ -74,75 +79,62 @@ def connect(progid: str):
     return raw, gen
 
 
-# The factory is `CreateObjectProgModel` in the documented API and
-# `CreateObjectProgID` in some builds.
-FACTORIES = (
-    ("CreateObjectProgModel", ("",)),
-    ("CreateObjectProgID", ("SAP2000v1.SAP2000",)),
-    ("CreateObjectProgID", ("",)),
-)
-
-
-def _attempt(obj, name: str, args: tuple) -> tuple[object | None, list[str]]:
-    method = getattr(obj, name, None)
-    if method is None:
-        return None, [f"{name}: no existe"]
-    try:
-        model = method(*args)
-    except Exception as error:  # noqa: BLE001 - report and try the next
-        return None, [f"{name}{args}: {error}"]
-    if model is None:
-        return None, [f"{name}{args}: devolvio None"]
-    return model, [f"{name}{args} -> {type(model).__name__}"]
-
-
-def new_model(raw, gen, verbose: bool = False):
-    """A new model object, through the dynamic object first.
-
-    The generated interface is the fallback: it only knows the methods of the
-    version it came from.
-    """
-    candidates = [("dynamic", raw)]
-    if gen is not None and hasattr(gen, "cHelper"):
+def _sap_object(helper, program: str | None):
+    """The SapObject, started by ProgID or from a program path."""
+    if program:
         try:
-            candidates.append(("cHelper", raw.QueryInterface(gen.cHelper)))
-        except Exception:  # noqa: BLE001 - it may not support the interface
-            pass
+            return helper.CreateObject(program)
+        except Exception as error:  # noqa: BLE001
+            raise SapError(f"no pude arrancar {program}: {error}") from None
+    method = getattr(helper, "CreateObjectProgID", None)
+    if method is None:
+        raise SapError("el helper no tiene CreateObjectProgID")
+    try:
+        obj = method(SAP_PROGID)
+    except Exception as error:  # noqa: BLE001
+        raise SapError(f"no pude crear {SAP_PROGID}: {error}") from None
+    if obj is None:
+        raise SapError(f"CreateObjectProgID({SAP_PROGID}) devolvio None")
+    return obj
 
-    notes: list[str] = []
-    for label, obj in candidates:
-        for name, args in FACTORIES:
-            model, attempt = _attempt(obj, name, args)
-            notes.extend(f"[{label}] {n}" for n in attempt)
-            if model is not None:
-                if verbose:
-                    print("\n".join("  " + n for n in notes))
-                return model
-    raise SapError("no pude crear el modelo:\n  " + "\n  ".join(notes))
 
+def open_model(helper, program: str | None, s2k: Path, out: Path):
+    """A model with `s2k` imported and every case solved."""
+    obj = _sap_object(helper, program)
+    try:
+        obj.ApplicationStart()
+    except Exception:  # noqa: BLE001 - it may already be running
+        pass
+    model = obj.SapModel
+    if model is None:
+        raise SapError("el SapObject no tiene SapModel")
 
-def open_model(helper, gen, s2k: Path, out: Path):
-    """A new model with `s2k` imported and every case solved."""
-    sap = new_model(helper, gen)
-    if not hasattr(sap, "File"):
-        raise SapError(
-            f"el objeto devuelto ({type(sap).__name__}) no es el modelo: no tiene File. "
-            "Ejecuta --probe para ver que devuelve la fabrica."
-        )
     failures: list[str] = []
-    _call("File.NewFile", sap.File.NewFile(), failures)
-    _call(f"File.ImportS2kTextFile({s2k.name})", sap.File.ImportS2kTextFile(str(s2k)), failures)
-    if failures:
-        raise SapError("; ".join(failures))
+    if not _call(f"File.OpenFile({s2k.name})", model.File.OpenFile(str(s2k)), failures):
+        # A brand-new process may need InitializeNewModel before the file.
+        model.InitializeNewModel()
+        failures.clear()
+        if not _call(f"File.OpenFile({s2k.name})", model.File.OpenFile(str(s2k)), failures):
+            raise SapError("; ".join(failures))
+
     started = time.time()
-    _call("Analyze.RunAnalysis", sap.Analyze.RunAnalysis(), failures)
-    if failures:
+    if not _call("Analyze.RunAnalysis", model.Analyze.RunAnalysis(), failures):
         raise SapError("; ".join(failures))
     print(f"    resuelto en {time.time() - started:.1f} s")
-    _call(f"File.SaveAs({out.name})", sap.File.SaveAs(str(out), E_FILE_S2K), failures)
-    if failures:
+
+    # The API has no table export: Save writes the model, and the extension
+    # decides the format.
+    if not _call(f"File.Save({out.name})", model.File.Save(str(out)), failures):
         raise SapError("; ".join(failures))
-    return sap
+    if not out.exists():
+        raise SapError(f"SAP2000 no escribio {out.name}")
+    head = out.read_text(encoding="utf-8", errors="replace")[:64]
+    if "TABLE" not in head:
+        raise SapError(
+            f"{out.name} no es texto (empieza por {head!r}): esta version guarda en binario. "
+            "Abrelo en SAP2000 y usa File > Export > Tables."
+        )
+    return model
 
 
 def _methods(obj) -> list[str]:
@@ -156,41 +148,24 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("lot", nargs="?", help="folder with the models from tools/gen_contrast_lot.py")
     ap.add_argument("--progid", default=DEFAULT_PROGID, help=f"COM ProgID (default {DEFAULT_PROGID})")
+    ap.add_argument("--program", default=None, help="path to SAP2000.exe (default: the latest installed)")
     ap.add_argument("--glob", default="*.s2k", help="models to run (default *.s2k)")
     ap.add_argument("--dry-run", action="store_true", help="list what would run and exit")
-    ap.add_argument("--list-api", action="store_true", help="print the object's methods and exit")
-    ap.add_argument("--probe", action="store_true", help="create the model object and print what came back")
+    ap.add_argument("--list-api", action="store_true", help="print the helper's methods and exit")
     args = ap.parse_args()
 
-    if args.list_api or args.probe:
+    if args.list_api:
         try:
-            raw, gen = connect(args.progid)
+            helper, _ = connect(args.progid)
         except SapError as error:
             print(f"error: {error}", file=sys.stderr)
             return 2
-        if args.list_api:
-            print("== dynamic ==")
-            for name in _methods(raw):
-                print("  " + name)
-            if gen is not None and hasattr(gen, "cHelper"):
-                try:
-                    print("== cHelper ==")
-                    for name in _methods(raw.QueryInterface(gen.cHelper)):
-                        print("  " + name)
-                except Exception as error:  # noqa: BLE001
-                    print(f"  (no se pudo consultar cHelper: {error})")
-        if args.probe:
-            print("== creacion del modelo ==")
-            try:
-                new_model(raw, gen, verbose=True)
-                print("  modelo creado")
-            except SapError as error:
-                print(f"  error: {error}")
-                return 1
+        for name in _methods(helper):
+            print(name)
         return 0
 
     if not args.lot:
-        ap.error("falta LOT_FOLDER (o --list-api / --probe)")
+        ap.error("falta LOT_FOLDER (o --list-api)")
 
     lot = Path(args.lot)
     models = sorted(p for p in lot.glob(args.glob) if not p.stem.endswith("-sap2000"))
@@ -205,7 +180,7 @@ def main() -> int:
         return 0
 
     try:
-        raw, gen = connect(args.progid)
+        helper, _ = connect(args.progid)
     except SapError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -215,19 +190,11 @@ def main() -> int:
         out = model.with_name(model.stem + "-sap2000.s2k")
         print(f"{model.name} -> {out.name}")
         try:
-            sap = open_model(raw, gen, model, out)
+            open_model(helper, args.program, model, out)
         except SapError as error:
             print(f"    error: {error}", file=sys.stderr)
             bad += 1
             continue
-        if not out.exists():
-            print(f"    error: SAP2000 no escribio {out.name}", file=sys.stderr)
-            bad += 1
-            continue
-        try:
-            sap.File.CloseFile()
-        except Exception:  # noqa: BLE001 - closing is best effort
-            pass
     print(f"{len(models) - bad} de {len(models)} modelo(s) exportados")
     return 1 if bad else 0
 
