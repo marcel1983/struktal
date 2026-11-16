@@ -145,6 +145,15 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             return Err(newer("joint_displacements"));
         }
     }
+    if ver < 9 {
+        let has_area_mesh = raw
+            .get("areas")
+            .and_then(|v| v.as_array())
+            .is_some_and(|areas| areas.iter().any(|a| a.get("auto_mesh").is_some()));
+        if has_area_mesh {
+            return Err(newer("areas[].auto_mesh"));
+        }
+    }
     if ver < 7 && has_value(&raw, "mass_source") {
         return Err(newer("mass_source"));
     }
@@ -431,6 +440,16 @@ fn check_areas(
         let e = format!("area {}", a.name);
         if !sections.contains_key(&a.section) {
             issues.push(issue(&e, "section", format!("unknown area section '{}'", a.section)));
+        }
+        if let Some(mesh) = a.auto_mesh {
+            // A triangle has one division count, on every edge.
+            let (m, n) = (mesh.m.max(1), mesh.n.max(1));
+            if mesh.m < 1 || mesh.n < 1 {
+                issues.push(issue(&e, "auto_mesh", "m and n must be >= 1"));
+            }
+            if a.joints.len() == 3 && m != n {
+                issues.push(issue(&e, "auto_mesh", "a triangle uses one division count: m must equal n"));
+            }
         }
         if !matches!(a.joints.len(), 3 | 4) {
             issues.push(issue(&e, "joints", format!("an area has 3 or 4 joints, not {}", a.joints.len())));
@@ -1415,6 +1434,7 @@ mod tests {
             name: "Q".into(),
             joints: vec!["A0".to_string(), "A1".to_string(), "A2".to_string(), "A3".to_string()],
             section: "S1".into(),
+            auto_mesh: None,
         }];
         m
     }

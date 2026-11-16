@@ -43,6 +43,7 @@ Lo que **no** establece: láminas, modos, espectros, combinaciones no lineales, 
 - Masas concentradas, fuente de masa con elementos, masas añadidas y patrones, modos propios y espectro de respuesta con CQC y SRSS (decisiones 0020 y 0022).
 - Carga sísmica automática por coeficiente de usuario, desde la masa del modelo (decisión 0024).
 - Mecanismos que las liberaciones dejan con solo redondeo en la diagonal, detectados aparte del control de pivotes (decisión 0025).
+- Mallado de áreas para el análisis (decisión 0031): un área pide `auto_mesh {m, n}` y el modelo sigue teniendo un objeto; el análisis lo sustituye por `m × n` sub-áreas (o `n²` triángulos). Los puntos de la malla se reutilizan si la posición ya existe, así que dos áreas vecinas comparten el borde, y un nudo nuevo en un borde hereda los GDL que ambos extremos restrinjan. La carga del objeto pasa a cada sub-área con la misma intensidad: la resultante se conserva exacta (medido: −2000 N con y sin malla).
 - Banco de 66 casos, 65 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000

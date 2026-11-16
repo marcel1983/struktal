@@ -20,7 +20,7 @@ use crate::units::{Dim, UnitSystem};
 /// v7 (2026-11-06): mass_source. Older files have none (decision 0022).
 /// v8 (2026-11-09): auto_seismic on load patterns. Older files have none
 /// (decision 0024).
-pub const SCHEMA_VERSION: u32 = 8;
+pub const SCHEMA_VERSION: u32 = 9;
 
 pub type Name = String;
 
@@ -219,6 +219,17 @@ pub struct AreaSection {
     pub behavior: AreaBehavior,
 }
 
+/// Subdivision of an area for the analysis, in its own natural coordinates
+/// (decision 0031).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AreaMesh {
+    /// Divisions along the first natural coordinate.
+    pub m: u32,
+    /// Divisions along the second one.
+    pub n: u32,
+}
+
 /// Flat four-node area, its joints counterclockwise seen from local axis 3.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -227,6 +238,9 @@ pub struct Area {
     /// Three or four, in order around the area.
     pub joints: Vec<Name>,
     pub section: Name,
+    /// Subdivide the area for the analysis; the model keeps one object.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_mesh: Option<AreaMesh>,
 }
 
 /// Uniform force per unit area. Local 3 is the normal; Gravity is global −Z.

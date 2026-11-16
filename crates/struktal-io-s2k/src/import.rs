@@ -658,7 +658,7 @@ impl Importer<'_> {
                 self.problem(C, row.line, format!("area {name} has no section assignment"));
                 continue;
             };
-            objects.push(Area { name, joints: area_joints, section });
+            objects.push(Area { name, joints: area_joints, section, auto_mesh: None });
         }
         let areas = self.area_mesh(objects, joints, index, active);
         let used: Vec<String> = areas.iter().map(|a: &Area| a.section.clone()).collect();
@@ -792,6 +792,7 @@ impl Importer<'_> {
                 name,
                 joints: corners,
                 section: o.section.clone(),
+                auto_mesh: None,
             }));
         }
         if meshed > 0 {

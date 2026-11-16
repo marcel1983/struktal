@@ -150,6 +150,12 @@ def load_model(path):
             c["scale"] *= l  # the function is in g units, the scale turns it into length/s2
     m["by_joint"] = by_joint
     expand_mesh(m)
+    # Struktal meshes areas (decision 0031); the external engines get the object
+    # as it is, so a comparison would be against a different model.
+    for area in m.get("areas", []):
+        if area.get("auto_mesh"):
+            m["unsupported"] = f"area {area['name']}: external engines do not mesh areas"
+            break
     return m
 
 
