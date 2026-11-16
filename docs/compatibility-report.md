@@ -68,7 +68,7 @@ Lo que **no** establece: láminas, modos, espectros, combinaciones no lineales, 
 ## Bloqueos
 
 - `oracle_pending` en la mayoría de los casos: la campaña del 2026-11-15 cubre 11 casos estáticos de 3 modelos, no el resto.
-- **Build exacto de SAP2000 sin anotar.** Sin él, la comparación no es reproducible (Help → About).
+- **Build exacto de SAP2000: no se define por ahora** (decisión del mantenedor, 2026-11-16). La campaña queda como evidencia no reproducible en su fecha; cuando se decida, basta con Help → About y actualizar la constancia.
 - F08-004: el backend actual no resuelve matrices indefinidas.
 - F19-009: no hay ruta independiente documentada para leer `.sdb`.
 
