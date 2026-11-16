@@ -17,11 +17,19 @@ It needs SAP2000 with the OAPI (the API is installed with the program) and
 
 The ProgID is `SAP2000v1.Helper` from version 21 on; `--progid` overrides it.
 
-Three modes help when a build does not behave like the documented one:
+**Late binding first.** `comtypes.client.CreateObject` returns a dynamic object:
+the method is resolved by name against the running program, not against the
+type library comtypes generated. That matters because the generated `cHelper`
+only knows the methods of the version it was generated from, and a newer or
+older SAP2000 exposes others — `CreateObjectProgModel` is the documented name,
+`CreateObjectProgID` is what some builds answer with. The script tries the
+dynamic object first and falls back to the generated interface.
 
-* `--list-api` prints the methods the helper offers.
+Three modes help when a build still does not behave:
+
+* `--list-api` prints the methods of both the dynamic object and the helper.
 * `--probe` creates the model object and prints, for each factory name, what came
-  back and whether it answers to `cSapModel` or `cOAPI`.
+  back.
 * Without either, a failure names the call and the return code.
 
 Every call's return code is checked (0 is success). This script has not been run
@@ -53,7 +61,7 @@ def _call(label: str, ret, failures: list[str]) -> None:
 
 
 def connect(progid: str):
-    """(helper, comtypes module) from the COM API."""
+    """(dynamic object, comtypes module) from the COM API."""
     try:
         import comtypes.client
     except ImportError:
@@ -63,10 +71,7 @@ def connect(progid: str):
     except Exception as error:  # noqa: BLE001 - COM raises OSError and friends
         raise SapError(f"no pude crear {progid}: {error}") from None
     gen = getattr(comtypes.gen, progid.split(".")[0], None)
-    if gen is None:
-        raise SapError(f"no pude cargar el modulo COM de {progid}")
-    helper = raw.QueryInterface(gen.cHelper)
-    return helper, gen
+    return raw, gen
 
 
 # The factory is `CreateObjectProgModel` in the documented API and
@@ -78,45 +83,41 @@ FACTORIES = (
 )
 
 
-def _attempt(helper, gen, name: str, args: tuple) -> tuple[object | None, list[str]]:
-    """One factory call, and whether the object answers to the model interface."""
-    method = getattr(helper, name, None)
+def _attempt(obj, name: str, args: tuple) -> tuple[object | None, list[str]]:
+    method = getattr(obj, name, None)
     if method is None:
         return None, [f"{name}: no existe"]
     try:
-        obj = method(*args)
+        model = method(*args)
     except Exception as error:  # noqa: BLE001 - report and try the next
         return None, [f"{name}{args}: {error}"]
-    if obj is None:
+    if model is None:
         return None, [f"{name}{args}: devolvio None"]
-    notes = [f"{name}{args} -> {type(obj).__name__}"]
-    for iface_name in ("cSapModel", "cOAPI"):
-        iface = getattr(gen, iface_name, None)
-        if iface is None:
-            continue
+    return model, [f"{name}{args} -> {type(model).__name__}"]
+
+
+def new_model(raw, gen, verbose: bool = False):
+    """A new model object, through the dynamic object first.
+
+    The generated interface is the fallback: it only knows the methods of the
+    version it came from.
+    """
+    candidates = [("dynamic", raw)]
+    if gen is not None and hasattr(gen, "cHelper"):
         try:
-            model = obj.QueryInterface(iface)
-        except Exception as error:  # noqa: BLE001
-            notes.append(f"  QueryInterface({iface_name}): {error}")
-            continue
-        notes.append(f"  QueryInterface({iface_name}) -> {'None' if model is None else 'ok'}")
-        if model is not None:
-            return model, notes
-    methods = sorted(m for m in dir(obj) if not m.startswith("_"))
-    notes.append("  metodos: " + ", ".join(methods))
-    return None, notes
+            candidates.append(("cHelper", raw.QueryInterface(gen.cHelper)))
+        except Exception:  # noqa: BLE001 - it may not support the interface
+            pass
 
-
-def new_model(helper, gen, verbose: bool = False):
-    """A new model object, whatever this build calls the factory."""
     notes: list[str] = []
-    for name, args in FACTORIES:
-        model, attempt = _attempt(helper, gen, name, args)
-        notes.extend(attempt)
-        if model is not None:
-            if verbose:
-                print("\n".join("  " + n for n in notes))
-            return model
+    for label, obj in candidates:
+        for name, args in FACTORIES:
+            model, attempt = _attempt(obj, name, args)
+            notes.extend(f"[{label}] {n}" for n in attempt)
+            if model is not None:
+                if verbose:
+                    print("\n".join("  " + n for n in notes))
+                return model
     raise SapError("no pude crear el modelo:\n  " + "\n  ".join(notes))
 
 
@@ -125,8 +126,8 @@ def open_model(helper, gen, s2k: Path, out: Path):
     sap = new_model(helper, gen)
     if not hasattr(sap, "File"):
         raise SapError(
-            f"el objeto devuelto ({type(sap).__name__}) no es el modelo: "
-            "no tiene File. Ejecuta --probe para ver que devuelve la fabrica."
+            f"el objeto devuelto ({type(sap).__name__}) no es el modelo: no tiene File. "
+            "Ejecuta --probe para ver que devuelve la fabrica."
         )
     failures: list[str] = []
     _call("File.NewFile", sap.File.NewFile(), failures)
@@ -144,30 +145,44 @@ def open_model(helper, gen, s2k: Path, out: Path):
     return sap
 
 
+def _methods(obj) -> list[str]:
+    try:
+        return sorted(m for m in dir(obj) if not m.startswith("_"))
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("lot", nargs="?", help="folder with the models from tools/gen_contrast_lot.py")
     ap.add_argument("--progid", default=DEFAULT_PROGID, help=f"COM ProgID (default {DEFAULT_PROGID})")
     ap.add_argument("--glob", default="*.s2k", help="models to run (default *.s2k)")
     ap.add_argument("--dry-run", action="store_true", help="list what would run and exit")
-    ap.add_argument("--list-api", action="store_true", help="print the helper's methods and exit")
+    ap.add_argument("--list-api", action="store_true", help="print the object's methods and exit")
     ap.add_argument("--probe", action="store_true", help="create the model object and print what came back")
     args = ap.parse_args()
 
     if args.list_api or args.probe:
         try:
-            helper, gen = connect(args.progid)
+            raw, gen = connect(args.progid)
         except SapError as error:
             print(f"error: {error}", file=sys.stderr)
             return 2
         if args.list_api:
-            print("== helper ==")
-            for name in sorted(m for m in dir(helper) if not m.startswith("_")):
+            print("== dynamic ==")
+            for name in _methods(raw):
                 print("  " + name)
+            if gen is not None and hasattr(gen, "cHelper"):
+                try:
+                    print("== cHelper ==")
+                    for name in _methods(raw.QueryInterface(gen.cHelper)):
+                        print("  " + name)
+                except Exception as error:  # noqa: BLE001
+                    print(f"  (no se pudo consultar cHelper: {error})")
         if args.probe:
             print("== creacion del modelo ==")
             try:
-                new_model(helper, gen, verbose=True)
+                new_model(raw, gen, verbose=True)
                 print("  modelo creado")
             except SapError as error:
                 print(f"  error: {error}")
@@ -190,7 +205,7 @@ def main() -> int:
         return 0
 
     try:
-        helper, gen = connect(args.progid)
+        raw, gen = connect(args.progid)
     except SapError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -200,7 +215,7 @@ def main() -> int:
         out = model.with_name(model.stem + "-sap2000.s2k")
         print(f"{model.name} -> {out.name}")
         try:
-            sap = open_model(helper, gen, model, out)
+            sap = open_model(raw, gen, model, out)
         except SapError as error:
             print(f"    error: {error}", file=sys.stderr)
             bad += 1
