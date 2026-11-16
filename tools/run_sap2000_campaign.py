@@ -4,6 +4,7 @@
     python tools/run_sap2000_campaign.py LOT_FOLDER
     python tools/run_sap2000_campaign.py LOT_FOLDER --dry-run
     python tools/run_sap2000_campaign.py --list-api
+    python tools/run_sap2000_campaign.py --probe
 
 For every `*.s2k` in the folder it opens a new model, imports the file, runs
 every load case, and writes `<stem>-sap2000.s2k` (the model with its results, as
@@ -15,16 +16,17 @@ It needs SAP2000 with the OAPI (the API is installed with the program) and
     pip install comtypes
 
 The ProgID is `SAP2000v1.Helper` from version 21 on; `--progid` overrides it.
-`--list-api` prints the methods the helper actually offers, which is the fastest
-way to adapt to a build whose factory is called something else: this script tries
-`CreateObjectProgModel` (the documented name) and `CreateObjectProgID`, and if
-neither exists it says so and lists what is there instead of dying with an
-AttributeError.
 
-Every call's return code is checked (0 is success) and printed, because a silent
-failure is the one thing that would make the campaign look complete when it is
-not. This script has not been run against SAP2000 in the repository's CI: the
-licence and the program are not there.
+Three modes help when a build does not behave like the documented one:
+
+* `--list-api` prints the methods the helper offers.
+* `--probe` creates the model object and prints, for each factory name, what came
+  back and whether it answers to `cSapModel` or `cOAPI`.
+* Without either, a failure names the call and the return code.
+
+Every call's return code is checked (0 is success). This script has not been run
+against SAP2000 in the repository's CI: the licence and the program are not
+there.
 """
 from __future__ import annotations
 
@@ -67,44 +69,65 @@ def connect(progid: str):
     return helper, gen
 
 
-def new_model(helper, gen):
-    """A new model object, whatever this build calls the factory.
+# The factory is `CreateObjectProgModel` in the documented API and
+# `CreateObjectProgID` in some builds.
+FACTORIES = (
+    ("CreateObjectProgModel", ("",)),
+    ("CreateObjectProgID", ("SAP2000v1.SAP2000",)),
+    ("CreateObjectProgID", ("",)),
+)
 
-    `CreateObjectProgModel` is the documented name; some builds expose
-    `CreateObjectProgID` instead. Try both and, if neither exists, name what the
-    interface does offer instead of raising AttributeError.
-    """
-    errors = []
-    attempts = (
-        ("CreateObjectProgModel", ("",)),
-        ("CreateObjectProgID", (DEFAULT_PROGID.split(".")[0] + ".SAP2000",)),
-        ("CreateObjectProgID", ("",)),
-    )
-    for name, args in attempts:
-        method = getattr(helper, name, None)
-        if method is None:
+
+def _attempt(helper, gen, name: str, args: tuple) -> tuple[object | None, list[str]]:
+    """One factory call, and whether the object answers to the model interface."""
+    method = getattr(helper, name, None)
+    if method is None:
+        return None, [f"{name}: no existe"]
+    try:
+        obj = method(*args)
+    except Exception as error:  # noqa: BLE001 - report and try the next
+        return None, [f"{name}{args}: {error}"]
+    if obj is None:
+        return None, [f"{name}{args}: devolvio None"]
+    notes = [f"{name}{args} -> {type(obj).__name__}"]
+    for iface_name in ("cSapModel", "cOAPI"):
+        iface = getattr(gen, iface_name, None)
+        if iface is None:
             continue
         try:
-            obj = method(*args)
-        except Exception as error:  # noqa: BLE001 - report and try the next
-            errors.append(f"{name}{args}: {error}")
+            model = obj.QueryInterface(iface)
+        except Exception as error:  # noqa: BLE001
+            notes.append(f"  QueryInterface({iface_name}): {error}")
             continue
-        try:
-            return obj.QueryInterface(gen.cSapModel)
-        except Exception:  # noqa: BLE001 - it may already be the model
-            return obj
-    available = sorted(m for m in dir(helper) if not m.startswith("_"))
-    raise SapError(
-        "no pude crear el modelo ("
-        + "; ".join(errors)
-        + "). Metodos del helper: "
-        + ", ".join(available)
-    )
+        notes.append(f"  QueryInterface({iface_name}) -> {'None' if model is None else 'ok'}")
+        if model is not None:
+            return model, notes
+    methods = sorted(m for m in dir(obj) if not m.startswith("_"))
+    notes.append("  metodos: " + ", ".join(methods))
+    return None, notes
+
+
+def new_model(helper, gen, verbose: bool = False):
+    """A new model object, whatever this build calls the factory."""
+    notes: list[str] = []
+    for name, args in FACTORIES:
+        model, attempt = _attempt(helper, gen, name, args)
+        notes.extend(attempt)
+        if model is not None:
+            if verbose:
+                print("\n".join("  " + n for n in notes))
+            return model
+    raise SapError("no pude crear el modelo:\n  " + "\n  ".join(notes))
 
 
 def open_model(helper, gen, s2k: Path, out: Path):
     """A new model with `s2k` imported and every case solved."""
     sap = new_model(helper, gen)
+    if not hasattr(sap, "File"):
+        raise SapError(
+            f"el objeto devuelto ({type(sap).__name__}) no es el modelo: "
+            "no tiene File. Ejecuta --probe para ver que devuelve la fabrica."
+        )
     failures: list[str] = []
     _call("File.NewFile", sap.File.NewFile(), failures)
     _call(f"File.ImportS2kTextFile({s2k.name})", sap.File.ImportS2kTextFile(str(s2k)), failures)
@@ -128,20 +151,31 @@ def main() -> int:
     ap.add_argument("--glob", default="*.s2k", help="models to run (default *.s2k)")
     ap.add_argument("--dry-run", action="store_true", help="list what would run and exit")
     ap.add_argument("--list-api", action="store_true", help="print the helper's methods and exit")
+    ap.add_argument("--probe", action="store_true", help="create the model object and print what came back")
     args = ap.parse_args()
 
-    if args.list_api:
+    if args.list_api or args.probe:
         try:
-            helper, _ = connect(args.progid)
+            helper, gen = connect(args.progid)
         except SapError as error:
             print(f"error: {error}", file=sys.stderr)
             return 2
-        for name in sorted(m for m in dir(helper) if not m.startswith("_")):
-            print(name)
+        if args.list_api:
+            print("== helper ==")
+            for name in sorted(m for m in dir(helper) if not m.startswith("_")):
+                print("  " + name)
+        if args.probe:
+            print("== creacion del modelo ==")
+            try:
+                new_model(helper, gen, verbose=True)
+                print("  modelo creado")
+            except SapError as error:
+                print(f"  error: {error}")
+                return 1
         return 0
 
     if not args.lot:
-        ap.error("falta LOT_FOLDER (o --list-api)")
+        ap.error("falta LOT_FOLDER (o --list-api / --probe)")
 
     lot = Path(args.lot)
     models = sorted(p for p in lot.glob(args.glob) if not p.stem.endswith("-sap2000"))
