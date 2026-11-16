@@ -1,8 +1,8 @@
 # Informe de compatibilidad — perfil sap2000-ultimate-27.1.0-target
 
-Fecha: 2026-11-13. Motor struktal 0.1.0, licencia AGPL-3.0 (decisión 0026). **Estado del perfil: specified_not_verified.**
+Fecha: 2026-11-15. Motor struktal 0.1.0, licencia AGPL-3.0 (decisión 0026). **Estado del perfil: specified_not_verified.**
 
-No se ha ejecutado SAP2000. Ningún requisito está `verified_sap`. No se afirma compatibilidad con SAP2000 en ningún contrato.
+Se ha ejecutado SAP2000 una vez, el 2026-11-15, para contrastar el **camino estático lineal** con tres modelos escritos a mano (11 casos, 276 valores, sin diferencias). Ningún requisito pasa a `verified_sap`: la campaña no cubre cada contrato, y no se afirma compatibilidad con SAP2000 más allá de lo que esa constancia dice.
 
 ## Inventario (spec/features.csv, no congelado: P00 sigue abierto hasta disponer de la instalación)
 
@@ -17,7 +17,21 @@ Denominador: 124 requisitos atómicos, 20 familias (+1 en esta revisión: F08-00
 | blocked | 2 |
 | verified_sap | 0 |
 
-Cobertura verificada independientemente: 35/124 (28 %). Cobertura contrastada con SAP2000: 0/124 (0 %). El inventario crecerá en P00; el porcentaje bajará cuando se añadan requisitos descubiertos, y eso es lo esperado.
+Cobertura verificada independientemente: 35/124 (28 %). Cobertura contrastada con SAP2000: **11 comparaciones de casos (276 valores) sobre 3 modelos**, todas dentro de tolerancia — la constancia está en `verification/oracle/2026-11-15-campana-sap2000.md`. No equivale a 11 requisitos verificados: cada comparación cubre una parte del camino estático, no el contrato completo.
+
+El inventario crecerá en P00; el porcentaje bajará cuando se añadan requisitos descubiertos, y eso es lo esperado.
+
+## Lo que la campaña del 2026-11-15 establece
+
+Con SAP2000 27.1.0 Ultimate y los modelos `C01-signos`, `C02-ejes` y `C03-secciones` de `tools/gen_contrast_lot.py`:
+
+- **Geometría y secciones.** Coordenadas, conectividad y propiedades de sección leídas del S2K coinciden con las del programa.
+- **Cargas.** Nodales y distribuidas (uniformes, puntuales, trapezoidales) con sus resultantes.
+- **Ejes locales.** Ángulo por barra (C02) y barras verticales, inclinadas y oblicuas.
+- **Signos de `V2`, `V3`, `M2` y `M3`.** La pregunta que abría la decisión 0003: ningún componente salió con el signo cambiado.
+- **Restricciones.** Los apoyos y las reacciones coinciden.
+
+Lo que **no** establece: láminas, modos, espectros, combinaciones no lineales, temperatura, cargas proyectadas, mallas ni diseño. Y nada sobre el resto de los 124 requisitos.
 
 ## Lo que existe (subconjunto H0/H1 parcial)
 
@@ -35,24 +49,29 @@ Cobertura verificada independientemente: 35/124 (28 %). Cobertura contrastada co
 
 | Tema | Situación |
 |---|---|
-| Convención de signos de V2, V3, M2, M3 | Propia (decisión 0003); mapeo SAP pendiente de oráculo. |
-| Ejes locales de barras verticales/casi verticales | Implementado según la ayuda [S06]; umbral sin confirmar. |
+| Convención de signos de V2, V3, M2, M3 | Propia (decisión 0003), **verificada en estático lineal** el 2026-11-15: 11 casos, 276 valores, sin diferencias. Resta el resto de casos y la convención de salida. |
+| Ejes locales de barras verticales/casi verticales | Implementado según la ayuda [S06]; umbral sin confirmar. Contrastados en C02 para verticales, inclinadas y oblicuas, sin diferencias en los casos probados. |
 | Deformación por cortante | Implementada (decisión 0007). Con una forma, As es automática por reglas de ingeniería (decisión 0017), sin contrastar con los valores de SAP2000; una sección general sin As se comporta como Euler–Bernoulli. |
 | Láminas | Sin mallado propio de áreas; MITC4 y MITC3 en lugar de una formulación delgada propia; el triángulo es rígido en flexión en su plano y pide mallas finas en muros (decisión 0021); taladro y membrana distintos de lo que pueda usar SAP2000; ejes locales y signos sin confirmar. |
 | Dinámica | Masa concentrada; la masa desde patrones reparte por fuerzas de empotramiento, con g y direcciones sin confirmar (decisión 0022); sin masa faltante, combinación direccional ni excentricidad accidental; sin ajuste de la curva por amortiguamiento; sin recuento de Sturm. |
 | Sismo automático | Solo coeficiente de usuario. Peso, reparto con la altura y origen de las alturas recordados de la documentación, sin contrastar; la excentricidad se deja fuera cuando no hay diafragmas, y con diafragmas el patrón se rechaza (decisión 0024). |
-| Secciones paramétricas | J de pared delgada y As por reglas de ingeniería; sin acuerdos de perfiles laminados, sin T, canal, ángulo ni tablas. |
+| Secciones paramétricas | J de pared delgada y As por reglas de ingeniería; sin acuerdos de perfiles laminados, sin T, canal, ángulo ni tablas. C03 contrasta las propiedades de las formas que sí existen. |
 | Carga uniforme en barras inclinadas | Por longitud real; las opciones de proyección no están implementadas. |
 | Malla analítica | Subdivisión de barras por número de tramos y en nudos (decisión 0015); sin longitud máxima, y la tolerancia frente a SAP2000 está sin confirmar. |
 | Offsets | Solo vectores globales; sin puntos cardinales ni factor de zona rígida. Zonas rígidas sin peso: sin confirmar. |
 | Restricciones | Un apoyo sobre una componente atada se rechaza; body sin selección de componentes; locales y weld no implementados. |
 | Desplazamientos impuestos | Un valor sobre una componente sin apoyo ni resorte es un error en Struktal; se cree que SAP2000 lo ignora. Sin confirmar. |
 | Resortes de nudo | Solo lineales y en ejes globales. |
-| Intercambio S2K/OAPI | Lector S2K estricto de barras y áreas, con su malla de análisis, fuente de masa, modos, espectros y sismo por coeficiente (decisiones 0018, 0021, 0022, 0024 y 0027): un caso que no puede representar es un problema y solo se deja fuera con `--allow-partial`, declarándolo; sin contrastar con SAP2000 ni probado con una malla o un espectro completo reales; sin escritura ni OAPI. |
+| Intercambio S2K/OAPI | Lector S2K estricto de barras y áreas, con su malla de análisis, fuente de masa, modos, espectros y sismo por coeficiente (decisiones 0018, 0021, 0022, 0024 y 0027): un caso que no puede representar es un problema y solo se deja fuera con `--allow-partial`, declarándolo; **contrastado con SAP2000 en estático lineal** (11 casos), sin probar con una malla o un espectro completos reales; sin escritura ni OAPI. |
 | Recuento de modos de mecanismo | Exacto con hueco espectral; por encima de ~10⁵ ecuaciones puede quedar como cota inferior (F08-007, decisión 0006). Formato de aviso de SAP2000 no comparado. |
 
 ## Bloqueos
 
-- `oracle_pending` en todos los casos: falta instalación de SAP2000 27.1.0 Ultimate (build exacto y manuales).
+- `oracle_pending` en la mayoría de los casos: la campaña del 2026-11-15 cubre 11 casos estáticos de 3 modelos, no el resto.
+- **Build exacto de SAP2000 sin anotar.** Sin él, la comparación no es reproducible (Help → About).
 - F08-004: el backend actual no resuelve matrices indefinidas.
 - F19-009: no hay ruta independiente documentada para leer `.sdb`.
+
+## Dónde están las capturas
+
+Fuera del repositorio, en el equipo con la licencia. Aquí solo entra la constancia: `verification/oracle/`.
