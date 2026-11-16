@@ -42,7 +42,9 @@ object and prints what came back.
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -109,31 +111,38 @@ def open_model(helper, program: str | None, s2k: Path, out: Path):
     if model is None:
         raise SapError("el SapObject no tiene SapModel")
 
-    failures: list[str] = []
-    if not _call(f"File.OpenFile({s2k.name})", model.File.OpenFile(str(s2k)), failures):
-        # A brand-new process may need InitializeNewModel before the file.
-        model.InitializeNewModel()
-        failures.clear()
-        if not _call(f"File.OpenFile({s2k.name})", model.File.OpenFile(str(s2k)), failures):
+    # File.Save writes over the file the model came from, whatever name it is
+    # given. Work on a copy in a temporary folder: the original is never
+    # touched, and the side files SAP2000 writes stay out of the lot.
+    with tempfile.TemporaryDirectory(prefix="struktal-sap-") as tmp:
+        work = Path(tmp) / out.name
+        shutil.copyfile(s2k, work)
+
+        failures: list[str] = []
+        if not _call(f"File.OpenFile({work.name})", model.File.OpenFile(str(work)), failures):
+            # A brand-new process may need InitializeNewModel before the file.
+            model.InitializeNewModel()
+            failures.clear()
+            if not _call(f"File.OpenFile({work.name})", model.File.OpenFile(str(work)), failures):
+                raise SapError("; ".join(failures))
+
+        started = time.time()
+        if not _call("Analyze.RunAnalysis", model.Analyze.RunAnalysis(), failures):
             raise SapError("; ".join(failures))
+        print(f"    resuelto en {time.time() - started:.1f} s")
 
-    started = time.time()
-    if not _call("Analyze.RunAnalysis", model.Analyze.RunAnalysis(), failures):
-        raise SapError("; ".join(failures))
-    print(f"    resuelto en {time.time() - started:.1f} s")
-
-    # The API has no table export: Save writes the model, and the extension
-    # decides the format.
-    if not _call(f"File.Save({out.name})", model.File.Save(str(out)), failures):
-        raise SapError("; ".join(failures))
-    if not out.exists():
-        raise SapError(f"SAP2000 no escribio {out.name}")
-    head = out.read_text(encoding="utf-8", errors="replace")[:64]
-    if "TABLE" not in head:
-        raise SapError(
-            f"{out.name} no es texto (empieza por {head!r}): esta version guarda en binario. "
-            "Abrelo en SAP2000 y usa File > Export > Tables."
-        )
+        # No name: it saves to the file the model came from, which is the copy.
+        if not _call("File.Save", model.File.Save(), failures):
+            raise SapError("; ".join(failures))
+        if not work.exists():
+            raise SapError(f"SAP2000 no escribio {work.name}")
+        head = work.read_text(encoding="utf-8", errors="replace")[:64]
+        if "TABLE" not in head:
+            raise SapError(
+                f"{out.name} no es texto (empieza por {head!r}): esta version guarda en binario. "
+                "Abrelo en SAP2000 y usa File > Export > Tables."
+            )
+        shutil.copyfile(work, out)
     return model
 
 

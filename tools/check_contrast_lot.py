@@ -61,7 +61,7 @@ ALIASES = {
     "my": ("react", 4), "m2": ("react", 4), "mysum": ("react", 4),
     "mz": ("react", 5), "m3": ("react", 5), "mzsum": ("react", 5),
 }
-CASE_COLUMNS = ("case", "loadcase", "loadpat", "step", "casename")
+CASE_COLUMNS = ("case", "loadcase", "outputcase", "loadpat", "step", "casename")
 JOINT_COLUMNS = ("joint", "jointname", "name", "jointno", "n")
 
 RTOL = 1e-4   # SAP2000 prints six significant digits
@@ -196,6 +196,18 @@ def verdict(label: str, ours: float, theirs: float) -> str:
     return f"{label}: difiere ({ours:.6g} vs {theirs:.6g})"
 
 
+def _is_export(path: Path) -> bool:
+    """True when the .s2k carries results, not just the model.
+
+    A SAP2000 export is not an input: the model beside it is.
+    """
+    try:
+        head = path.read_text(encoding="utf-8", errors="replace")[:8000]
+    except OSError:
+        return False
+    return "JOINT DISPLACEMENTS" in head
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("lot", nargs="?", help="folder with the models and the CSVs")
@@ -228,7 +240,11 @@ def main() -> int:
         print(f"no hay binario de struktal en {struktal}", file=sys.stderr)
         return 2
 
-    models = sorted(p for p in lot.glob("*.s2k") if not p.stem.endswith("-sap2000"))
+    models = sorted(
+        p
+        for p in lot.glob("*.s2k")
+        if not p.stem.endswith("-sap2000") and not _is_export(p)
+    )
     if not models:
         print(f"{lot}: no hay modelos .s2k", file=sys.stderr)
         return 2
@@ -239,7 +255,11 @@ def main() -> int:
         work = Path(tmp)
         for model in models:
             csvs = sorted(lot.glob(model.stem + "*.csv"))
+            # SAP2000 writes Save over the file the model came from, so an
+            # export may be the model itself.
             exported = lot / (model.stem + "-sap2000.s2k")
+            if not exported.exists():
+                exported = model
             rows: list[dict[str, str]] = []
             for path in csvs:
                 rows.extend(read_table(path))
