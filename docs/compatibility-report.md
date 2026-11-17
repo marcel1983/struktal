@@ -12,8 +12,8 @@ Denominador: 124 requisitos atómicos, 20 familias (+1 en esta revisión: F08-00
 |---|---|
 | verified_independent | 35 |
 | implemented | 3 |
-| partial | 15 |
-| specified | 69 |
+| partial | 17 |
+| specified | 67 |
 | blocked | 2 |
 | verified_sap | 0 |
 

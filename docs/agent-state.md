@@ -4,7 +4,7 @@ Actualizado: 2026-11-17. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 ## Repositorio
 
-- Remoto público: https://github.com/marcel1983/struktal. Licencia AGPL-3.0-only desde el 2026-11-13, antes GPL-3.0 (decisión 0026); no se ha incorporado código de otros motores. Esquema de modelo v10 (v1 a v9 se migran). SHA: ver `git log -1`.
+- Remoto público: https://github.com/marcel1983/struktal. Licencia AGPL-3.0-only desde el 2026-11-13, antes GPL-3.0 (decisión 0026); no se ha incorporado código de otros motores. Esquema de modelo v11 (v1 a v10 se migran). SHA: ver `git log -1`.
 - Toolchain: rustc/cargo 1.97.0. Plataformas probadas: Linux x86_64 y Windows 10 x86_64 (MSVC); benchmarks solo en Linux.
 - Proyecto anterior del usuario, fuente de lo que se porta: PAS (fuera del repo). Portar con casos analíticos propios, sin archivos de SAP2000 ni afirmar como verificado lo que PAS afirma; ver decisiones 0010 y 0011.
 
@@ -35,10 +35,11 @@ Actualizado: 2026-11-17. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
-- `cargo test --workspace`: 180 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 24, 0 fallos.
-- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 66/66 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `cargo test --workspace`: 210 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 24, 0 fallos.
+- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 67/67 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - `tools/compare_engines.py`: comparación opcional con OpenSeesPy y Pynite (decisión 0013); con triángulos da DIFF en V-TRI-001, explicado en la decisión 0021. CI en `.github/workflows/ci.yml`: `add290a` y `65feef9` fallaron solo en el trabajo de referencias, porque `sin` y `cos` redondean distinto entre Linux y Windows. `tools/check_cases.py` lo corrige en dos pasos, el segundo para el hash de `model.json`; CI en verde desde `199b727`. Benchmarks de los ejemplos de OpenSees: decisión 0023. Comparación ampliada con OpenSees (malla, masa, sismo, espectro): decisión 0013.
 - Benchmarks: docs/benchmarks.md.
+- Áreas planas (F03-005b, decisión 0033): `AreaBehavior::Plane` en el esquema v11, con 2 GDL por nudo. `areas.rs` monta la matriz de 24 GDL del elemento `plane.rs` y rota con `to_global`; `constraints.rs::held_joints` sujeta la normal y las rotaciones de esos nudos sin escribirlas en el modelo; la validación rechaza el plano inclinado, la mezcla con elementos 3D, las cargas fuera de plano y el peso propio de un área horizontal. Resultados como `F11 = σ·t` por unidad de largo, con las ranuras de placa a cero. 210 tests (10 nuevos) y 67/67 casos con ambos backends. Falta: axisimétrico, casos V-* y el importador S2K.
 - Núcleo de tensión plana (F03-005a, primer paso): `struktal-elements/src/plane.rs` con el triángulo de deformación constante y el cuadrilátero bilineal, 2 GDL/nudo, `D` de tensión plana y espesor como factor. 7 tests: *patch test* exacto en triángulo y cuadrilátero distorsionado, 3 modos de cuerpo rígido, y áreas nodales. Falta el elemento en el ensamblaje (F03-005b, con su ADR sobre los 2 GDL frente a los 6 del modelo) y el axisimétrico (F03-005c).
 - Lámina laminada (decisión 0032, F03-004): `area_sections[].layers` en el esquema v10; `laminate.rs` calcula `A`, `B` y `D` por unidad de ancho y `shell4.rs`/`shell3.rs` usan `A` y `D` en lugar de `E`/`ν`/`t`. 193 tests (3 nuevos), V-SHELL-006 en el banco (67/67) y validación que rechaza `b ≠ 0` y las capas que no suman el espesor. Falta: el acoplamiento flexión–tracción y una placa laminada contrastada con malla.
 - Mallado de áreas (decisión 0031, F03-008): `Area.auto_mesh {m, n}` en el esquema v9; el análisis sustituye el objeto por sus elementos, comparte los nudos de los bordes entre áreas vecinas y reparte la carga. 184 tests (4 nuevos) y 66/66 casos de verificación. Falta un caso de verificación formal en `verification/cases/` y el contraste con SAP2000.

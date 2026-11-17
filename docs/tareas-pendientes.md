@@ -33,7 +33,7 @@ son de `spec/features.csv` a 2026-11-17.
 
 ## F03 — Elementos
 
-- [ ] **T-001** F03-005b — Elemento plano en el ensamblaje: 2 GDL/nudo, `AreaBehavior::Plane` y `Axisymmetric`; ADR sobre los 4 GDL que quedan libres. *Criterio*: el modelo resuelve un caso plano y el resto de GDL no aparece en el sistema. *Depende de*: —
+- [x] **T-001** F03-005b — Elemento plano en el ensamblaje: 2 GDL/nudo, `AreaBehavior::Plane` y `Axisymmetric`; ADR sobre los 4 GDL que quedan libres. *Criterio*: el modelo resuelve un caso plano y el resto de GDL no aparece en el sistema. *Depende de*: —
 - [ ] **T-002** F03-005c — Núcleo axisimétrico de 4 nudos: peso `2πr`, `εθ = u/r`, 2 GDL/nudo. *Criterio*: *patch test* con `u = c r` y energía positiva. *Depende de*: —
 - [ ] **T-003** F03-005c — Axisimétrico en el ensamblaje y cargas (presión, peso propio, velocidad angular). *Criterio*: cilindro de pared gruesa contra Lamé. *Depende de*: T-001, T-002
 - [ ] **T-004** F03-005 — Casos de verificación de planos y axisimétricos (franja a tracción, Lamé, disco). *Criterio*: `verification/cases/` con referencia independiente y dos backends. *Depende de*: T-003
