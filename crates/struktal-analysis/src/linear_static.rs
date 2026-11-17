@@ -119,14 +119,20 @@ struct CaseLoads {
 /// Load vector of the free system: applied loads, minus the elastic forces of
 /// the support movements (−K u_p), plus the forces of the grounded spring ends
 /// that move (k u_g).
-fn effective_loads(s: &Snapshot, frames: &[FrameData], area_data: &[AreaData], cl: &CaseLoads) -> Vec<f64> {
+fn effective_loads(
+    s: &Snapshot,
+    frames: &[FrameData],
+    area_data: &[AreaData],
+    cl: &CaseLoads,
+    held: &[[bool; 6]],
+) -> Vec<f64> {
     let mut f = cl.f_full.clone();
     if cl.imposed.iter().all(|&v| v == 0.0) {
         return f;
     }
-    let held = |g: usize| s.model.joints[g / 6].restraint[g % 6];
+    let is_held = |g: usize| held[g / 6][g % 6];
     for fd in frames {
-        let up = fd.dofs.map(|d| if held(d) { cl.imposed[d] } else { 0.0 });
+        let up = fd.dofs.map(|d| if is_held(d) { cl.imposed[d] } else { 0.0 });
         if up.iter().all(|&v| v == 0.0) {
             continue;
         }
@@ -137,7 +143,7 @@ fn effective_loads(s: &Snapshot, frames: &[FrameData], area_data: &[AreaData], c
         }
     }
     for a in area_data {
-        let up: [f64; 24] = a.dofs.map(|d| if held(d) { cl.imposed[d] } else { 0.0 });
+        let up: [f64; 24] = a.dofs.map(|d| if is_held(d) { cl.imposed[d] } else { 0.0 });
         if up.iter().all(|&v| v == 0.0) {
             continue;
         }
@@ -146,7 +152,7 @@ fn effective_loads(s: &Snapshot, frames: &[FrameData], area_data: &[AreaData], c
         }
     }
     for (g, v) in f.iter_mut().enumerate() {
-        if !held(g) {
+        if !is_held(g) {
             *v += s.model.joints[g / 6].springs[g % 6] * cl.imposed[g];
         }
     }
@@ -615,6 +621,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
     let s = meshed.as_ref().unwrap_or(original);
     let m = &s.model;
     let nj = m.joints.len();
+    let held = crate::constraints::held_joints(s);
     let mut manifest = base_manifest(s, opts);
     manifest.messages.extend(mesh.messages.iter().cloned());
     manifest.analysis_mesh = mesh
@@ -882,7 +889,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
 
     // Joints with a reaction: a restraint or a grounded spring.
     let restrained_joint: Vec<bool> =
-        m.joints.iter().map(|j| j.restraint.iter().any(|&r| r) || j.springs.iter().any(|&k| k > 0.0)).collect();
+        (0..nj).map(|j| held[j].iter().any(|&r| r) || m.joints[j].springs.iter().any(|&k| k > 0.0)).collect();
     let mut by_name: HashMap<String, CaseResult> = HashMap::new();
     let mut out = Vec::new();
     // Largest extent of the joints along a global axis, for the equilibrium scale.
@@ -973,7 +980,7 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                     let mut r = [0.0; 6];
                     for (d, rd) in r.iter_mut().enumerate() {
                         let g = 6 * j + d;
-                        *rd = if m.joints[j].restraint[d] {
+                        *rd = if held[j][d] {
                             internal[g] - cl.joint_loads[g]
                         } else {
                             m.joints[j].springs[d] * (cl.imposed[g] - u[g])
@@ -1082,14 +1089,17 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
             continue;
         }
         let cl = build_case_loads(s, &frames, &area_data, &pats, &auto_forces);
-        let rhs = map.reduce(&effective_loads(s, &frames, &area_data, &cl));
+        let rhs = map.reduce(&effective_loads(s, &frames, &area_data, &cl, &held));
         let t_solve = Instant::now();
         let x = factor.as_ref().map(|f| f.solve(&rhs)).unwrap_or_default();
         manifest.timings.solve_s += t_solve.elapsed().as_secs_f64();
         let residual = if n == 0 { 0.0 } else { relative_residual(&k, &x, &rhs) };
         let mut u = map.expand(&x);
-        for (j, joint) in m.joints.iter().enumerate() {
-            for d in (0..6).filter(|&d| joint.restraint[d]) {
+        for j in 0..nj {
+            for d in 0..6 {
+                if !held[j][d] {
+                    continue;
+                }
                 u[6 * j + d] = cl.imposed[6 * j + d];
             }
         }
@@ -1334,5 +1344,82 @@ fn envelope(name: &str, terms: Vec<(&CaseResult, f64)>) -> CaseResult {
         areas: vec![],
         modal: None,
         envelope: Some(Envelope { joints, frames }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use struktal_core::{model_from_json, validate};
+
+    /// A 2 x 1 plane strip, restrained so that the uniaxial stress state is
+    /// exact: u = (p / E) x and v = -(nu p / E) y, with p = 1e6 Pa on the edge
+    /// x = 2 as the consistent nodal forces of a uniform traction (decision
+    /// 0033).
+    fn strip() -> Snapshot {
+        let text = serde_json::json!({
+            "schema_version": 11,
+            "title": "plane strip",
+            "units": {"force": "N", "length": "m"},
+            "materials": [{"name": "S", "e": 2e11, "nu": 0.3, "unit_weight": 0.0}],
+            "sections": [{"name": "B", "material": "S", "area": 0.01, "i33": 1e-4, "i22": 1e-4, "j": 2e-4}],
+            "area_sections": [{"name": "P", "material": "S", "thickness": 0.1, "behavior": "Plane"}],
+            "joints": [
+                {"name": "A", "x": 0.0, "y": 0.0, "z": 0.0, "restraint": [true, true, false, false, false, false]},
+                {"name": "B", "x": 2.0, "y": 0.0, "z": 0.0, "restraint": [false, true, false, false, false, false]},
+                {"name": "C", "x": 2.0, "y": 1.0, "z": 0.0},
+                {"name": "D", "x": 0.0, "y": 1.0, "z": 0.0, "restraint": [true, false, false, false, false, false]}
+            ],
+            "areas": [{"name": "Q", "section": "P", "joints": ["A", "B", "C", "D"]}],
+            "area_loads": [],
+            "load_patterns": [{"name": "T"}],
+            "joint_loads": [
+                {"pattern": "T", "joint": "B", "values": [50000.0, 0, 0, 0, 0, 0]},
+                {"pattern": "T", "joint": "C", "values": [50000.0, 0, 0, 0, 0, 0]}
+            ],
+            "frame_loads": [],
+            "load_cases": [{"type": "LinearStatic", "name": "T", "loads": [{"pattern": "T", "scale": 1.0}]}],
+            "combinations": []
+        })
+        .to_string();
+        validate(&model_from_json(&text).expect("parse")).expect("valid")
+    }
+
+    #[test]
+    fn a_plane_area_is_solved_with_two_dof_per_node() {
+        let s = strip();
+        // Four joints x two in-plane DOF, minus the four the analysis holds.
+        assert_eq!(DofMap::build(&s).n, 4, "the four out-of-plane DOF are not equations");
+
+        let out = run(&s, &Options::default());
+        let c = out.cases.first().expect("one case");
+        assert_eq!(c.status.completion(), Completion::Complete, "{:?}", c.messages);
+
+        let at = |name: &str| c.joints.iter().find(|j| j.joint == name).expect("joint");
+        let close = |a: f64, b: f64| (a - b).abs() <= 1e-9 * b.abs() + 1e-18;
+        let e = 5e-6; // p / E
+        assert!(close(at("B").displacement[0], 2.0 * e), "{:?}", at("B").displacement);
+        // u = (p / E) x has no y in it: the lateral contraction is in v alone.
+        assert!(close(at("C").displacement[0], 2.0 * e), "{:?}", at("C").displacement);
+        assert!(close(at("C").displacement[1], -0.3 * e), "{:?}", at("C").displacement);
+        assert!(close(at("D").displacement[1], -0.3 * e), "{:?}", at("D").displacement);
+        // The held components stay at zero: the element has nothing there.
+        for j in &c.joints {
+            assert_eq!(&j.displacement[2..], &[0.0; 4], "{}", j.joint);
+        }
+
+        // Section forces per unit length, as the shell reports them: F11 = p t,
+        // F22 = F12 = 0, and no plate.
+        let a = c.areas.first().expect("area result");
+        assert!(close(a.center[0], 1e5), "{:?}", a.center);
+        assert!(a.center[1].abs() <= 1e-6 && a.center[2].abs() <= 1e-6, "{:?}", a.center);
+        assert_eq!(&a.center[3..], &[0.0; 5]);
+
+        // The reactions balance the 1e5 N applied, and the solve is clean.
+        let rx: f64 = c.joints.iter().filter_map(|j| j.reaction).map(|r| r[0]).sum();
+        assert!((rx + 1e5).abs() <= 1e-3, "{rx}");
+        let checks = c.checks.as_ref().expect("checks");
+        assert!(checks.equilibrium_force_error < 1e-12, "{checks:?}");
+        assert!(checks.residual_relative < 1e-12, "{checks:?}");
     }
 }

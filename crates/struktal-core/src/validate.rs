@@ -166,6 +166,17 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             return Err(newer("area_sections[].layers"));
         }
     }
+    if ver < 11 {
+        // Same rule for the plane behaviour: an older reader would fail on the
+        // value, so it says which field is newer instead (decision 0033).
+        let has_plane = raw
+            .get("area_sections")
+            .and_then(|v| v.as_array())
+            .is_some_and(|secs| secs.iter().any(|s| s.get("behavior").and_then(|b| b.as_str()) == Some("Plane")));
+        if has_plane {
+            return Err(newer("area_sections[].behavior: Plane"));
+        }
+    }
     if ver < 7 && has_value(&raw, "mass_source") {
         return Err(newer("mass_source"));
     }
@@ -429,15 +440,50 @@ fn check_mass_and_spectra(m: &Model, issues: &mut Vec<Issue>) {
 /// fraction of its longer diagonal.
 pub const AREA_WARP_TOL_REL: f64 = 1e-3;
 
+/// Global axis perpendicular to the plane of `points`, or `None` when they are
+/// not parallel to a global axis plane (decision 0033).
+///
+/// A plane area carries two degrees of freedom per node, so the analysis has to
+/// hold the other four. That is only a fixed set of components when the plane
+/// is one of the three coordinate planes; a tilted one would need a kinematic
+/// constraint per joint instead. Exactly one coordinate has to stay constant:
+/// two would mean the points are a line, which is not a plane.
+pub fn plane_axis(points: &[[f64; 3]]) -> Option<usize> {
+    if points.len() < 2 {
+        return None;
+    }
+    let mut range = [0.0; 3];
+    for a in 0..3 {
+        let mut min = f64::INFINITY;
+        let mut max = f64::NEG_INFINITY;
+        for p in points {
+            min = min.min(p[a]);
+            max = max.max(p[a]);
+        }
+        range[a] = max - min;
+    }
+    let extent = range.iter().copied().fold(0.0, f64::max);
+    if !extent.is_finite() || extent <= 0.0 {
+        return None;
+    }
+    let flat: Vec<usize> = (0..3).filter(|&a| range[a] <= 1e-9 * extent).collect();
+    match flat.as_slice() {
+        [axis] => Some(*axis),
+        _ => None,
+    }
+}
+
 fn check_areas(
     m: &Model,
     materials: &HashMap<Name, usize>,
     joint_index: &HashMap<Name, usize>,
     connected: &mut HashSet<usize>,
+    plane_axis_of: &mut HashMap<usize, usize>,
     issues: &mut Vec<Issue>,
 ) {
     let sections = index_unique("area section", m.area_sections.iter().map(|s| s.name.as_str()), issues);
     let area_index = index_unique("area", m.areas.iter().map(|a| a.name.as_str()), issues);
+    let behavior: HashMap<&str, AreaBehavior> = m.area_sections.iter().map(|s| (s.name.as_str(), s.behavior)).collect();
     for s in &m.area_sections {
         let e = format!("area section {}", s.name);
         check_positive(s.thickness, &e, "thickness", issues);
@@ -446,6 +492,16 @@ fn check_areas(
         }
         if !materials.contains_key(&s.material) {
             issues.push(issue(&e, "material", format!("unknown material '{}'", s.material)));
+        }
+        if s.behavior == AreaBehavior::Plane {
+            // A plane section has no plate: the element takes E, nu and t
+            // (decision 0033).
+            if s.bending_thickness.is_some() {
+                issues.push(issue(&e, "bending_thickness", "a plane section has no bending thickness"));
+            }
+            if !s.layers.is_empty() {
+                issues.push(issue(&e, "layers", "a plane section has no layers"));
+            }
         }
         if !s.layers.is_empty() {
             if s.bending_thickness.is_some() {
@@ -529,6 +585,35 @@ fn check_areas(
             let j = &m.joints[found[k]];
             [j.x, j.y, j.z]
         };
+        if behavior.get(a.section.as_str()) == Some(&AreaBehavior::Plane) {
+            // A plane area is a 2D idealisation: two DOF per node, with the
+            // other four held by the analysis (decision 0033). Its plane has
+            // to be parallel to a global axis so that the held components are
+            // a fixed set, and two plane areas that share a joint have to lie
+            // in the same plane, or that joint would be held twice over.
+            let pts: Vec<[f64; 3]> = (0..found.len()).map(&at).collect();
+            match plane_axis(&pts) {
+                None => issues.push(issue(
+                    &e,
+                    "joints",
+                    "a plane area must be parallel to a global axis plane: one of x, y, z constant over its joints",
+                )),
+                Some(axis) => {
+                    let other = found.iter().find(|&&k| plane_axis_of.get(&k).is_some_and(|&a| a != axis));
+                    if other.is_some() {
+                        issues.push(issue(
+                            &e,
+                            "joints",
+                            "a plane area shares a joint with a plane area in a different plane (decision 0033)",
+                        ));
+                    } else {
+                        for &k in &found {
+                            plane_axis_of.entry(k).or_insert(axis);
+                        }
+                    }
+                }
+            }
+        }
         let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
         let cross = |a: [f64; 3], b: [f64; 3]| {
             [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
@@ -570,6 +655,34 @@ fn check_areas(
             ));
         }
     }
+    if !plane_axis_of.is_empty() {
+        // The analysis holds the out-of-plane DOF of a plane area's joints, so
+        // sharing them with a 3D element would hold that element too.
+        for f in &m.frames {
+            let ends = [joint_index.get(f.i.as_str()), joint_index.get(f.j.as_str())];
+            if ends.iter().any(|k| k.is_some_and(|k| plane_axis_of.contains_key(k))) {
+                issues.push(issue(
+                    format!("frame {}", f.name),
+                    "joints",
+                    "a plane area shares a joint with a frame: a plane area is a 2D idealisation and cannot mix with 3D elements (decision 0033)",
+                ));
+            }
+        }
+        for a in &m.areas {
+            if behavior.get(a.section.as_str()) == Some(&AreaBehavior::Plane) {
+                continue;
+            }
+            for name in &a.joints {
+                if joint_index.get(name).is_some_and(|&k| plane_axis_of.contains_key(&k)) {
+                    issues.push(issue(
+                        format!("area {}", a.name),
+                        "joints",
+                        "a plane area shares a joint with a 3D area (decision 0033)",
+                    ));
+                }
+            }
+        }
+    }
     for (k, l) in m.area_loads.iter().enumerate() {
         let e = format!("area load #{k}");
         if !m.load_patterns.iter().any(|p| p.name == l.pattern) {
@@ -579,6 +692,112 @@ fn check_areas(
             issues.push(issue(&e, "area", format!("unknown area '{}'", l.area)));
         }
         check_finite(l.value, &e, "value", issues);
+        // A load out of the plane of a plane area reaches an element with no
+        // stiffness there: it would be dropped without a word (decision 0033).
+        if l.value != 0.0 {
+            let plane = m
+                .areas
+                .iter()
+                .find(|a| a.name == l.area)
+                .filter(|a| behavior.get(a.section.as_str()) == Some(&AreaBehavior::Plane));
+            if let Some(a) = plane {
+                let axis = a.joints.first().and_then(|n| joint_index.get(n)).and_then(|&k| plane_axis_of.get(&k));
+                let out_of_plane = match l.direction {
+                    LoadDirection::Local3 => true,
+                    LoadDirection::Local1 | LoadDirection::Local2 => false,
+                    LoadDirection::GlobalX => axis == Some(&0),
+                    LoadDirection::GlobalY => axis == Some(&1),
+                    LoadDirection::GlobalZ | LoadDirection::Gravity => axis == Some(&2),
+                };
+                if out_of_plane {
+                    issues.push(issue(
+                        &e,
+                        "direction",
+                        "out of the plane of a plane area: the load would not be carried (decision 0033)",
+                    ));
+                }
+            }
+        }
+    }
+    // Weight of a plane area in a horizontal plane: gravity is out of that
+    // plane, so the element would carry none of it (decision 0033).
+    if m.load_patterns.iter().any(|p| p.self_weight_multiplier != 0.0) {
+        for a in &m.areas {
+            if behavior.get(a.section.as_str()) != Some(&AreaBehavior::Plane) {
+                continue;
+            }
+            let Some(&k) = a.joints.first().and_then(|n| joint_index.get(n)) else { continue };
+            if plane_axis_of.get(&k) != Some(&2) {
+                continue;
+            }
+            let sec = m.area_sections.iter().find(|s| s.name == a.section);
+            let weight = sec.and_then(|s| materials.get(&s.material)).map_or(0.0, |&i| m.materials[i].unit_weight);
+            if weight > 0.0 {
+                issues.push(issue(
+                    format!("area {}", a.name),
+                    "section",
+                    "its weight acts out of the plane of a plane area and would not be carried: use a shell or plate section",
+                ));
+            }
+        }
+    }
+}
+
+/// Loads, imposed displacements and springs on a component the analysis holds
+/// for a plane area (decision 0033): they would be dropped without a word,
+/// because the element has no stiffness there.
+fn check_plane_dofs(
+    m: &Model,
+    joint_index: &HashMap<Name, usize>,
+    plane_axis_of: &HashMap<usize, usize>,
+    issues: &mut Vec<Issue>,
+) {
+    let held = |j: usize| -> Vec<usize> {
+        match plane_axis_of.get(&j) {
+            Some(&axis) => vec![axis, 3, 4, 5],
+            None => Vec::new(),
+        }
+    };
+    for (k, jl) in m.joint_loads.iter().enumerate() {
+        let Some(&j) = joint_index.get(&jl.joint) else { continue };
+        for d in held(j) {
+            if jl.values[d] != 0.0 {
+                issues.push(issue(
+                    format!("joint load #{k}"),
+                    "values",
+                    format!(
+                        "{} of joint '{}' is out of the plane of a plane area: the load would not be carried (decision 0033)",
+                        DOF_NAMES[d], jl.joint
+                    ),
+                ));
+            }
+        }
+    }
+    for (k, jd) in m.joint_displacements.iter().enumerate() {
+        let Some(&j) = joint_index.get(&jd.joint) else { continue };
+        for d in held(j) {
+            if jd.values[d] != 0.0 {
+                issues.push(issue(
+                    format!("joint displacement #{k}"),
+                    "values",
+                    format!(
+                        "{} of joint '{}' is out of the plane of a plane area: the displacement would not be imposed (decision 0033)",
+                        DOF_NAMES[d], jd.joint
+                    ),
+                ));
+            }
+        }
+    }
+    for (j, joint) in m.joints.iter().enumerate() {
+        for d in held(j) {
+            if joint.springs[d] > 0.0 {
+                issues.push(issue(
+                    format!("joint {}", joint.name),
+                    &format!("springs[{}]", DOF_NAMES[d]),
+                    "out of the plane of a plane area: the spring would not be used (decision 0033)",
+                ));
+            }
+        }
     }
 }
 
@@ -716,7 +935,9 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
         frame_refs.push((ji.unwrap_or(usize::MAX), jj.unwrap_or(usize::MAX), sk.unwrap_or(usize::MAX), mk));
     }
 
-    check_areas(&m, &mat_idx, &joint_index, &mut connected, &mut issues);
+    let mut plane_axis_of: HashMap<usize, usize> = HashMap::new();
+    check_areas(&m, &mat_idx, &joint_index, &mut connected, &mut plane_axis_of, &mut issues);
+    check_plane_dofs(&m, &joint_index, &plane_axis_of, &mut issues);
     index_unique("constraint", m.constraints.iter().map(|c| c.name()), &mut issues);
     let mut constrained: HashMap<usize, &str> = HashMap::new();
     for c in &m.constraints {
@@ -1847,5 +2068,172 @@ mod tests {
         c.sections[0].i33 = 2e-4;
         let c = validate(&c).expect("ok");
         assert_ne!(a.hash, c.hash);
+    }
+    /// The cantilever plus a flat area with a plane section.
+    fn plane_area(corners: [[f64; 3]; 4]) -> Model {
+        let mut m = with_area(corners);
+        m.area_sections[0].behavior = AreaBehavior::Plane;
+        m
+    }
+
+    /// The cantilever plus a wall in the plane y = 5.
+    fn plane_wall() -> Model {
+        plane_area([[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 5.0, 3.0], [0.0, 5.0, 3.0]])
+    }
+
+    #[test]
+    fn plane_axis_is_the_one_coordinate_that_does_not_move() {
+        assert_eq!(plane_axis(&[[0.0, 0.0, 2.0], [1.0, 0.0, 2.0], [1.0, 1.0, 2.0]]), Some(2));
+        assert_eq!(plane_axis(&[[0.0, 4.0, 0.0], [0.0, 4.0, 3.0], [2.0, 4.0, 3.0]]), Some(1));
+        assert_eq!(plane_axis(&[[5.0, 0.0, 0.0], [5.0, 1.0, 0.0], [5.0, 1.0, 1.0]]), Some(0));
+        // Tilted: no coordinate stays put.
+        assert_eq!(plane_axis(&[[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]), None);
+        // A line is not a plane, and neither is a single point.
+        assert_eq!(plane_axis(&[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]), None);
+        assert_eq!(plane_axis(&[[1.0, 1.0, 1.0]]), None);
+    }
+
+    #[test]
+    fn a_plane_section_has_no_plate_and_its_area_has_to_be_flat() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+        assert!(validate(&plane_area(flat)).is_ok());
+
+        let tilted = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 1.0], [0.0, 7.0, 1.0]];
+        let errs = validate(&plane_area(tilted)).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("global axis plane")), "{errs:?}");
+
+        let mut plate = plane_area(flat);
+        plate.area_sections[0].bending_thickness = Some(0.1);
+        assert!(validate(&plate).expect_err("fail").iter().any(|i| i.field == "bending_thickness"));
+
+        let mut layered = plane_area(flat);
+        layered.area_sections[0].layers = vec![Layer { thickness: 0.2, material: "S".into() }];
+        assert!(validate(&layered).expect_err("fail").iter().any(|i| i.field == "layers"));
+    }
+
+    #[test]
+    fn a_plane_area_does_not_mix_with_3d_elements_or_with_another_plane() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+
+        // The joint of a frame, held by the plane area, would hold the frame.
+        let mut m = plane_area(flat);
+        m.areas[0].joints[0] = "1".into();
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("shares a joint with a frame")), "{errs:?}");
+
+        // Two planes through one joint: that joint would be held twice over.
+        // A wall standing on the edge A0A1 of the horizontal area.
+        let mut m = plane_area(flat);
+        m.joints.push(Joint {
+            name: "V".into(),
+            x: 1.0,
+            y: 5.0,
+            z: 2.0,
+            restraint: [false; 6],
+            springs: [0.0; 6],
+            added_mass: [0.0; 6],
+        });
+        m.area_sections.push(AreaSection {
+            name: "PW".into(),
+            material: "S".into(),
+            thickness: 0.2,
+            bending_thickness: None,
+            behavior: AreaBehavior::Plane,
+            layers: Vec::new(),
+        });
+        m.areas.push(Area {
+            name: "W".into(),
+            joints: vec!["A0".into(), "A1".into(), "V".into()],
+            section: "PW".into(),
+            auto_mesh: None,
+        });
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("different plane")), "{errs:?}");
+    }
+
+    #[test]
+    fn loads_out_of_the_plane_of_a_plane_area_are_refused() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+        let load =
+            |d: LoadDirection, v: f64| AreaLoad { pattern: "P".into(), area: "Q".into(), direction: d, value: v };
+
+        // Gravity is out of a horizontal plane.
+        let mut m = plane_area(flat);
+        m.area_loads = vec![load(LoadDirection::Gravity, 1e3)];
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.field == "direction"), "{errs:?}");
+
+        // Local 3 is the normal, and a zero value carries nothing.
+        let mut m = plane_area(flat);
+        m.area_loads = vec![load(LoadDirection::Local3, 1e3)];
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "direction"));
+        let mut m = plane_area(flat);
+        m.area_loads = vec![load(LoadDirection::Local3, 0.0), load(LoadDirection::GlobalX, 1e3)];
+        assert!(validate(&m).is_ok());
+
+        // A wall keeps gravity in its plane and loses the load along its normal.
+        let mut m = plane_wall();
+        m.area_loads = vec![load(LoadDirection::Gravity, 1e3), load(LoadDirection::Local1, 1e3)];
+        assert!(validate(&m).is_ok());
+        let mut m = plane_wall();
+        m.area_loads = vec![load(LoadDirection::GlobalY, 1e3)];
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "direction"));
+    }
+
+    #[test]
+    fn the_weight_of_a_horizontal_plane_area_is_refused() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+        let mut m = plane_area(flat);
+        m.materials[0].unit_weight = 78000.0;
+        assert!(validate(&m).is_ok(), "no pattern applies it");
+        m.load_patterns[0].self_weight_multiplier = 1.0;
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("weight")), "{errs:?}");
+
+        // A wall carries its own weight: it acts in its plane.
+        let mut m = plane_wall();
+        m.materials[0].unit_weight = 78000.0;
+        m.load_patterns[0].self_weight_multiplier = 1.0;
+        assert!(validate(&m).is_ok());
+    }
+
+    #[test]
+    fn joint_loads_and_springs_out_of_the_plane_are_refused() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+
+        // A load the element has no stiffness against would be dropped.
+        let mut m = plane_area(flat);
+        m.joint_loads.push(JointLoad {
+            pattern: "P".into(),
+            joint: "A0".into(),
+            values: [0.0, 0.0, 5.0, 0.0, 0.0, 0.0],
+        });
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("out of the plane")), "{errs:?}");
+
+        // Same for a grounded spring: the analysis holds that component, so the
+        // spring would never deform.
+        let mut m = plane_area(flat);
+        m.joints[2].springs[2] = 1e6;
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.field == "springs[UZ]"), "{errs:?}");
+
+        // In plane, both are ordinary.
+        let mut m = plane_area(flat);
+        m.joint_loads.push(JointLoad {
+            pattern: "P".into(),
+            joint: "A0".into(),
+            values: [5.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        });
+        assert!(validate(&m).is_ok());
+    }
+
+    #[test]
+    fn a_file_from_before_the_plane_behaviour_cannot_carry_it() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+        let m = plane_area(flat);
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 10.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 10, .. })));
     }
 }

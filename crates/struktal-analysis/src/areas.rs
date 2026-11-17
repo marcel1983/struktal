@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use struktal_core::{AreaBehavior, AreaSection, Model, Name, Snapshot, laminate_abc};
 use struktal_elements::frame3d::Vec3;
+use struktal_elements::plane::{self, PlaneProps};
 use struktal_elements::shell3;
 use struktal_elements::shell4::{self, Mat24, ShellProps};
 
@@ -20,6 +21,8 @@ pub struct AreaData {
     pub xy: [[f64; 2]; 4],
     pub corners: [Vec3; 4],
     pub props: ShellProps,
+    /// Plane-stress properties, when the area is a plane one (decision 0033).
+    pub plane: Option<PlaneProps>,
     pub k_global: Mat24,
     /// Weight per unit area.
     pub weight: f64,
@@ -69,6 +72,32 @@ fn laminate_props(mut props: ShellProps, m: &Model, sec: &AreaSection) -> ShellP
     props.g = g_integral / total;
     props
 }
+/// Plane-stress stiffness in the 24-DOF frame: the 2 in-plane DOF of each node.
+fn plane_local(xy: &[[f64; 2]; 4], nodes: usize, p: &PlaneProps) -> Mat24 {
+    let mut k = [[0.0; 8]; 8];
+    if nodes == 3 {
+        let k6 = plane::tri_stiffness(&[xy[0], xy[1], xy[2]], p);
+        for i in 0..6 {
+            for j in 0..6 {
+                k[i][j] = k6[i][j];
+            }
+        }
+    } else {
+        k = plane::quad_stiffness(xy, p);
+    }
+    let mut out = [[0.0; 24]; 24];
+    for n in 0..nodes {
+        for m in 0..nodes {
+            for i in 0..2 {
+                for j in 0..2 {
+                    out[6 * n + i][6 * m + j] = k[2 * n + i][2 * m + j];
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Per area, in the order of the model. Sections and joints are validated.
 pub fn build(s: &Snapshot) -> Vec<AreaData> {
     let m = &s.model;
@@ -102,7 +131,16 @@ pub fn build(s: &Snapshot) -> Vec<AreaData> {
             if !sec.layers.is_empty() {
                 props = laminate_props(props, m, sec);
             }
-            let local = if nodes == 3 {
+            // A plane area is a 2D idealisation with two DOF per node
+            // (decision 0033). Its two are the local axes 1 and 2 of the
+            // area, so the element matrix goes straight into the 24-DOF frame
+            // and `to_global` does the rotation.
+            let mut plane_props = None;
+            let local = if sec.behavior == AreaBehavior::Plane {
+                let pp = PlaneProps { e: mat.e, nu: mat.nu, thickness: sec.thickness };
+                plane_props = Some(pp);
+                plane_local(&xy, nodes, &pp)
+            } else if nodes == 3 {
                 shell3::local_stiffness(&[xy[0], xy[1], xy[2]], &props)
             } else {
                 shell4::local_stiffness(&xy, &props)
@@ -120,6 +158,7 @@ pub fn build(s: &Snapshot) -> Vec<AreaData> {
                 xy,
                 corners,
                 props,
+                plane: plane_props,
                 k_global: to_global(&local, &axes),
                 weight: mat.unit_weight * sec.thickness,
             }
@@ -168,7 +207,39 @@ impl AreaData {
 
     /// ∫ Nᵢ dA per node.
     pub fn nodal_areas(&self) -> [f64; 4] {
+        if self.plane.is_some() {
+            return if self.nodes == 3 {
+                plane::tri_nodal_areas(&[self.xy[0], self.xy[1], self.xy[2]])
+            } else {
+                plane::quad_nodal_areas(&self.xy)
+            };
+        }
         if self.nodes == 3 { shell3::nodal_areas(&self.triangle()) } else { shell4::nodal_areas(&self.xy) }
+    }
+
+    /// The in-plane displacements of the nodes, as the plane element wants them.
+    fn plane_uv(&self, local: &[f64; 24]) -> [f64; 8] {
+        let mut uv = [0.0; 8];
+        for n in 0..self.nodes {
+            uv[2 * n] = local[6 * n];
+            uv[2 * n + 1] = local[6 * n + 1];
+        }
+        uv
+    }
+
+    /// Section forces [F11, F22, F12] per unit length in the area's local
+    /// axes, and zeros in the six shell slots (decision 0033). A plane area
+    /// has no plate result, and its stresses are reported as the forces per
+    /// unit length the shell reports, so `F11` means the same in both.
+    fn plane_stress(&self, pp: &PlaneProps, local: &[f64; 24], r: f64, s: f64) -> [f64; 8] {
+        let uv = self.plane_uv(local);
+        let sigma = if self.nodes == 3 {
+            plane::tri_stress(&[self.xy[0], self.xy[1], self.xy[2]], pp, &[uv[0], uv[1], uv[2], uv[3], uv[4], uv[5]])
+        } else {
+            plane::quad_stress(&self.xy, pp, &uv, r, s)
+        };
+        let t = pp.thickness;
+        [sigma[0] * t, sigma[1] * t, sigma[2] * t, 0.0, 0.0, 0.0, 0.0, 0.0]
     }
 
     fn triangle(&self) -> [[f64; 2]; 3] {
@@ -189,6 +260,18 @@ impl AreaData {
 
     pub fn result(&self, name: &str, ue: &[f64; 24]) -> AreaResult {
         let local = self.to_local(ue);
+        if let Some(pp) = &self.plane {
+            // (0, 0) are the natural coordinates of both shapes: the centroid of
+            // the triangle and the centre of the quadrilateral.
+            let center = self.plane_stress(pp, &local, 0.0, 0.0);
+            let corners = (0..self.nodes)
+                .map(|k| match self.nodes {
+                    3 => self.plane_stress(pp, &local, [0.0, 1.0, 0.0][k], [0.0, 0.0, 1.0][k]),
+                    _ => self.plane_stress(pp, &local, [-1.0, 1.0, 1.0, -1.0][k], [-1.0, -1.0, 1.0, 1.0][k]),
+                })
+                .collect();
+            return AreaResult { area: name.to_string(), center, corners };
+        }
         if self.nodes == 3 {
             let tri = self.triangle();
             let at = |r: f64, s: f64| shell3::resultants(&tri, &self.props, &local, r, s);

@@ -25,7 +25,10 @@ use crate::units::{Dim, UnitSystem};
 /// Older files have none (decision 0031).
 /// v10 (2026-11-16): laminated area sections, `area_sections[].layers`. Older
 /// files have none, so they migrate unchanged (decision 0032).
-pub const SCHEMA_VERSION: u32 = 10;
+/// v11 (2026-11-17): plane area sections, `area_sections[].behavior: Plane`.
+/// An older reader cannot parse that value, so it refuses the file instead of
+/// reading it as something else (decision 0033).
+pub const SCHEMA_VERSION: u32 = 11;
 
 pub type Name = String;
 
@@ -208,6 +211,9 @@ pub enum AreaBehavior {
     Shell,
     Membrane,
     Plate,
+    /// Plane stress: two degrees of freedom per node, in a global coordinate
+    /// plane (decision 0033).
+    Plane,
 }
 
 /// Homogeneous isotropic area section (decision 0019).
