@@ -47,14 +47,16 @@ fn tri_b(xy: &[[f64; 2]; 3]) -> ([[f64; 6]; 3], f64) {
     (b, det)
 }
 
-struct QuadPoint {
-    n: [f64; 4],
-    dx: [f64; 4],
-    dy: [f64; 4],
-    det: f64,
+/// Shape functions and derivatives of the bilinear quadrilateral, shared with
+/// the axisymmetric element (`axisym.rs`).
+pub(crate) struct QuadPoint {
+    pub(crate) n: [f64; 4],
+    pub(crate) dx: [f64; 4],
+    pub(crate) dy: [f64; 4],
+    pub(crate) det: f64,
 }
 
-fn quad_point(xy: &[[f64; 2]; 4], r: f64, s: f64) -> QuadPoint {
+pub(crate) fn quad_point(xy: &[[f64; 2]; 4], r: f64, s: f64) -> QuadPoint {
     let (mut j00, mut j01, mut j10, mut j11) = (0.0, 0.0, 0.0, 0.0);
     for i in 0..4 {
         let (dr, ds) = (0.25 * XI[i] * (1.0 + s * ETA[i]), 0.25 * ETA[i] * (1.0 + r * XI[i]));
