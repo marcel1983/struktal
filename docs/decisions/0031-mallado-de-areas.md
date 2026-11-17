@@ -38,6 +38,21 @@ ocurría con las áreas importadas de un S2K mallado (decisión 0021).
   - resultante `sum(FX) = -2000 N` en ambos (conservación exacta);
   - `ux` 9,489e-8 frente a 9,775e-8 (**2,9 %**, malla gruesa frente a malla fina).
 
+## Un caso de verificación que no se cierra
+
+Se intentó un *patch test*: placa 1 × 1 m con `u = (ε x, -ν ε y)` impuesto en
+los cuatro vértices, malla 2 × 2 y el nodo central libre. Si el elemento reproduce
+un estado de deformación constante, el centro debe caer en `(ε/2, -ν ε/2)`.
+
+Cae en **0,633** del campo (`ux = 3,165e-4` frente a `5e-4`, y `uy` en la misma
+proporción). Con el borde totalmente empotrado aparece una capa límite de
+**taladro** que a malla gruesa no ha decaído en el centro. No es un efecto del
+mallado —el campo impuesto es el mismo con y sin malla— sino del elemento de
+lámina.
+
+Por eso **no se añadió** como caso de `verification/cases/`: un caso que falla no
+puede entrar en el banco. Queda como pregunta abierta, y F03-008 sigue `partial`.
+
 ## Límites
 
 - Sin comparación contra SAP2000: el perfil no tiene oráculo para F03-008.
