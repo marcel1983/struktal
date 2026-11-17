@@ -12,7 +12,10 @@ Actualizado: 2026-11-17. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 
 - `docs/plan-fases-restantes.md`: lista completa de las fases que faltan (F03 a
   F20 y los huecos de F01–F02), con el criterio de aceptación de cada tarea y el
-  orden de trabajo. Se marca ahí, no en la conversación.
+  orden de trabajo.
+- `docs/tareas-pendientes.md`: las mismas fases en tareas con id (`T-001` …
+  `T-124`), dependencias y casilla. Es la que se marca; el plan explica el
+  criterio y esta dice qué hacer.
 
 ## Entregas
 
