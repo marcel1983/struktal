@@ -1,7 +1,9 @@
 //! Area elements in the assembly: local axes, stiffness in global axes, loads
 //! and section forces (decision 0019).
 
-use struktal_core::{AreaBehavior, Snapshot};
+use std::collections::HashMap;
+
+use struktal_core::{AreaBehavior, AreaSection, Model, Name, Snapshot, laminate_abc};
 use struktal_elements::frame3d::Vec3;
 use struktal_elements::shell3;
 use struktal_elements::shell4::{self, Mat24, ShellProps};
@@ -44,6 +46,29 @@ pub fn local_axes(corners: &[Vec3; 4]) -> [Vec3; 3] {
     [e1, cross(e3, e1), e3]
 }
 
+/// Properties of a laminated area section (decision 0032): `a` and `d` per unit
+/// width from the layer stack, and the transverse shear as `k ∫ G dz` with
+/// k = 5/6, carried as an equivalent `g · shear_t` so the element needs no new
+/// input. Validation has already refused a stack that couples (`b ≠ 0`).
+fn laminate_props(mut props: ShellProps, m: &Model, sec: &AreaSection) -> ShellProps {
+    let stiffness: HashMap<Name, (f64, f64)> = m.materials.iter().map(|x| (x.name.clone(), (x.e, x.nu))).collect();
+    let abc = laminate_abc(&sec.layers, &stiffness).expect("validated laminate");
+    let total: f64 = sec.layers.iter().map(|l| l.thickness).sum();
+    let g_integral: f64 = sec
+        .layers
+        .iter()
+        .map(|l| {
+            let (e, nu) = stiffness[&l.material];
+            e / (2.0 * (1.0 + nu)) * l.thickness
+        })
+        .sum();
+    props.laminate = Some(abc);
+    props.membrane_t = if props.membrane_t > 0.0 { total } else { 0.0 };
+    props.bending_t = if props.bending_t > 0.0 { total } else { 0.0 };
+    props.shear_t = if props.bending_t > 0.0 { 5.0 / 6.0 * total } else { 0.0 };
+    props.g = g_integral / total;
+    props
+}
 /// Per area, in the order of the model. Sections and joints are validated.
 pub fn build(s: &Snapshot) -> Vec<AreaData> {
     let m = &s.model;
@@ -63,14 +88,20 @@ pub fn build(s: &Snapshot) -> Vec<AreaData> {
             let mat = m.materials.iter().find(|x| x.name == sec.material).expect("validated material");
             let g = mat.g.unwrap_or(mat.e / (2.0 * (1.0 + mat.nu)));
             let bending = sec.bending_thickness.unwrap_or(sec.thickness);
-            let props = ShellProps {
+            // A laminate carries `a` and `d` per unit width, so the element takes
+            // them instead of an equivalent E and t (decision 0032).
+            let mut props = ShellProps {
                 e: mat.e,
                 nu: mat.nu,
                 g,
                 membrane_t: if sec.behavior == AreaBehavior::Plate { 0.0 } else { sec.thickness },
                 bending_t: if sec.behavior == AreaBehavior::Membrane { 0.0 } else { bending },
                 shear_t: if sec.behavior == AreaBehavior::Membrane { 0.0 } else { 5.0 / 6.0 * bending },
+                laminate: None,
             };
+            if !sec.layers.is_empty() {
+                props = laminate_props(props, m, sec);
+            }
             let local = if nodes == 3 {
                 shell3::local_stiffness(&[xy[0], xy[1], xy[2]], &props)
             } else {

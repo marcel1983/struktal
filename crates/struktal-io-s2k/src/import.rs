@@ -697,7 +697,14 @@ impl Importer<'_> {
             }
             let thickness = self.need_num(P, row, "Thickness");
             let bending = self.opt_num(P, row, "BendThick").filter(|t| *t != thickness);
-            sections.push(AreaSection { name, material, thickness, bending_thickness: bending, behavior });
+            sections.push(AreaSection {
+                name,
+                material,
+                thickness,
+                bending_thickness: bending,
+                behavior,
+                layers: Vec::new(),
+            });
         }
         (sections, areas)
     }

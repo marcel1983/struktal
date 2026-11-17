@@ -9,6 +9,7 @@ use std::fmt;
 
 use sha2::{Digest, Sha256};
 
+use crate::laminate::laminate_abc;
 use crate::model::*;
 
 /// Relative tolerance for coincident joints / zero-length frames.
@@ -152,6 +153,17 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             .is_some_and(|areas| areas.iter().any(|a| a.get("auto_mesh").is_some()));
         if has_area_mesh {
             return Err(newer("areas[].auto_mesh"));
+        }
+    }
+    if ver < 10 {
+        // Same rule for the laminated section: never give an older file v10
+        // semantics.
+        let has_layers = raw
+            .get("area_sections")
+            .and_then(|v| v.as_array())
+            .is_some_and(|secs| secs.iter().any(|s| is_set(s.get("layers"))));
+        if has_layers {
+            return Err(newer("area_sections[].layers"));
         }
     }
     if ver < 7 && has_value(&raw, "mass_source") {
@@ -434,6 +446,51 @@ fn check_areas(
         }
         if !materials.contains_key(&s.material) {
             issues.push(issue(&e, "material", format!("unknown material '{}'", s.material)));
+        }
+        if !s.layers.is_empty() {
+            if s.bending_thickness.is_some() {
+                issues.push(issue(
+                    &e,
+                    "bending_thickness",
+                    "a laminated section carries its bending stiffness in the layers: bending_thickness does not apply",
+                ));
+            }
+            let mut total = 0.0;
+            for layer in &s.layers {
+                total += layer.thickness;
+                if !layer.thickness.is_finite() || layer.thickness <= 0.0 {
+                    issues.push(issue(
+                        &e,
+                        "layers",
+                        format!("layer '{}': thickness must be positive and finite", layer.material),
+                    ));
+                }
+                if !materials.contains_key(&layer.material) {
+                    issues.push(issue(&e, "layers", format!("unknown material '{}'", layer.material)));
+                }
+            }
+            if (total - s.thickness).abs() > 1e-9 * s.thickness.abs().max(1.0) {
+                issues.push(issue(
+                    &e,
+                    "layers",
+                    format!("the layers add up to {total}, not to the thickness {}", s.thickness),
+                ));
+            }
+            // The flat element has no bending-extension coupling, so a stack
+            // whose `b` is not zero is refused instead of being solved as if it
+            // were zero (decision 0032).
+            let stiffness: HashMap<Name, (f64, f64)> =
+                m.materials.iter().map(|x| (x.name.clone(), (x.e, x.nu))).collect();
+            if let Ok(abc) = laminate_abc(&s.layers, &stiffness) {
+                let scale = abc.a[0][0].abs().max(1.0) * s.thickness;
+                if abc.b.iter().flatten().any(|v| v.abs() > 1e-9 * scale) {
+                    issues.push(issue(
+                        &e,
+                        "layers",
+                        "the stack couples bending and extension (b is not zero), which the shell element does not support yet",
+                    ));
+                }
+            }
         }
     }
     for a in &m.areas {
@@ -892,6 +949,7 @@ pub fn hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::laminate::Layer;
     use crate::units::{ForceUnit, LengthUnit, UnitSystem};
 
     fn cantilever() -> Model {
@@ -1429,6 +1487,7 @@ mod tests {
             thickness: 0.2,
             bending_thickness: None,
             behavior: AreaBehavior::Shell,
+            layers: Vec::new(),
         }];
         m.areas = vec![Area {
             name: "Q".into(),
@@ -1439,6 +1498,37 @@ mod tests {
         m
     }
 
+    #[test]
+    fn laminated_sections_carry_their_layers() {
+        let mut m = with_area([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]]);
+        for (name, e) in [("SKIN", 2e11), ("CORE", 10e9)] {
+            m.materials.push(Material { name: name.into(), e, nu: 0.3, g: None, unit_weight: 0.0, mass_density: 0.0 });
+        }
+        let layer = |t: f64, name: &str| Layer { thickness: t, material: name.into() };
+        m.area_sections[0].layers = vec![layer(0.01, "SKIN"), layer(0.18, "CORE"), layer(0.01, "SKIN")];
+        assert!(validate(&m).is_ok());
+
+        // The layers have to add up to the thickness.
+        let mut short = m.clone();
+        short.area_sections[0].layers[1].thickness = 0.17;
+        assert!(validate(&short).expect_err("fail").iter().any(|i| i.field == "layers"));
+
+        // A stack that couples bending and extension is refused, not approximated.
+        let mut coupled = m.clone();
+        coupled.area_sections[0].layers = vec![layer(0.1, "SKIN"), layer(0.1, "CORE")];
+        let text = format!("{:?}", validate(&coupled).expect_err("must fail"));
+        assert!(text.contains("couples"), "{text}");
+
+        // With layers, bending_thickness has nothing to say.
+        let mut both = m.clone();
+        both.area_sections[0].bending_thickness = Some(0.15);
+        assert!(validate(&both).expect_err("fail").iter().any(|i| i.field == "bending_thickness"));
+
+        // A file from before the layers existed cannot carry them.
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 9.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 9, .. })));
+    }
     #[test]
     fn a_mass_source_needs_schema_7_and_known_patterns() {
         let mut m = cantilever();

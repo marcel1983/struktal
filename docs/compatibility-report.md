@@ -44,7 +44,8 @@ Lo que **no** establece: láminas, modos, espectros, combinaciones no lineales, 
 - Carga sísmica automática por coeficiente de usuario, desde la masa del modelo (decisión 0024).
 - Mecanismos que las liberaciones dejan con solo redondeo en la diagonal, detectados aparte del control de pivotes (decisión 0025).
 - Mallado de áreas para el análisis (decisión 0031): un área pide `auto_mesh {m, n}` y el modelo sigue teniendo un objeto; el análisis lo sustituye por `m × n` sub-áreas (o `n²` triángulos). Los puntos de la malla se reutilizan si la posición ya existe, así que dos áreas vecinas comparten el borde, y un nudo nuevo en un borde hereda los GDL que ambos extremos restrinjan. La carga del objeto pasa a cada sub-área con la misma intensidad: la resultante se conserva exacta (medido: −2000 N con y sin malla).
-- Banco de 66 casos, 65 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
+- Secciones de área laminadas (decisión 0032): una sección declara `layers` y el elemento toma `A` y `D` por unidad de ancho en lugar de `E`, `ν` y `t`; el acoplamiento `b` no está soportado y una pila que lo necesite se rechaza al validar.
+- Banco de 67 casos, 66 analíticos y 1 contra valores publicados, todos pasan con ambos backends (rtol 1e-8, o la que fija cada caso).
 
 ## Discrepancias y riesgos conocidos frente a SAP2000
 
@@ -53,7 +54,7 @@ Lo que **no** establece: láminas, modos, espectros, combinaciones no lineales, 
 | Convención de signos de V2, V3, M2, M3 | Propia (decisión 0003), **verificada en estático lineal** el 2026-11-15: 11 casos, 276 valores, sin diferencias. Resta el resto de casos y la convención de salida. |
 | Ejes locales de barras verticales/casi verticales | Implementado según la ayuda [S06]; umbral sin confirmar. Contrastados en C02 para verticales, inclinadas y oblicuas, sin diferencias en los casos probados. |
 | Deformación por cortante | Implementada (decisión 0007). Con una forma, As es automática por reglas de ingeniería (decisión 0017), sin contrastar con los valores de SAP2000; una sección general sin As se comporta como Euler–Bernoulli. |
-| Láminas | Sin mallado propio de áreas; MITC4 y MITC3 en lugar de una formulación delgada propia; el triángulo es rígido en flexión en su plano y pide mallas finas en muros (decisión 0021); taladro y membrana distintos de lo que pueda usar SAP2000; ejes locales y signos sin confirmar. |
+| Láminas | Sin mallado propio de áreas; MITC4 y MITC3 en lugar de una formulación delgada propia; el triángulo es rígido en flexión en su plano y pide mallas finas en muros (decisión 0021); secciones laminadas con `A` y `D`, sin el acoplamiento `b` (decisión 0032); taladro y membrana distintos de lo que pueda usar SAP2000; ejes locales y signos sin confirmar. |
 | Dinámica | Masa concentrada; la masa desde patrones reparte por fuerzas de empotramiento, con g y direcciones sin confirmar (decisión 0022); sin masa faltante, combinación direccional ni excentricidad accidental; sin ajuste de la curva por amortiguamiento; sin recuento de Sturm. |
 | Sismo automático | Solo coeficiente de usuario. Peso, reparto con la altura y origen de las alturas recordados de la documentación, sin contrastar; la excentricidad se deja fuera cuando no hay diafragmas, y con diafragmas el patrón se rechaza (decisión 0024). |
 | Secciones paramétricas | J de pared delgada y As por reglas de ingeniería; sin acuerdos de perfiles laminados, sin T, canal, ángulo ni tablas. C03 contrasta las propiedades de las formas que sí existen. |

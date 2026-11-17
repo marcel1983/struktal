@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::laminate::Layer;
 use crate::units::{Dim, UnitSystem};
 
 /// v2 (2026-10-30): shear areas `as2`, `as3` on frame sections. v1 files are
@@ -20,7 +21,11 @@ use crate::units::{Dim, UnitSystem};
 /// v7 (2026-11-06): mass_source. Older files have none (decision 0022).
 /// v8 (2026-11-09): auto_seismic on load patterns. Older files have none
 /// (decision 0024).
-pub const SCHEMA_VERSION: u32 = 9;
+/// v9 (2026-11-16): automatic subdivision of areas, `areas[].auto_mesh`.
+/// Older files have none (decision 0031).
+/// v10 (2026-11-16): laminated area sections, `area_sections[].layers`. Older
+/// files have none, so they migrate unchanged (decision 0032).
+pub const SCHEMA_VERSION: u32 = 10;
 
 pub type Name = String;
 
@@ -217,6 +222,11 @@ pub struct AreaSection {
     pub bending_thickness: Option<f64>,
     #[serde(default)]
     pub behavior: AreaBehavior,
+    /// Layers of a laminated section, from the −3 face to the +3 one
+    /// (decision 0032). Their thicknesses add up to `thickness`; with layers
+    /// present `bending_thickness` does not apply.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<Layer>,
 }
 
 /// Subdivision of an area for the analysis, in its own natural coordinates
@@ -662,6 +672,9 @@ impl Model {
         for s in &mut m.area_sections {
             s.thickness *= l;
             s.bending_thickness = s.bending_thickness.map(|t| t * l);
+            for layer in &mut s.layers {
+                layer.thickness *= l;
+            }
         }
         for a in &mut m.area_loads {
             a.value *= u.factor(Dim::STRESS);

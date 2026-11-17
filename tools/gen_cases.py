@@ -1577,6 +1577,64 @@ write("V-SHELL-001", "Exact states on a distorted mesh: tension and pure bending
     exp("area_center", "BEN", "BA1_0", "V13", 0.0, "N/m"),
 ], tol=CLOSED_AREA)
 
+# Laminated area section (decision 0032): a skin-core-skin stack. Its A and D are
+# layer sums, far from E t and E t^3/12 of any single layer, and the stack is
+# symmetric, so there is no coupling for the element to drop. One element with
+# imposed constant strain and constant curvature: both are exact, and the section
+# forces are the layer sums themselves.
+LAM_T, SKIN_T, CORE_T = 0.2, 0.01, 0.18
+E_SKIN, E_CORE = 200e9, 10e9
+Q_SKIN, Q_CORE = E_SKIN / (1 - NU**2), E_CORE / (1 - NU**2)
+LAM_A11 = 2 * Q_SKIN * SKIN_T + Q_CORE * CORE_T
+z0_, z1_, z2_, z3_ = -LAM_T / 2, -LAM_T / 2 + SKIN_T, LAM_T / 2 - SKIN_T, LAM_T / 2
+LAM_D11 = (Q_SKIN * (z1_**3 - z0_**3) + Q_CORE * (z2_**3 - z1_**3) + Q_SKIN * (z3_**3 - z2_**3)) / 3
+LAM_MATS = [{"name": "STEEL", "e": E, "nu": NU, "unit_weight": 0.0},
+            {"name": "SKIN", "e": E_SKIN, "nu": NU, "unit_weight": 0.0},
+            {"name": "CORE", "e": E_CORE, "nu": NU, "unit_weight": 0.0}]
+LAM_SEC = {"name": "SH", "material": "STEEL", "thickness": LAM_T,
+           "layers": [{"thickness": SKIN_T, "material": "SKIN"},
+                      {"thickness": CORE_T, "material": "CORE"},
+                      {"thickness": SKIN_T, "material": "SKIN"}]}
+EPS_, KAP_ = 1e-3, 1e-3
+# Every imposed component is restrained too: the solver needs the DOF held.
+LAM_REST = [True, True, True, True, True, False]
+lam_joints = [J("1", 0, 0, 0, FIX), J("2", 1, 0, 0, LAM_REST), J("3", 1, 1, 0, LAM_REST),
+              J("4", 0, 1, 0, LAM_REST)]
+lam_areas = [{"name": "A", "joints": ["1", "2", "3", "4"], "section": "SH"}]
+imp_t = [{"pattern": "TEN", "joint": "1", "values": [0, 0, 0, 0, 0, 0]},
+         {"pattern": "TEN", "joint": "2", "values": [EPS_, 0, 0, 0, 0, 0]},
+         {"pattern": "TEN", "joint": "3", "values": [EPS_, -NU * EPS_, 0, 0, 0, 0]},
+         {"pattern": "TEN", "joint": "4", "values": [0, -NU * EPS_, 0, 0, 0, 0]}]
+# Bending: kappa = (k, -nu k, 0), the anticlastic state a plate takes when its
+# edges are free to contract. Every rotation is imposed, because the element
+# recovers M = D kappa from the rotations alone; w is bilinear, so the element
+# carries some shear, and only the moments are checked.
+imp_b = [{"pattern": "BEN", "joint": "1", "values": [0, 0, 0, 0, 0, 0]},
+         {"pattern": "BEN", "joint": "2", "values": [0, 0, -KAP_ / 2, 0, KAP_, 0]},
+         {"pattern": "BEN", "joint": "3", "values": [0, 0, -KAP_ / 2, NU * KAP_, KAP_, 0]},
+         {"pattern": "BEN", "joint": "4", "values": [0, 0, 0, NU * KAP_, 0, 0]}]
+write("V-SHELL-006", "Laminated area: constant strain and constant curvature", ["F03-004"], model(
+    "V-SHELL-006 laminated area",
+    lam_joints, [], [], [{"name": "TEN"}, {"name": "BEN"}],
+    cases=[{"type": "LinearStatic", "name": n_, "loads": [{"pattern": n_, "scale": 1.0}]} for n_ in ["TEN", "BEN"]],
+    schema=10, materials=LAM_MATS, area_sections=[LAM_SEC], areas=lam_areas,
+    imposed=imp_t + imp_b,
+), {"kind": "analytical",
+    "source": "Laminated section under imposed constant strain and constant curvature: N = A eps and M = D kappa, with A and D the layer sums",
+    "derivation": ["Q = E/(1-nu^2), A = sum Q t, D = sum Q (z1^3 - z0^3)/3, z from the mid-plane",
+                   "TEN: u = (eps x, -nu eps y) gives N11 = eps (1-nu^2) A11, N22 = N12 = 0",
+                   "BEN: w = -k x^2/2, theta_x = k x, theta_y = -nu k y gives kappa = (k, -nu k, 0)",
+                   "M11 = (1 - nu^2) D11 k and M22 = M12 = 0: the anticlastic state, at no energy cost",
+                   "the corner at x = 0 carries half of the edge: R = -N11 / 2"]}, [
+    exp("area_center", "TEN", "A", "F11", EPS_ * (1 - NU**2) * LAM_A11, "N/m"),
+    exp("area_center", "TEN", "A", "F22", 0.0, "N/m"),
+    exp("area_center", "TEN", "A", "F12", 0.0, "N/m"),
+    exp("joint_reaction", "TEN", "1", "FX", -0.5 * EPS_ * (1 - NU**2) * LAM_A11, "N"),
+    exp("area_center", "BEN", "A", "M11", (1 - NU**2) * KAP_ * LAM_D11, "N*m/m"),
+    exp("area_center", "BEN", "A", "M22", 0.0, "N*m/m"),
+    exp("area_center", "BEN", "A", "M12", 0.0, "N*m/m"),
+], tol=CLOSED_AREA)
+
 # Wall bending in its plane: one row of elements, exact with the incompatible
 # modes (a plain bilinear membrane locks here). Then a tip shear at a fine mesh.
 Lw, Hw, tw3, Mw = 6.0, 1.0, 0.2, 60_000.0
