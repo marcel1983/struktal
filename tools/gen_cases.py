@@ -2310,4 +2310,176 @@ write("V-SEIS-003", "Auto seismic load with no mass above the base: an error tha
     exp("joint_displacement", "S", "B", "UX", 1000.0 * Hc**3 / (3 * E * EI_c["i33"]), "m"),
 ], expected_status=[{"case": "SX", "completion": "error", "physical_status": "indeterminate", "message_contains": "no mass along X"}])
 
+# ------------------------------------------------------- V-PLANE-001 (0033)
+# A 2 x 1 strip of plane stress pulled on the edge x = 2 (decision 0033). The
+# restraints are exactly what u = (p/E) x and v = -(nu p/E) y need, and that
+# field is bilinear, so the element reproduces it to round-off: the tolerance
+# is the closed-form one, not that of a mesh.
+PL_P, PL_T = 1e6, 0.1
+pl_e = PL_P / E                                   # 5e-6, the strain of the strip
+pl_force = PL_P * PL_T / 2.0                      # 50000 N: the traction, in halves
+write("V-PLANE-001", "Plane strip in uniaxial tension: the exact constant strain",
+      ["F03-005", "F06-002"], model(
+    "V-PLANE-001 plane strip",
+    [J("A", 0, 0, 0, [True, True, False, False, False, False]),
+     J("B", 2, 0, 0, [False, True, False, False, False, False]),
+     J("C", 2, 1, 0),
+     J("D", 0, 1, 0, [True, False, False, False, False, False])],
+    [], [SEC], [{"name": "T"}],
+    joint_loads=[{"pattern": "T", "joint": n_, "values": [pl_force, 0.0, 0.0, 0.0, 0.0, 0.0]}
+                 for n_ in ("B", "C")],
+    schema=11,
+    area_sections=[dict(name="P", material="STEEL", thickness=PL_T, behavior="Plane")],
+    areas=[{"name": "Q", "section": "P", "joints": ["A", "B", "C", "D"]}],
+), {"kind": "analytical",
+    "source": "Uniaxial plane stress of a strip (Hooke): sigma_x = p, epsilon_x = p/E, epsilon_y = -nu p/E",
+    "derivation": [
+        "u = (p/E) x and v = -(nu p/E) y satisfy the four restraints and are bilinear, so they are the exact answer",
+        "the traction p t of the edge x = 2 integrates to p t h/2 = 50000 N at B and at C",
+        "the edge x = 0 carries -p t h, half of it at A and half at D; the edges y = 0 and y = 1 carry no traction",
+        "F11 = p t = 1e5 N/m, F22 = F12 = 0 and no plate: a plane area reports stresses times its thickness",
+        "external work = 0.5 (2 x 50000 N x 1e-5 m) = 0.5 J"], }, [
+    exp("joint_displacement", "LC1", "A", "UX", 0.0, "m"),
+    exp("joint_displacement", "LC1", "B", "UX", 2 * pl_e, "m"),
+    exp("joint_displacement", "LC1", "C", "UX", 2 * pl_e, "m"),
+    exp("joint_displacement", "LC1", "C", "UY", -NU * pl_e, "m"),
+    exp("joint_displacement", "LC1", "D", "UY", -NU * pl_e, "m"),
+    exp("joint_reaction", "LC1", "A", "FX", -pl_force, "N"),
+    exp("joint_reaction", "LC1", "D", "FX", -pl_force, "N"),
+    exp("joint_reaction", "LC1", "A", "FY", 0.0, "N"),
+    exp("joint_reaction", "LC1", "B", "FY", 0.0, "N"),
+    exp("area_center", "LC1", "Q", "F11", PL_P * PL_T, "N/m"),
+    exp("area_center", "LC1", "Q", "F22", 0.0, "N/m"),
+    exp("area_center", "LC1", "Q", "M11", 0.0, "N*m/m"),
+    exp("external_work", "LC1", "", "", 0.5 * 2 * pl_force * 2 * pl_e, "J"),
+], tol=CLOSED_AREA)
+
+# ------------------------------------------------------- V-AXI-001 (0034)
+# Thick-wall cylinder under the pressure of its bore (decision 0034). The
+# section stands in the plane x = 0, so the joint's y is the radius of the
+# revolution and z is the axis. The mesh is 24 elements across the wall: the
+# exact u(r) = A r + B/r is not in the bilinear space, so the tolerance is
+# that of the mesh. Only one joint is held in z, to pin the translation the
+# free ends leave free; the exact field already has w = 0 on z = 0.
+LA_A, LA_B, LA_H, LA_P, LA_N = 0.1, 0.2, 0.1, 1e8, 24
+
+
+def lame_u(r):
+    """Radial displacement of the Lame solution with sigma_z = 0 on the ends."""
+    return LA_P * LA_A**2 / (E * (LA_B**2 - LA_A**2)) * ((1 - NU) * r + (1 + NU) * LA_B**2 / r)
+
+
+def lame_sr(r):
+    return LA_P * LA_A**2 / (LA_B**2 - LA_A**2) * (1 - LA_B**2 / r**2)
+
+
+def lame_st(r):
+    return LA_P * LA_A**2 / (LA_B**2 - LA_A**2) * (1 + LA_B**2 / r**2)
+
+
+# w = epsilon_z z, constant through the thickness because epsilon_r +
+# epsilon_theta is constant for u = A r + B/r.
+LA_W = -2 * NU * LA_P * LA_A**2 / (E * (LA_B**2 - LA_A**2)) * LA_H
+la_rs = [LA_A + (LA_B - LA_A) * i / LA_N for i in range(LA_N + 1)]
+la_joints = [J(f"W{i}_{k}", 0.0, r, k * LA_H,
+               [False, False, i == 0 and k == 0, False, False, False])
+             for i, r in enumerate(la_rs) for k in range(2)]
+# Counterclockwise in (r, z): inner-outer along z = 0, then back along z = h.
+la_areas = [{"name": f"A{i}", "section": "AX",
+             "joints": [f"W{i}_0", f"W{i + 1}_0", f"W{i + 1}_1", f"W{i}_1"]} for i in range(LA_N)]
+# The bore carries p 2 pi a h outward, shared by the two nodes of its face:
+# p pi a h each, radial (+y), in generalized coordinates (decision 0034).
+la_q = LA_P * math.pi * LA_A * LA_H
+write("V-AXI-001", "Thick-wall cylinder under the pressure of its bore: the Lamé solution",
+      ["F03-005", "F06-002"], model(
+    "V-AXI-001 Lame cylinder",
+    la_joints, [], [SEC], [{"name": "P"}],
+    joint_loads=[{"pattern": "P", "joint": n_, "values": [0.0, la_q, 0.0, 0.0, 0.0, 0.0]}
+                 for n_ in ("W0_0", "W0_1")],
+    schema=12,
+    area_sections=[dict(name="AX", material="STEEL", thickness=LA_H, behavior="Axisymmetric")],
+    areas=la_areas,
+), {"kind": "analytical",
+    "source": "Lamé's thick-wall cylinder with traction-free ends (Timoshenko and Goodier, Theory of Elasticity, chapter on plane strain and axisymmetric problems)",
+    "derivation": [
+        "sigma_r = p a^2/(b^2 - a^2) (1 - b^2/r^2) and sigma_theta = p a^2/(b^2 - a^2) (1 + b^2/r^2)",
+        "u = r (sigma_theta - nu sigma_r)/E = p a^2/(E (b^2 - a^2)) ((1 - nu) r + (1 + nu) b^2/r)",
+        "epsilon_r + epsilon_theta is constant, so sigma_z = 0 holds with epsilon_z = -2 nu p a^2/(E (b^2 - a^2)) and w = epsilon_z z: the ends carry no traction and the pinned joint takes nothing",
+        "the bore load is p 2 pi a h, half of it at each node of that face, radial",
+        f"mesh: {LA_N} elements across the wall, so 1 % is the error of the mesh"], }, [
+    exp("joint_displacement", "LC1", "W0_0", "UY", lame_u(LA_A), "m"),
+    exp("joint_displacement", "LC1", "W0_1", "UY", lame_u(LA_A), "m"),
+    exp("joint_displacement", "LC1", f"W{LA_N // 2}_0", "UY", lame_u(la_rs[LA_N // 2]), "m"),
+    exp("joint_displacement", "LC1", f"W{LA_N}_0", "UY", lame_u(LA_B), "m"),
+    exp("joint_displacement", "LC1", f"W{LA_N}_1", "UY", lame_u(LA_B), "m"),
+    exp("joint_displacement", "LC1", "W0_0", "UZ", 0.0, "m"),
+    exp("joint_displacement", "LC1", "W0_1", "UZ", LA_W, "m"),
+    exp("joint_displacement", "LC1", f"W{LA_N}_1", "UZ", LA_W, "m"),
+    exp("area_center", "LC1", "A0", "S11", lame_sr((la_rs[0] + la_rs[1]) / 2), "Pa"),
+    exp("area_center", "LC1", "A0", "S33", lame_st((la_rs[0] + la_rs[1]) / 2), "Pa"),
+    exp("area_center", "LC1", f"A{LA_N - 1}", "S11", lame_sr((la_rs[-2] + la_rs[-1]) / 2), "Pa"),
+    exp("area_center", "LC1", f"A{LA_N - 1}", "S33", lame_st((la_rs[-2] + la_rs[-1]) / 2), "Pa"),
+], tol=MESH_TOL)
+
+# ------------------------------------------------------- V-AXI-002 (0034)
+# Solid disk spinning about its axis with the axial displacement held, so
+# epsilon_z = 0 everywhere (decision 0034). Its closed form is the plane-stress
+# one with nu -> nu/(1 - nu), and the load is the centrifugal body force
+# rho omega^2 r per unit volume of the revolution.
+DS_B, DS_HZ, DS_RHO, DS_OMEGA, DS_N = 0.2, 0.05, 7850.0, 100.0, 8
+
+
+def disk_sr(r):
+    return (3 - 2 * NU) * DS_RHO * DS_OMEGA**2 * (DS_B**2 - r**2) / (8 * (1 - NU))
+
+
+def disk_st(r):
+    return DS_RHO * DS_OMEGA**2 / (8 * (1 - NU)) * ((3 - 2 * NU) * DS_B**2 - (1 + 2 * NU) * r**2)
+
+
+def disk_u(r):
+    return r * (1 + NU) / E * ((1 - NU) * disk_st(r) - NU * disk_sr(r))
+
+
+ds_rs = [DS_B * i / DS_N for i in range(DS_N + 1)]
+# z held everywhere (epsilon_z = 0) and the radius held on the axis, where a
+# radial displacement would tear the point away from the rest of the disk.
+ds_joints = [J(f"D{i}_{k}", 0.0, r, k * DS_HZ, [False, i == 0, True, False, False, False])
+             for i, r in enumerate(ds_rs) for k in range(2)]
+ds_areas = [{"name": f"A{i}", "section": "AX",
+             "joints": [f"D{i}_0", f"D{i + 1}_0", f"D{i + 1}_1", f"D{i}_1"]} for i in range(DS_N)]
+write("V-AXI-002", "Solid disk spinning about its axis with the ends held: the closed-form body force",
+      ["F03-005", "F06-011"], model(
+    "V-AXI-002 rotating disk",
+    ds_joints, [], [SEC], [{"name": "S"}],
+    schema=12,
+    materials=[{"name": "STEEL", "e": E, "nu": NU, "unit_weight": 0.0, "mass_density": DS_RHO}],
+    area_sections=[dict(name="AX", material="STEEL", thickness=DS_HZ, behavior="Axisymmetric")],
+    areas=ds_areas,
+    area_loads=[{"pattern": "S", "area": a_["name"], "direction": "Centrifugal",
+                 "value": DS_OMEGA} for a_ in ds_areas],
+), {"kind": "analytical",
+    "source": "Rotating solid disk with epsilon_z = 0: equilibrium and compatibility of the axisymmetric body force rho omega^2 r",
+    "derivation": [
+        "sigma_r = (3 - 2 nu) rho omega^2 (b^2 - r^2) / (8 (1 - nu)): the plane-stress solution with nu -> nu/(1 - nu)",
+        "sigma_theta = rho omega^2 ((3 - 2 nu) b^2 - (1 + 2 nu) r^2) / (8 (1 - nu)); both vanish of the radius at r = b",
+        "u = r (1 + nu) ((1 - nu) sigma_theta - nu sigma_r)/E, from epsilon_z = 0 and Hooke's law in three dimensions",
+        "u = 0 on the axis, which holds the radius: a point of the axis has no circumference to move on",
+        "the centrifugal load is rho omega^2 r per unit volume, integrated with 2 pi r of the revolution",
+        "sigma_r vanishes on the free rim and epsilon_r changes sign there, which the last element of this mesh cannot resolve relatively: the stresses are checked in the first and the middle element",
+        f"mesh: {DS_N} elements across the radius, so 1 % is the error of the mesh"], }, [
+    exp("joint_displacement", "LC1", "D0_0", "UY", 0.0, "m"),
+    exp("joint_displacement", "LC1", "D0_1", "UY", 0.0, "m"),
+    *([exp("joint_displacement", "LC1", f"D{i}_0", "UY", disk_u(r), "m")
+       for i, r in enumerate(ds_rs) if r > 0]),
+    exp("joint_displacement", "LC1", f"D{DS_N}_1", "UZ", 0.0, "m"),
+    # Stresses in the first and the middle element: sigma_r falls to zero on the
+    # free rim and epsilon_r crosses zero inside the last element, which one
+    # element of this mesh cannot resolve relatively, and the case says so.
+    exp("area_center", "LC1", "A0", "S11", disk_sr((ds_rs[0] + ds_rs[1]) / 2), "Pa"),
+    exp("area_center", "LC1", "A0", "S33", disk_st((ds_rs[0] + ds_rs[1]) / 2), "Pa"),
+    exp("area_center", "LC1", f"A{DS_N // 2}", "S11", disk_sr((ds_rs[DS_N // 2] + ds_rs[DS_N // 2 + 1]) / 2), "Pa"),
+    exp("area_center", "LC1", f"A{DS_N // 2}", "S33", disk_st((ds_rs[DS_N // 2] + ds_rs[DS_N // 2 + 1]) / 2), "Pa"),
+], tol=MESH_TOL)
+
 print("cases written to", ROOT)

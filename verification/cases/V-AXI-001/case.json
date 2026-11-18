@@ -1,0 +1,126 @@
+{
+  "case_id": "V-AXI-001",
+  "title": "Thick-wall cylinder under the pressure of its bore: the Lam\u00e9 solution",
+  "feature_ids": [
+    "F03-005",
+    "F06-002"
+  ],
+  "model": "model.json",
+  "model_sha256": "37955d26e75dc794e3bdf46415d37a8e7bf9bef4916ca538447821872c59dc8e",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "mesh-convergence-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Lam\u00e9's thick-wall cylinder with traction-free ends (Timoshenko and Goodier, Theory of Elasticity, chapter on plane strain and axisymmetric problems)",
+    "derivation": [
+      "sigma_r = p a^2/(b^2 - a^2) (1 - b^2/r^2) and sigma_theta = p a^2/(b^2 - a^2) (1 + b^2/r^2)",
+      "u = r (sigma_theta - nu sigma_r)/E = p a^2/(E (b^2 - a^2)) ((1 - nu) r + (1 + nu) b^2/r)",
+      "epsilon_r + epsilon_theta is constant, so sigma_z = 0 holds with epsilon_z = -2 nu p a^2/(E (b^2 - a^2)) and w = epsilon_z z: the ends carry no traction and the pinned joint takes nothing",
+      "the bore load is p 2 pi a h, half of it at each node of that face, radial",
+      "mesh: 24 elements across the wall, so 1 % is the error of the mesh"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "W0_0",
+      "component": "UY",
+      "value": 9.833333333333336e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "W0_1",
+      "component": "UY",
+      "value": 9.833333333333336e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "W12_0",
+      "component": "UY",
+      "value": 7.527777777777779e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "W24_0",
+      "component": "UY",
+      "value": 6.666666666666668e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "W24_1",
+      "component": "UY",
+      "value": 6.666666666666668e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "W0_0",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "W0_1",
+      "component": "UZ",
+      "value": -1e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "W24_1",
+      "component": "UZ",
+      "value": -1e-05,
+      "unit": "m"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "A0",
+      "component": "S11",
+      "value": -94613355.54630019,
+      "unit": "Pa"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "A0",
+      "component": "S33",
+      "value": 161280022.21296686,
+      "unit": "Pa"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "A23",
+      "component": "S11",
+      "value": -705447.8301015651,
+      "unit": "Pa"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "A23",
+      "component": "S33",
+      "value": 67372114.49676824,
+      "unit": "Pa"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

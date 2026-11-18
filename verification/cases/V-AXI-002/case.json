@@ -1,0 +1,152 @@
+{
+  "case_id": "V-AXI-002",
+  "title": "Solid disk spinning about its axis with the ends held: the closed-form body force",
+  "feature_ids": [
+    "F03-005",
+    "F06-011"
+  ],
+  "model": "model.json",
+  "model_sha256": "f5a6c5d7c4ea3aca30be56201102b3960440f1ba3f195e2a61971b57c2cc8f55",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "mesh-convergence-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Rotating solid disk with epsilon_z = 0: equilibrium and compatibility of the axisymmetric body force rho omega^2 r",
+    "derivation": [
+      "sigma_r = (3 - 2 nu) rho omega^2 (b^2 - r^2) / (8 (1 - nu)): the plane-stress solution with nu -> nu/(1 - nu)",
+      "sigma_theta = rho omega^2 ((3 - 2 nu) b^2 - (1 + 2 nu) r^2) / (8 (1 - nu)); both vanish of the radius at r = b",
+      "u = r (1 + nu) ((1 - nu) sigma_theta - nu sigma_r)/E, from epsilon_z = 0 and Hooke's law in three dimensions",
+      "u = 0 on the axis, which holds the radius: a point of the axis has no circumference to move on",
+      "the centrifugal load is rho omega^2 r per unit volume, integrated with 2 pi r of the revolution",
+      "sigma_r vanishes on the free rim and epsilon_r changes sign there, which the last element of this mesh cannot resolve relatively: the stresses are checked in the first and the middle element",
+      "mesh: 8 elements across the radius, so 1 % is the error of the mesh"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D0_0",
+      "component": "UY",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D0_1",
+      "component": "UY",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D1_0",
+      "component": "UY",
+      "value": 8.690195312500001e-08,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D2_0",
+      "component": "UY",
+      "value": 1.7038705357142855e-07,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D3_0",
+      "component": "UY",
+      "value": 2.4703844866071434e-07,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D4_0",
+      "component": "UY",
+      "value": 3.1343928571428577e-07,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D5_0",
+      "component": "UY",
+      "value": 3.6617271205357133e-07,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D6_0",
+      "component": "UY",
+      "value": 4.0182187500000006e-07,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D7_0",
+      "component": "UY",
+      "value": 4.16969921875e-07,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D8_0",
+      "component": "UY",
+      "value": 4.082e-07,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D8_1",
+      "component": "UZ",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "A0",
+      "component": "S11",
+      "value": 1340457.5892857148,
+      "unit": "Pa"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "A0",
+      "component": "S33",
+      "value": 1342209.8214285718,
+      "unit": "Pa"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "A4",
+      "component": "S11",
+      "value": 919921.8750000002,
+      "unit": "Pa"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "A4",
+      "component": "S33",
+      "value": 1061852.6785714289,
+      "unit": "Pa"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}
