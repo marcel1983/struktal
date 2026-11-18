@@ -26,10 +26,10 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Installs the channel and components pinned in rust-toolchain.toml.
       - run: rustup toolchain install
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -47,7 +47,11 @@ jobs:
           cargo build -p struktal-cli --locked
           ./target/debug/struktal verify --backend faer verification/cases/*/case.json --report verify-faer.json
           ./target/debug/struktal verify --backend skyline verification/cases/*/case.json --report verify-skyline.json
-      - uses: actions/upload-artifact@v4
+      # The importer has to read back what the file says: geometry, frame
+      # length, area and load resultants, with no engine in between.
+      - name: The S2K importer agrees with the file it read
+        run: python tools/diff_s2k_import.py verification/s2k/*.s2k
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: verification-${{ matrix.os }}
@@ -58,7 +62,7 @@ jobs:
     name: MSRV 1.88
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: rustup toolchain install 1.88.0 --profile minimal
       - run: cargo +1.88.0 check --workspace --locked
 
@@ -66,8 +70,8 @@ jobs:
     name: Analytical references are reproducible
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: python tools/gen_cases.py

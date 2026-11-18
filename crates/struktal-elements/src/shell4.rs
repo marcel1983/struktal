@@ -14,6 +14,8 @@
 
 #![allow(clippy::needless_range_loop)] // small dense matrices: index form mirrors the formulas
 
+use struktal_core::LaminateAbc;
+
 pub type Mat24 = [[f64; 24]; 24];
 
 /// Isotropic shell properties. `membrane_t` and `bending_t` are 0 to leave that
@@ -27,6 +29,38 @@ pub struct ShellProps {
     pub bending_t: f64,
     /// Shear correction times bending thickness; 5/6 t.
     pub shear_t: f64,
+    /// Stiffness of a laminated section, per unit width (decision 0032).
+    ///
+    /// When it is present, `a` replaces `c · membrane_t` and `d` replaces
+    /// `c · bending_t³/12`, so a stack of layers is carried without asking the
+    /// element for an equivalent `E` and `t`. `b` must be zero: the flat element
+    /// has no bending–extension coupling, and validation refuses a section that
+    /// needs it.
+    pub laminate: Option<LaminateAbc>,
+}
+
+fn scaled(c: [[f64; 3]; 3], f: f64) -> [[f64; 3]; 3] {
+    let mut out = [[0.0; 3]; 3];
+    for i in 0..3 {
+        for j in 0..3 {
+            out[i][j] = c[i][j] * f;
+        }
+    }
+    out
+}
+
+impl ShellProps {
+    /// Membrane stiffness per unit width: the laminate's `a`, or the
+    /// plane-stress matrix times the membrane thickness.
+    pub fn membrane_c(&self) -> [[f64; 3]; 3] {
+        self.laminate.map_or_else(|| scaled(plane_c(self.e, self.nu), self.membrane_t), |l| l.a)
+    }
+
+    /// Bending stiffness per unit width: the laminate's `d`, or the plane-stress
+    /// matrix times `bending_t³/12`.
+    pub fn bending_c(&self) -> [[f64; 3]; 3] {
+        self.laminate.map_or_else(|| scaled(plane_c(self.e, self.nu), self.bending_t.powi(3) / 12.0), |l| l.d)
+    }
 }
 
 /// γ / G in the Hughes–Brezzi term. γ = G stiffens a wall in pure bending by 8 %
@@ -153,8 +187,7 @@ fn solve4(a: &[[f64; 4]; 4], rhs: &mut [[f64; 4]]) {
 /// Condensed membrane stiffness, 12 DOF [u v ω] per node, and the operator that
 /// recovers the internal modes from them: q = R d.
 fn membrane(xy: &[[f64; 2]; 4], p: &ShellProps) -> ([[f64; 12]; 12], [[f64; 12]; 4]) {
-    let c = plane_c(p.e, p.nu);
-    let t = p.membrane_t;
+    let c = p.membrane_c();
     let mut k = [[0.0; 16]; 16];
     let mut drill = [[0.0; 12]; 12];
     for &r in &GAUSS {
@@ -162,7 +195,7 @@ fn membrane(xy: &[[f64; 2]; 4], p: &ShellProps) -> ([[f64; 12]; 12], [[f64; 12];
             let pt = point(xy, r, s);
             let modes = incompatible(xy, r, s, pt.det);
             let b = membrane_b(&pt, &modes);
-            let w = pt.det * t;
+            let w = pt.det;
             for i in 0..16 {
                 let mut cb = [0.0; 3];
                 for q in 0..3 {
@@ -173,9 +206,12 @@ fn membrane(xy: &[[f64; 2]; 4], p: &ShellProps) -> ([[f64; 12]; 12], [[f64; 12];
                 }
             }
             let row = drilling_row(&pt);
+            // The drilling term is a membrane stiffness: it keeps the thickness,
+            // which for a laminate is the total one (its `g` is already the
+            // equivalent shear modulus).
             for i in 0..12 {
                 for j in 0..12 {
-                    drill[i][j] += w * DRILLING_FACTOR * p.g * row[i] * row[j];
+                    drill[i][j] += w * p.membrane_t * DRILLING_FACTOR * p.g * row[i] * row[j];
                 }
             }
         }
@@ -264,8 +300,7 @@ fn bending_b(p: &Point) -> [[f64; 12]; 3] {
 
 /// Plate stiffness on [w, θx, θy] per node.
 fn plate(xy: &[[f64; 2]; 4], p: &ShellProps) -> [[f64; 12]; 12] {
-    let c = plane_c(p.e, p.nu);
-    let tb = p.bending_t.powi(3) / 12.0;
+    let d = p.bending_c();
     let mut k = [[0.0; 12]; 12];
     for &r in &GAUSS {
         for &s in &GAUSS {
@@ -275,12 +310,12 @@ fn plate(xy: &[[f64; 2]; 4], p: &ShellProps) -> [[f64; 12]; 12] {
             for i in 0..12 {
                 let mut cb = [0.0; 3];
                 for q in 0..3 {
-                    cb[q] = (0..3).map(|n| c[q][n] * b[n][i]).sum();
+                    cb[q] = (0..3).map(|n| d[q][n] * b[n][i]).sum();
                 }
                 for j in 0..12 {
                     let bend: f64 = (0..3).map(|q| b[q][j] * cb[q]).sum();
                     let shear = gamma[0][i] * gamma[0][j] + gamma[1][i] * gamma[1][j];
-                    k[i][j] += pt.det * (tb * bend + p.g * p.shear_t * shear);
+                    k[i][j] += pt.det * (bend + p.g * p.shear_t * shear);
                 }
             }
         }
@@ -348,7 +383,6 @@ pub fn nodal_areas(xy: &[[f64; 2]; 4]) -> [f64; 4] {
 /// V23], from the local nodal displacements. M11 is the moment from stresses σ11:
 /// positive with tension on the +3 face.
 pub fn resultants(xy: &[[f64; 2]; 4], p: &ShellProps, u: &[f64; 24], r: f64, s: f64) -> [f64; 8] {
-    let c = plane_c(p.e, p.nu);
     let pt = point(xy, r, s);
     let mut out = [0.0; 8];
     if p.membrane_t > 0.0 {
@@ -363,8 +397,9 @@ pub fn resultants(xy: &[[f64; 2]; 4], p: &ShellProps, u: &[f64; 24], r: f64, s: 
         let modes = incompatible(xy, r, s, pt.det);
         let b = membrane_b(&pt, &modes);
         let strain: [f64; 3] = std::array::from_fn(|q| (0..16).map(|i| b[q][i] * d[i]).sum());
+        let a = p.membrane_c();
         for q in 0..3 {
-            out[q] = p.membrane_t * (0..3).map(|n| c[q][n] * strain[n]).sum::<f64>();
+            out[q] = (0..3).map(|n| a[q][n] * strain[n]).sum::<f64>();
         }
     }
     if p.bending_t > 0.0 {
@@ -375,10 +410,10 @@ pub fn resultants(xy: &[[f64; 2]; 4], p: &ShellProps, u: &[f64; 24], r: f64, s: 
         }
         let b = bending_b(&pt);
         let kappa: [f64; 3] = std::array::from_fn(|q| (0..12).map(|i| b[q][i] * d[i]).sum());
-        let tb = p.bending_t.powi(3) / 12.0;
+        let dc = p.bending_c();
         for q in 0..3 {
             // A positive θx gain along x stretches the +3 face: tension there.
-            out[3 + q] = tb * (0..3).map(|n| c[q][n] * kappa[n]).sum::<f64>();
+            out[3 + q] = (0..3).map(|n| dc[q][n] * kappa[n]).sum::<f64>();
         }
         let gamma = mitc_shear(xy, r, s);
         for q in 0..2 {
@@ -392,8 +427,15 @@ pub fn resultants(xy: &[[f64; 2]; 4], p: &ShellProps, u: &[f64; 24], r: f64, s: 
 mod tests {
     use super::*;
 
-    const PROPS: ShellProps =
-        ShellProps { e: 2.0e11, nu: 0.3, g: 2.0e11 / 2.6, membrane_t: 0.2, bending_t: 0.2, shear_t: 0.2 * 5.0 / 6.0 };
+    const PROPS: ShellProps = ShellProps {
+        e: 2.0e11,
+        nu: 0.3,
+        g: 2.0e11 / 2.6,
+        membrane_t: 0.2,
+        bending_t: 0.2,
+        shear_t: 0.2 * 5.0 / 6.0,
+        laminate: None,
+    };
 
     /// Irregular quad, to catch formulas that only work on rectangles.
     const QUAD: [[f64; 2]; 4] = [[0.1, -0.2], [2.3, 0.1], [2.8, 1.9], [-0.3, 1.4]];
@@ -538,5 +580,77 @@ mod tests {
             area += QUAD[n][0] * QUAD[m][1] - QUAD[m][0] * QUAD[n][1];
         }
         assert!((a.iter().sum::<f64>() - area / 2.0).abs() < 1e-12);
+    }
+    /// A skin–core–skin section, 0.2 m: stiff faces and a soft core. Its `A` and
+    /// `D` are layer sums, so neither is `E t` or `E t³/12` of a single layer.
+    /// Returns both matrices as the reference, and the props the element takes.
+    fn skin_core_skin() -> ([[f64; 3]; 3], [[f64; 3]; 3], ShellProps) {
+        let nu = 0.3;
+        let q = |e: f64| e / (1.0 - nu * nu);
+        let (qs, qc) = (q(2.0e11), q(1.0e10));
+        let a11 = 0.01 * qs + 0.18 * qc + 0.01 * qs;
+        let cube = |z0: f64, z1: f64| (z1 * z1 * z1 - z0 * z0 * z0) / 3.0;
+        let d11 = qs * cube(-0.1, -0.09) + qc * cube(-0.09, 0.09) + qs * cube(0.09, 0.1);
+        // The section is symmetric, so the coupling is zero and b must stay zero.
+        let a = [[a11, nu * a11, 0.0], [nu * a11, a11, 0.0], [0.0, 0.0, 0.0]];
+        let d = [[d11, nu * d11, 0.0], [nu * d11, d11, 0.0], [0.0, 0.0, 0.0]];
+        let props = ShellProps {
+            laminate: Some(struktal_core::LaminateAbc { a, b: [[0.0; 3]; 3], d }),
+            membrane_t: 0.2,
+            bending_t: 0.2,
+            shear_t: 5.0 / 6.0 * 0.2,
+            ..PROPS
+        };
+        (a, d, props)
+    }
+
+    #[test]
+    fn a_laminate_uses_a_and_d_instead_of_e_times_t() {
+        let (a, d, props) = skin_core_skin();
+        // The reference values, far from the homogeneous ones: E t = 4.4e10 and
+        // E t³/12 = 1.5e8 would be wrong by 7x and 3x.
+        assert!((a[0][0] - 6.37e9).abs() < 1e7, "a11 = {}", a[0][0]);
+        assert!((d[0][0] - 4.50e7).abs() < 1e5, "d11 = {}", d[0][0]);
+
+        // Constant strain, no rotation: F = A ε.
+        let (ax, cy) = (1e-3, -5e-4);
+        let mut u = [0.0; 24];
+        for n in 0..4 {
+            u[6 * n] = ax * QUAD[n][0];
+            u[6 * n + 1] = cy * QUAD[n][1];
+        }
+        let strain = [ax, cy, 0.0];
+        let expected: [f64; 3] = std::array::from_fn(|q| (0..3).map(|n| a[q][n] * strain[n]).sum());
+        let f = resultants(&QUAD, &props, &u, 0.3, -0.2);
+        for q in 0..3 {
+            assert!(
+                (f[q] - expected[q]).abs() <= 1e-9 * expected[q].abs().max(1.0),
+                "F{q}: {} vs {}",
+                f[q],
+                expected[q]
+            );
+        }
+
+        // Constant curvature, no shear: M = D κ.
+        let (k1, k2) = (1e-3, -6e-4);
+        let mut u = [0.0; 24];
+        for n in 0..4 {
+            let (x, y) = (QUAD[n][0], QUAD[n][1]);
+            // w with kappa = [k1, k2, 0], and the section rotations theta = -grad w.
+            u[6 * n + 2] = -(k1 * x * x + k2 * y * y) / 2.0;
+            u[6 * n + 4] = k1 * x;
+            u[6 * n + 3] = -k2 * y;
+        }
+        let kappa = [k1, k2, 0.0];
+        let expected: [f64; 3] = std::array::from_fn(|q| (0..3).map(|n| d[q][n] * kappa[n]).sum());
+        let f = resultants(&QUAD, &props, &u, 0.0, 0.0);
+        for q in 0..3 {
+            assert!(
+                (f[3 + q] - expected[q]).abs() <= 1e-9 * expected[q].abs().max(1.0),
+                "M{q}: {} vs {}",
+                f[3 + q],
+                expected[q]
+            );
+        }
     }
 }

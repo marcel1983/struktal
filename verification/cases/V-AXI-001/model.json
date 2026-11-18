@@ -1,0 +1,1025 @@
+{
+  "area_sections": [
+    {
+      "name": "AX",
+      "material": "STEEL",
+      "thickness": 0.1,
+      "behavior": "Axisymmetric"
+    }
+  ],
+  "areas": [
+    {
+      "name": "A0",
+      "section": "AX",
+      "joints": [
+        "W0_0",
+        "W1_0",
+        "W1_1",
+        "W0_1"
+      ]
+    },
+    {
+      "name": "A1",
+      "section": "AX",
+      "joints": [
+        "W1_0",
+        "W2_0",
+        "W2_1",
+        "W1_1"
+      ]
+    },
+    {
+      "name": "A2",
+      "section": "AX",
+      "joints": [
+        "W2_0",
+        "W3_0",
+        "W3_1",
+        "W2_1"
+      ]
+    },
+    {
+      "name": "A3",
+      "section": "AX",
+      "joints": [
+        "W3_0",
+        "W4_0",
+        "W4_1",
+        "W3_1"
+      ]
+    },
+    {
+      "name": "A4",
+      "section": "AX",
+      "joints": [
+        "W4_0",
+        "W5_0",
+        "W5_1",
+        "W4_1"
+      ]
+    },
+    {
+      "name": "A5",
+      "section": "AX",
+      "joints": [
+        "W5_0",
+        "W6_0",
+        "W6_1",
+        "W5_1"
+      ]
+    },
+    {
+      "name": "A6",
+      "section": "AX",
+      "joints": [
+        "W6_0",
+        "W7_0",
+        "W7_1",
+        "W6_1"
+      ]
+    },
+    {
+      "name": "A7",
+      "section": "AX",
+      "joints": [
+        "W7_0",
+        "W8_0",
+        "W8_1",
+        "W7_1"
+      ]
+    },
+    {
+      "name": "A8",
+      "section": "AX",
+      "joints": [
+        "W8_0",
+        "W9_0",
+        "W9_1",
+        "W8_1"
+      ]
+    },
+    {
+      "name": "A9",
+      "section": "AX",
+      "joints": [
+        "W9_0",
+        "W10_0",
+        "W10_1",
+        "W9_1"
+      ]
+    },
+    {
+      "name": "A10",
+      "section": "AX",
+      "joints": [
+        "W10_0",
+        "W11_0",
+        "W11_1",
+        "W10_1"
+      ]
+    },
+    {
+      "name": "A11",
+      "section": "AX",
+      "joints": [
+        "W11_0",
+        "W12_0",
+        "W12_1",
+        "W11_1"
+      ]
+    },
+    {
+      "name": "A12",
+      "section": "AX",
+      "joints": [
+        "W12_0",
+        "W13_0",
+        "W13_1",
+        "W12_1"
+      ]
+    },
+    {
+      "name": "A13",
+      "section": "AX",
+      "joints": [
+        "W13_0",
+        "W14_0",
+        "W14_1",
+        "W13_1"
+      ]
+    },
+    {
+      "name": "A14",
+      "section": "AX",
+      "joints": [
+        "W14_0",
+        "W15_0",
+        "W15_1",
+        "W14_1"
+      ]
+    },
+    {
+      "name": "A15",
+      "section": "AX",
+      "joints": [
+        "W15_0",
+        "W16_0",
+        "W16_1",
+        "W15_1"
+      ]
+    },
+    {
+      "name": "A16",
+      "section": "AX",
+      "joints": [
+        "W16_0",
+        "W17_0",
+        "W17_1",
+        "W16_1"
+      ]
+    },
+    {
+      "name": "A17",
+      "section": "AX",
+      "joints": [
+        "W17_0",
+        "W18_0",
+        "W18_1",
+        "W17_1"
+      ]
+    },
+    {
+      "name": "A18",
+      "section": "AX",
+      "joints": [
+        "W18_0",
+        "W19_0",
+        "W19_1",
+        "W18_1"
+      ]
+    },
+    {
+      "name": "A19",
+      "section": "AX",
+      "joints": [
+        "W19_0",
+        "W20_0",
+        "W20_1",
+        "W19_1"
+      ]
+    },
+    {
+      "name": "A20",
+      "section": "AX",
+      "joints": [
+        "W20_0",
+        "W21_0",
+        "W21_1",
+        "W20_1"
+      ]
+    },
+    {
+      "name": "A21",
+      "section": "AX",
+      "joints": [
+        "W21_0",
+        "W22_0",
+        "W22_1",
+        "W21_1"
+      ]
+    },
+    {
+      "name": "A22",
+      "section": "AX",
+      "joints": [
+        "W22_0",
+        "W23_0",
+        "W23_1",
+        "W22_1"
+      ]
+    },
+    {
+      "name": "A23",
+      "section": "AX",
+      "joints": [
+        "W23_0",
+        "W24_0",
+        "W24_1",
+        "W23_1"
+      ]
+    }
+  ],
+  "area_loads": [],
+  "schema_version": 12,
+  "title": "V-AXI-001 Lame cylinder",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "W0_0",
+      "x": 0.0,
+      "y": 0.1,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W0_1",
+      "x": 0.0,
+      "y": 0.1,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W1_0",
+      "x": 0.0,
+      "y": 0.10416666666666667,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W1_1",
+      "x": 0.0,
+      "y": 0.10416666666666667,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W2_0",
+      "x": 0.0,
+      "y": 0.10833333333333334,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W2_1",
+      "x": 0.0,
+      "y": 0.10833333333333334,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W3_0",
+      "x": 0.0,
+      "y": 0.1125,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W3_1",
+      "x": 0.0,
+      "y": 0.1125,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W4_0",
+      "x": 0.0,
+      "y": 0.11666666666666667,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W4_1",
+      "x": 0.0,
+      "y": 0.11666666666666667,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W5_0",
+      "x": 0.0,
+      "y": 0.12083333333333333,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W5_1",
+      "x": 0.0,
+      "y": 0.12083333333333333,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W6_0",
+      "x": 0.0,
+      "y": 0.125,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W6_1",
+      "x": 0.0,
+      "y": 0.125,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W7_0",
+      "x": 0.0,
+      "y": 0.12916666666666668,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W7_1",
+      "x": 0.0,
+      "y": 0.12916666666666668,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W8_0",
+      "x": 0.0,
+      "y": 0.13333333333333333,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W8_1",
+      "x": 0.0,
+      "y": 0.13333333333333333,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W9_0",
+      "x": 0.0,
+      "y": 0.1375,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W9_1",
+      "x": 0.0,
+      "y": 0.1375,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W10_0",
+      "x": 0.0,
+      "y": 0.14166666666666666,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W10_1",
+      "x": 0.0,
+      "y": 0.14166666666666666,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W11_0",
+      "x": 0.0,
+      "y": 0.14583333333333334,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W11_1",
+      "x": 0.0,
+      "y": 0.14583333333333334,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W12_0",
+      "x": 0.0,
+      "y": 0.15000000000000002,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W12_1",
+      "x": 0.0,
+      "y": 0.15000000000000002,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W13_0",
+      "x": 0.0,
+      "y": 0.15416666666666667,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W13_1",
+      "x": 0.0,
+      "y": 0.15416666666666667,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W14_0",
+      "x": 0.0,
+      "y": 0.15833333333333335,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W14_1",
+      "x": 0.0,
+      "y": 0.15833333333333335,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W15_0",
+      "x": 0.0,
+      "y": 0.1625,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W15_1",
+      "x": 0.0,
+      "y": 0.1625,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W16_0",
+      "x": 0.0,
+      "y": 0.16666666666666669,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W16_1",
+      "x": 0.0,
+      "y": 0.16666666666666669,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W17_0",
+      "x": 0.0,
+      "y": 0.17083333333333334,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W17_1",
+      "x": 0.0,
+      "y": 0.17083333333333334,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W18_0",
+      "x": 0.0,
+      "y": 0.175,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W18_1",
+      "x": 0.0,
+      "y": 0.175,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W19_0",
+      "x": 0.0,
+      "y": 0.1791666666666667,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W19_1",
+      "x": 0.0,
+      "y": 0.1791666666666667,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W20_0",
+      "x": 0.0,
+      "y": 0.18333333333333335,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W20_1",
+      "x": 0.0,
+      "y": 0.18333333333333335,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W21_0",
+      "x": 0.0,
+      "y": 0.1875,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W21_1",
+      "x": 0.0,
+      "y": 0.1875,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W22_0",
+      "x": 0.0,
+      "y": 0.19166666666666668,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W22_1",
+      "x": 0.0,
+      "y": 0.19166666666666668,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W23_0",
+      "x": 0.0,
+      "y": 0.19583333333333336,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W23_1",
+      "x": 0.0,
+      "y": 0.19583333333333336,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W24_0",
+      "x": 0.0,
+      "y": 0.2,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "W24_1",
+      "x": 0.0,
+      "y": 0.2,
+      "z": 0.1,
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [],
+  "load_patterns": [
+    {
+      "name": "P"
+    }
+  ],
+  "joint_loads": [
+    {
+      "pattern": "P",
+      "joint": "W0_0",
+      "values": [
+        0.0,
+        3141592.653589793,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "pattern": "P",
+      "joint": "W0_1",
+      "values": [
+        0.0,
+        3141592.653589793,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "P",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

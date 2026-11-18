@@ -24,5 +24,9 @@ fn main() {
     if let Some(s) = sha {
         let s = if dirty { format!("{s}-dirty") } else { s };
         println!("cargo:rustc-env=STRUKTAL_GIT_SHA={s}");
+    } else {
+        // The run manifest would record "unknown" without saying why: a build
+        // from an archive, a checkout without git, or git missing from PATH.
+        println!("cargo:warning=STRUKTAL_GIT_SHA not set: git is unavailable or this is not a checkout");
     }
 }

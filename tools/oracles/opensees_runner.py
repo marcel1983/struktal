@@ -1,7 +1,32 @@
 """Solves a Struktal model with OpenSeesPy. External reference only: no OpenSees code
-is used by the engine. Needs Python 3.12 with openseespy 3.8 (decision 0013)."""
+is used by the engine. Needs Python 3.12 with openseespy 3.8 (decision 0013).
+
+The shell element is selectable, because MITC4 is what Struktal uses and agreeing
+with it says little. `STRUKTAL_OPENSEES_SHELL=dkgq` asks for the DKG family
+(ShellDKGQ / ShellDKGT), a different formulation. Measured on the bundled cases
+(decisión 0029): DKGQ is not better, it is a diagnostic.
+
+    case                MITC4                    DKGQ
+    V-SHELL-001 TEN     match (174)              DIFF 35/174, spurious MZ = 6.5e3
+    V-SHELL-001 BEN     match (174)              match (174)
+    V-SHELL-002 LC1     FORM-DIFF 38/129         FORM-DIFF 14/129 (RZ)
+    V-SHELL-003 LC1     FORM-DIFF 338/1131       FORM-DIFF 365/1131
+    V-TRI-001 TEN       DIFF 35/334, spurious MZ DIFF 35/334, spurious MZ
+    V-TRI-001 BEN       match (334)              match (334)
+    V-TRI-001 MIX       DIFF 35/334, spurious MZ DIFF 35/334, spurious MZ
+    V-TRI-001 Q         match (334)              match (334)
+    V-PLANE-001 LC1     match (28)               DIFF 12/28, RZ = 2.4e10
+
+Both families produce the same spurious MZ at the triangle corners of V-TRI-001,
+so that one is the drilling of OpenSees' triangle, not the shell family.
+V-PLANE-001 is plane stress with 2 dof per joint (decision 0033): DKGQ has no
+drilling stiffness, so the rotation that Struktal holds runs away in the engine
+and drags the corner reactions with it, while MITC4 keeps it finite.
+Axisymmetric areas are refused by `common` before this runner sees them.
+"""
 import importlib.metadata
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -10,6 +35,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import openseespy.opensees as ops  # noqa: E402
 
 from common import Unsupported, combine_modes, dot, empty_loads, lumped_mass, main, spectrum_acceleration  # noqa: E402
+
+# Shell element per family, as (quadrilateral, triangle). MITC4 is what Struktal
+# uses, so it is the default only for continuity with earlier comparisons; the
+# DKG family is a different formulation and the honest second opinion.
+SHELLS = {
+    "mitc4": ("ShellMITC4", "ASDShellT3"),
+    "dkgq": ("ShellDKGQ", "ShellDKGT"),
+}
+SHELL_FAMILY = os.environ.get("STRUKTAL_OPENSEES_SHELL") or "mitc4"
+if SHELL_FAMILY not in SHELLS:
+    raise SystemExit(f"STRUKTAL_OPENSEES_SHELL must be one of {', '.join(SHELLS)}")
 
 
 def is_link(fr):
@@ -184,7 +220,10 @@ def solve_case(m, loads):
         s["tag"] = 1000 + k
         ops.section("ElasticMembranePlateSection", s["tag"], s["mat"]["e"], s["mat"]["nu"], s["thickness"], 0.0)
     for a in m.get("areas", []):
-        kind = "ASDShellT3" if len(a["joints"]) == 3 else "ShellMITC4"
+        # MITC4 is Struktal's own shell, so agreeing with it says little.
+        # STRUKTAL_OPENSEES_SHELL=dkgq asks for the DKG family instead: a
+        # different formulation in the same code.
+        kind = SHELLS[SHELL_FAMILY][0 if len(a["joints"]) == 4 else 1]
         ops.element(kind, next_ele, *[tags[n] for n in a["joints"]], a["sec"]["tag"])
         next_ele += 1
 

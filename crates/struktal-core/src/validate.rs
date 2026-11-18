@@ -9,6 +9,7 @@ use std::fmt;
 
 use sha2::{Digest, Sha256};
 
+use crate::laminate::laminate_abc;
 use crate::model::*;
 
 /// Relative tolerance for coincident joints / zero-length frames.
@@ -34,8 +35,19 @@ pub enum LoadError {
     Io(std::io::Error),
     Parse(serde_json::Error),
     MissingSchemaVersion,
-    FutureSchema { found: u32, supported: u32 },
-    UnsupportedSchema { found: u32 },
+    FutureSchema {
+        found: u32,
+        supported: u32,
+    },
+    /// The file declares an older schema but carries a field that only a newer
+    /// one defines. `field` names the offending JSON key.
+    NewerField {
+        found: u32,
+        field: String,
+    },
+    UnsupportedSchema {
+        found: u32,
+    },
 }
 
 impl fmt::Display for LoadError {
@@ -47,6 +59,9 @@ impl fmt::Display for LoadError {
             LoadError::FutureSchema { found, supported } => {
                 write!(f, "schema_version {found} is newer than the supported version {supported}; refusing to read")
             }
+            LoadError::NewerField { found, field } => {
+                write!(f, "schema_version {found} cannot hold '{field}': that field belongs to a newer schema")
+            }
             LoadError::UnsupportedSchema { found } => write!(f, "schema_version {found} is not supported"),
         }
     }
@@ -54,12 +69,38 @@ impl fmt::Display for LoadError {
 
 impl std::error::Error for LoadError {}
 
+/// True when a key is present and not `null`. A key a writer emits as `null`
+/// means the same as an absent one.
+fn is_set(value: Option<&serde_json::Value>) -> bool {
+    !matches!(value, None | Some(serde_json::Value::Null))
+}
+
+/// True when `key` holds something a newer schema would have to interpret. An
+/// absent key, an explicit `null` and an empty array all mean "nothing here", so
+/// a v1 file written by a serializer that always emits `"area_loads": []` still
+/// loads instead of being refused as a v5 file.
+fn has_value(raw: &serde_json::Value, key: &str) -> bool {
+    match raw.get(key) {
+        None | Some(serde_json::Value::Null) => false,
+        Some(serde_json::Value::Array(items)) => !items.is_empty(),
+        Some(_) => true,
+    }
+}
+
+/// The first of `keys` that `raw` carries, for the error message.
+fn first_value<'a>(raw: &'a serde_json::Value, keys: &[&'a str]) -> Option<&'a str> {
+    keys.iter().copied().find(|k| has_value(raw, k))
+}
+
 /// Reads a model from JSON, checking the schema version before the body.
 /// Migrations: v1 → v2 adds `as2 = as3 = 0` (no shear deformation, the v1
 /// behavior); v2 → v3 adds no offsets, constraints, springs or imposed
 /// displacements; v3 → v4 only adds load kinds; v4 → v5 adds no subdivision;
 /// v5 → v6 only allows areas of three joints; v6 → v7 only adds a mass source.
 /// Missing fields already default to that, so only the version number changes.
+///
+/// A field of a newer schema is refused even when it is empty of meaning only
+/// if it carries content: `constraints: []` is the same as no constraints at all.
 pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     let raw: serde_json::Value = serde_json::from_str(text).map_err(LoadError::Parse)?;
     let ver = raw.get("schema_version").and_then(|v| v.as_u64()).ok_or(LoadError::MissingSchemaVersion)?;
@@ -70,15 +111,16 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     if ver < 1 {
         return Err(LoadError::UnsupportedSchema { found: ver });
     }
+    let newer = |field: &str| LoadError::NewerField { found: ver, field: field.to_string() };
     if ver == 1 {
         // Shear areas did not exist in v1; reject them instead of silently
         // giving a v1 file v2 semantics.
         let has_shear = raw
             .get("sections")
             .and_then(|v| v.as_array())
-            .is_some_and(|secs| secs.iter().any(|s| s.get("as2").is_some() || s.get("as3").is_some()));
+            .is_some_and(|secs| secs.iter().any(|s| is_set(s.get("as2")) || is_set(s.get("as3"))));
         if has_shear {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+            return Err(newer("sections[].as2 / sections[].as3"));
         }
     }
     if ver < 3 {
@@ -86,38 +128,97 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
         let has_offsets = raw
             .get("frames")
             .and_then(|v| v.as_array())
-            .is_some_and(|frames| frames.iter().any(|f| f.get("offsets").is_some()));
+            .is_some_and(|frames| frames.iter().any(|f| is_set(f.get("offsets"))));
         let has_springs = raw
             .get("joints")
             .and_then(|v| v.as_array())
-            .is_some_and(|joints| joints.iter().any(|j| j.get("springs").is_some()));
-        if has_offsets || has_springs || raw.get("constraints").is_some() || raw.get("joint_displacements").is_some() {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+            .is_some_and(|joints| joints.iter().any(|j| is_set(j.get("springs"))));
+        if has_offsets {
+            return Err(newer("frames[].offsets"));
+        }
+        if has_springs {
+            return Err(newer("joints[].springs"));
+        }
+        if has_value(&raw, "constraints") {
+            return Err(newer("constraints"));
+        }
+        if has_value(&raw, "joint_displacements") {
+            return Err(newer("joint_displacements"));
         }
     }
-    if ver < 7 && raw.get("mass_source").is_some() {
-        return Err(LoadError::UnsupportedSchema { found: ver });
+    if ver < 9 {
+        let has_area_mesh = raw
+            .get("areas")
+            .and_then(|v| v.as_array())
+            .is_some_and(|areas| areas.iter().any(|a| a.get("auto_mesh").is_some()));
+        if has_area_mesh {
+            return Err(newer("areas[].auto_mesh"));
+        }
+    }
+    if ver < 10 {
+        // Same rule for the laminated section: never give an older file v10
+        // semantics.
+        let has_layers = raw
+            .get("area_sections")
+            .and_then(|v| v.as_array())
+            .is_some_and(|secs| secs.iter().any(|s| is_set(s.get("layers"))));
+        if has_layers {
+            return Err(newer("area_sections[].layers"));
+        }
+    }
+    if ver < 11 {
+        // Same rule for the plane behaviour: an older reader would fail on the
+        // value, so it says which field is newer instead (decision 0033).
+        let has_plane = raw
+            .get("area_sections")
+            .and_then(|v| v.as_array())
+            .is_some_and(|secs| secs.iter().any(|s| s.get("behavior").and_then(|b| b.as_str()) == Some("Plane")));
+        if has_plane {
+            return Err(newer("area_sections[].behavior: Plane"));
+        }
+    }
+    if ver < 12 {
+        // Same rule for the axisymmetric behaviour and the centrifugal
+        // direction: an older reader cannot parse either value (decision 0034).
+        let has_axisym = raw.get("area_sections").and_then(|v| v.as_array()).is_some_and(|secs| {
+            secs.iter().any(|s| s.get("behavior").and_then(|b| b.as_str()) == Some("Axisymmetric"))
+        });
+        if has_axisym {
+            return Err(newer("area_sections[].behavior: Axisymmetric"));
+        }
+        let has_centrifugal = ["area_loads", "frame_loads"].iter().any(|key| {
+            raw.get(*key).and_then(|v| v.as_array()).is_some_and(|loads| {
+                loads.iter().any(|l| l.get("direction").and_then(|d| d.as_str()) == Some("Centrifugal"))
+            })
+        });
+        if has_centrifugal {
+            return Err(newer("loads[].direction: Centrifugal"));
+        }
+    }
+    if ver < 7 && has_value(&raw, "mass_source") {
+        return Err(newer("mass_source"));
     }
     let has_auto_seismic = raw
         .get("load_patterns")
         .and_then(|v| v.as_array())
-        .is_some_and(|patterns| patterns.iter().any(|p| p.get("auto_seismic").is_some()));
+        .is_some_and(|patterns| patterns.iter().any(|p| is_set(p.get("auto_seismic"))));
     if ver < 8 && has_auto_seismic {
-        return Err(LoadError::UnsupportedSchema { found: ver });
+        return Err(newer("load_patterns[].auto_seismic"));
     }
     if ver < 6 {
         let has_triangle = raw.get("areas").and_then(|v| v.as_array()).is_some_and(|areas| {
             areas.iter().any(|a| a.get("joints").and_then(|j| j.as_array()).is_some_and(|j| j.len() != 4))
         });
         if has_triangle {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+            return Err(newer("areas[].joints with three joints"));
         }
     }
     if ver < 5 {
+        let areas = first_value(&raw, &["area_sections", "areas", "area_loads"]);
         let has_auto_mesh = raw
             .get("frames")
             .and_then(|v| v.as_array())
-            .is_some_and(|frames| frames.iter().any(|f| f.get("auto_mesh").is_some()));
+            .is_some_and(|frames| frames.iter().any(|f| is_set(f.get("auto_mesh"))));
         let has_envelope = raw
             .get("combinations")
             .and_then(|v| v.as_array())
@@ -125,22 +226,33 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
         let has_shape = raw
             .get("sections")
             .and_then(|v| v.as_array())
-            .is_some_and(|secs| secs.iter().any(|s| s.get("shape").is_some() || s.get("neglect_shear").is_some()));
-        let has_areas = ["area_sections", "areas", "area_loads"].iter().any(|k| raw.get(*k).is_some());
-        let has_dynamics = raw.get("response_spectra").is_some()
+            .is_some_and(|secs| secs.iter().any(|s| is_set(s.get("shape")) || is_set(s.get("neglect_shear"))));
+        let has_dynamics = has_value(&raw, "response_spectra")
             || raw.get("load_cases").and_then(|v| v.as_array()).is_some_and(|cases| {
                 cases.iter().any(|c| c.get("type").and_then(|t| t.as_str()) != Some("LinearStatic"))
             })
             || raw
                 .get("materials")
                 .and_then(|v| v.as_array())
-                .is_some_and(|ms| ms.iter().any(|x| x.get("mass_density").is_some()))
+                .is_some_and(|ms| ms.iter().any(|x| is_set(x.get("mass_density"))))
             || raw
                 .get("joints")
                 .and_then(|v| v.as_array())
-                .is_some_and(|js| js.iter().any(|x| x.get("added_mass").is_some()));
-        if has_auto_mesh || has_envelope || has_shape || has_areas || has_dynamics {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+                .is_some_and(|js| js.iter().any(|x| is_set(x.get("added_mass"))));
+        if let Some(field) = areas {
+            return Err(newer(field));
+        }
+        if has_dynamics {
+            return Err(newer("response_spectra / a load case of another type / mass_density / added_mass"));
+        }
+        if has_auto_mesh {
+            return Err(newer("frames[].auto_mesh"));
+        }
+        if has_envelope {
+            return Err(newer("combinations with type Envelope"));
+        }
+        if has_shape {
+            return Err(newer("sections[].shape / sections[].neglect_shear"));
         }
     }
     if ver < 4 {
@@ -152,7 +264,7 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             })
         });
         if has_v4_load {
-            return Err(LoadError::UnsupportedSchema { found: ver });
+            return Err(newer("frame_loads[].load.kind"));
         }
     }
     let mut model: Model = serde_json::from_value(raw).map_err(LoadError::Parse)?;
@@ -346,15 +458,119 @@ fn check_mass_and_spectra(m: &Model, issues: &mut Vec<Issue>) {
 /// fraction of its longer diagonal.
 pub const AREA_WARP_TOL_REL: f64 = 1e-3;
 
+/// Global axis perpendicular to the plane of `points`, or `None` when they are
+/// not parallel to a global axis plane (decision 0033).
+///
+/// A plane area carries two degrees of freedom per node, so the analysis has to
+/// hold the other four. That is only a fixed set of components when the plane
+/// is one of the three coordinate planes; a tilted one would need a kinematic
+/// constraint per joint instead. Exactly one coordinate has to stay constant:
+/// two would mean the points are a line, which is not a plane.
+pub fn plane_axis(points: &[[f64; 3]]) -> Option<usize> {
+    if points.len() < 2 {
+        return None;
+    }
+    let mut range = [0.0; 3];
+    for a in 0..3 {
+        let mut min = f64::INFINITY;
+        let mut max = f64::NEG_INFINITY;
+        for p in points {
+            min = min.min(p[a]);
+            max = max.max(p[a]);
+        }
+        range[a] = max - min;
+    }
+    let extent = range.iter().copied().fold(0.0, f64::max);
+    if !extent.is_finite() || extent <= 0.0 {
+        return None;
+    }
+    let flat: Vec<usize> = (0..3).filter(|&a| range[a] <= 1e-9 * extent).collect();
+    match flat.as_slice() {
+        [axis] => Some(*axis),
+        _ => None,
+    }
+}
+
+/// Is the section of an area one of the two whose element carries two degrees
+/// of freedom per node? The analysis holds the other four of their joints
+/// (decisions 0033 and 0034).
+fn is_2d_section(behavior: Option<AreaBehavior>) -> bool {
+    matches!(behavior, Some(AreaBehavior::Plane | AreaBehavior::Axisymmetric))
+}
+
+/// Geometry an axisymmetric section has to have (decision 0034): four joints,
+/// a plane that contains the z axis, and a radius of at least zero. Returns
+/// whether the area can be registered as one of the two-degree sections.
+fn axisymmetric_geometry(e: &str, axis: usize, pts: &[[f64; 3]], issues: &mut Vec<Issue>) -> bool {
+    let mut ok = true;
+    if pts.len() != 4 {
+        issues.push(issue(
+            e,
+            "joints",
+            "an axisymmetric area has four joints: its element is the quadrilateral (decision 0034)",
+        ));
+        ok = false;
+    }
+    if axis > 1 {
+        issues.push(issue(
+            e,
+            "joints",
+            "an axisymmetric area stands in a plane that contains the z axis: x = 0 or y = 0, not a horizontal plane (decision 0034)",
+        ));
+        return false;
+    }
+    let scale = pts.iter().flat_map(|p| p.iter().map(|v| v.abs())).fold(1.0, f64::max);
+    let tol = 1e-9 * scale;
+    if pts.iter().any(|p| p[axis].abs() > tol) {
+        issues.push(issue(
+            e,
+            "joints",
+            "the plane of an axisymmetric area has to pass through the z axis: its constant coordinate is 0 (decision 0034)",
+        ));
+        ok = false;
+    }
+    let radius = 1 - axis;
+    if pts.iter().any(|p| p[radius] < -tol) {
+        issues.push(issue(
+            e,
+            "joints",
+            "the radius of an axisymmetric area has to be >= 0: it is measured from the z axis (decision 0034)",
+        ));
+        ok = false;
+    }
+    // The element integrates with the sign of the Jacobian of its (r, z)
+    // coordinates, and its axes are fixed by the revolution, so the joint
+    // order is the only thing that can flip it (decision 0034).
+    if pts.len() == 4 {
+        let signed: f64 = (0..4)
+            .map(|i| {
+                let j = (i + 1) % 4;
+                pts[i][radius] * pts[j][2] - pts[j][radius] * pts[i][2]
+            })
+            .sum();
+        if signed < 0.0 {
+            issues.push(issue(
+                e,
+                "joints",
+                "the joints of an axisymmetric area run clockwise in its (r, z) section: they have to go counterclockwise (decision 0034)",
+            ));
+            ok = false;
+        }
+    }
+    ok
+}
+
 fn check_areas(
     m: &Model,
     materials: &HashMap<Name, usize>,
     joint_index: &HashMap<Name, usize>,
     connected: &mut HashSet<usize>,
+    plane_axis_of: &mut HashMap<usize, usize>,
     issues: &mut Vec<Issue>,
 ) {
     let sections = index_unique("area section", m.area_sections.iter().map(|s| s.name.as_str()), issues);
     let area_index = index_unique("area", m.areas.iter().map(|a| a.name.as_str()), issues);
+    let behavior: HashMap<&str, AreaBehavior> = m.area_sections.iter().map(|s| (s.name.as_str(), s.behavior)).collect();
     for s in &m.area_sections {
         let e = format!("area section {}", s.name);
         check_positive(s.thickness, &e, "thickness", issues);
@@ -364,11 +580,76 @@ fn check_areas(
         if !materials.contains_key(&s.material) {
             issues.push(issue(&e, "material", format!("unknown material '{}'", s.material)));
         }
+        if matches!(s.behavior, AreaBehavior::Plane | AreaBehavior::Axisymmetric) {
+            // A plane or axisymmetric section has no plate: the element takes
+            // E, nu and t (decisions 0033 and 0034).
+            if s.bending_thickness.is_some() {
+                issues.push(issue(&e, "bending_thickness", "a plane section has no bending thickness"));
+            }
+            if !s.layers.is_empty() {
+                issues.push(issue(&e, "layers", "a plane section has no layers"));
+            }
+        }
+        if !s.layers.is_empty() {
+            if s.bending_thickness.is_some() {
+                issues.push(issue(
+                    &e,
+                    "bending_thickness",
+                    "a laminated section carries its bending stiffness in the layers: bending_thickness does not apply",
+                ));
+            }
+            let mut total = 0.0;
+            for layer in &s.layers {
+                total += layer.thickness;
+                if !layer.thickness.is_finite() || layer.thickness <= 0.0 {
+                    issues.push(issue(
+                        &e,
+                        "layers",
+                        format!("layer '{}': thickness must be positive and finite", layer.material),
+                    ));
+                }
+                if !materials.contains_key(&layer.material) {
+                    issues.push(issue(&e, "layers", format!("unknown material '{}'", layer.material)));
+                }
+            }
+            if (total - s.thickness).abs() > 1e-9 * s.thickness.abs().max(1.0) {
+                issues.push(issue(
+                    &e,
+                    "layers",
+                    format!("the layers add up to {total}, not to the thickness {}", s.thickness),
+                ));
+            }
+            // The flat element has no bending-extension coupling, so a stack
+            // whose `b` is not zero is refused instead of being solved as if it
+            // were zero (decision 0032).
+            let stiffness: HashMap<Name, (f64, f64)> =
+                m.materials.iter().map(|x| (x.name.clone(), (x.e, x.nu))).collect();
+            if let Ok(abc) = laminate_abc(&s.layers, &stiffness) {
+                let scale = abc.a[0][0].abs().max(1.0) * s.thickness;
+                if abc.b.iter().flatten().any(|v| v.abs() > 1e-9 * scale) {
+                    issues.push(issue(
+                        &e,
+                        "layers",
+                        "the stack couples bending and extension (b is not zero), which the shell element does not support yet",
+                    ));
+                }
+            }
+        }
     }
     for a in &m.areas {
         let e = format!("area {}", a.name);
         if !sections.contains_key(&a.section) {
             issues.push(issue(&e, "section", format!("unknown area section '{}'", a.section)));
+        }
+        if let Some(mesh) = a.auto_mesh {
+            // A triangle has one division count, on every edge.
+            let (m, n) = (mesh.m.max(1), mesh.n.max(1));
+            if mesh.m < 1 || mesh.n < 1 {
+                issues.push(issue(&e, "auto_mesh", "m and n must be >= 1"));
+            }
+            if a.joints.len() == 3 && m != n {
+                issues.push(issue(&e, "auto_mesh", "a triangle uses one division count: m must equal n"));
+            }
         }
         if !matches!(a.joints.len(), 3 | 4) {
             issues.push(issue(&e, "joints", format!("an area has 3 or 4 joints, not {}", a.joints.len())));
@@ -391,6 +672,41 @@ fn check_areas(
             let j = &m.joints[found[k]];
             [j.x, j.y, j.z]
         };
+        let behavior_of = behavior.get(a.section.as_str()).copied();
+        if is_2d_section(behavior_of) {
+            // A plane or axisymmetric area is a 2D idealisation: two DOF per
+            // node, with the other four held by the analysis (decisions 0033
+            // and 0034). Its plane has to be parallel to a global axis so that
+            // the held components are a fixed set, and two of them that share
+            // a joint have to lie in the same plane, or that joint would be
+            // held twice over.
+            let pts: Vec<[f64; 3]> = (0..found.len()).map(&at).collect();
+            match plane_axis(&pts) {
+                None => issues.push(issue(
+                    &e,
+                    "joints",
+                    "a plane area must be parallel to a global axis plane: one of x, y, z constant over its joints",
+                )),
+                Some(axis) => {
+                    let usable = behavior_of != Some(AreaBehavior::Axisymmetric)
+                        || axisymmetric_geometry(&e, axis, &pts, issues);
+                    if usable {
+                        let other = found.iter().find(|&&k| plane_axis_of.get(&k).is_some_and(|&a| a != axis));
+                        if other.is_some() {
+                            issues.push(issue(
+                                &e,
+                                "joints",
+                                "a plane area shares a joint with a plane area in a different plane (decisions 0033 and 0034)",
+                            ));
+                        } else {
+                            for &k in &found {
+                                plane_axis_of.entry(k).or_insert(axis);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
         let cross = |a: [f64; 3], b: [f64; 3]| {
             [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
@@ -432,6 +748,34 @@ fn check_areas(
             ));
         }
     }
+    if !plane_axis_of.is_empty() {
+        // The analysis holds the out-of-plane DOF of a plane area's joints, so
+        // sharing them with a 3D element would hold that element too.
+        for f in &m.frames {
+            let ends = [joint_index.get(f.i.as_str()), joint_index.get(f.j.as_str())];
+            if ends.iter().any(|k| k.is_some_and(|k| plane_axis_of.contains_key(k))) {
+                issues.push(issue(
+                    format!("frame {}", f.name),
+                    "joints",
+                    "a plane area shares a joint with a frame: a plane area is a 2D idealisation and cannot mix with 3D elements (decision 0033)",
+                ));
+            }
+        }
+        for a in &m.areas {
+            if is_2d_section(behavior.get(a.section.as_str()).copied()) {
+                continue;
+            }
+            for name in &a.joints {
+                if joint_index.get(name).is_some_and(|&k| plane_axis_of.contains_key(&k)) {
+                    issues.push(issue(
+                        format!("area {}", a.name),
+                        "joints",
+                        "a plane area shares a joint with a 3D area (decision 0033)",
+                    ));
+                }
+            }
+        }
+    }
     for (k, l) in m.area_loads.iter().enumerate() {
         let e = format!("area load #{k}");
         if !m.load_patterns.iter().any(|p| p.name == l.pattern) {
@@ -441,6 +785,143 @@ fn check_areas(
             issues.push(issue(&e, "area", format!("unknown area '{}'", l.area)));
         }
         check_finite(l.value, &e, "value", issues);
+        let subject = m
+            .areas
+            .iter()
+            .find(|a| a.name == l.area)
+            .filter(|a| is_2d_section(behavior.get(a.section.as_str()).copied()));
+        if l.value != 0.0 {
+            // A load out of the plane of a plane or axisymmetric area reaches
+            // an element with no stiffness there: it would be dropped without
+            // a word (decisions 0033 and 0034).
+            if let Some(a) = subject {
+                let axis = a.joints.first().and_then(|n| joint_index.get(n)).and_then(|&k| plane_axis_of.get(&k));
+                let out_of_plane = match l.direction {
+                    LoadDirection::Local3 => true,
+                    LoadDirection::Local1 | LoadDirection::Local2 => false,
+                    LoadDirection::GlobalX => axis == Some(&0),
+                    LoadDirection::GlobalY => axis == Some(&1),
+                    LoadDirection::GlobalZ | LoadDirection::Gravity => axis == Some(&2),
+                    // Radial by construction, so it is always in the plane.
+                    LoadDirection::Centrifugal => false,
+                };
+                if out_of_plane {
+                    issues.push(issue(
+                        &e,
+                        "direction",
+                        "out of the plane of a plane or axisymmetric area: the load would not be carried (decisions 0033 and 0034)",
+                    ));
+                }
+            }
+        }
+        // The centrifugal body force needs a radius and a density (0034).
+        if l.direction == LoadDirection::Centrifugal {
+            let section = m
+                .areas
+                .iter()
+                .find(|a| a.name == l.area)
+                .and_then(|a| m.area_sections.iter().find(|s| s.name == a.section));
+            let axisym = section.is_some_and(|s| s.behavior == AreaBehavior::Axisymmetric);
+            if !axisym {
+                issues.push(issue(
+                    &e,
+                    "direction",
+                    "a centrifugal load needs an area with an axisymmetric section (decision 0034)",
+                ));
+            } else if l.value < 0.0 {
+                issues.push(issue(&e, "value", "the angular velocity must be >= 0"));
+            } else {
+                let density =
+                    section.and_then(|s| materials.get(&s.material)).map_or(0.0, |&i| m.materials[i].mass_density);
+                if density <= 0.0 {
+                    issues.push(issue(
+                        &e,
+                        "value",
+                        "the material of this area has no mass_density, which the centrifugal load needs (decision 0034)",
+                    ));
+                }
+            }
+        }
+    }
+    // Weight of a plane area in a horizontal plane: gravity is out of that
+    // plane, so the element would carry none of it (decision 0033).
+    if m.load_patterns.iter().any(|p| p.self_weight_multiplier != 0.0) {
+        for a in &m.areas {
+            if behavior.get(a.section.as_str()) != Some(&AreaBehavior::Plane) {
+                continue;
+            }
+            let Some(&k) = a.joints.first().and_then(|n| joint_index.get(n)) else { continue };
+            if plane_axis_of.get(&k) != Some(&2) {
+                continue;
+            }
+            let sec = m.area_sections.iter().find(|s| s.name == a.section);
+            let weight = sec.and_then(|s| materials.get(&s.material)).map_or(0.0, |&i| m.materials[i].unit_weight);
+            if weight > 0.0 {
+                issues.push(issue(
+                    format!("area {}", a.name),
+                    "section",
+                    "its weight acts out of the plane of a plane area and would not be carried: use a shell or plate section",
+                ));
+            }
+        }
+    }
+}
+
+/// Loads, imposed displacements and springs on a component the analysis holds
+/// for a plane or axisymmetric area (decisions 0033 and 0034): they would be
+/// dropped without a word, because the element has no stiffness there.
+fn check_plane_dofs(
+    m: &Model,
+    joint_index: &HashMap<Name, usize>,
+    plane_axis_of: &HashMap<usize, usize>,
+    issues: &mut Vec<Issue>,
+) {
+    let held = |j: usize| -> Vec<usize> {
+        match plane_axis_of.get(&j) {
+            Some(&axis) => vec![axis, 3, 4, 5],
+            None => Vec::new(),
+        }
+    };
+    for (k, jl) in m.joint_loads.iter().enumerate() {
+        let Some(&j) = joint_index.get(&jl.joint) else { continue };
+        for d in held(j) {
+            if jl.values[d] != 0.0 {
+                issues.push(issue(
+                    format!("joint load #{k}"),
+                    "values",
+                    format!(
+                        "{} of joint '{}' is out of the plane of a plane or axisymmetric area: the load would not be carried (decisions 0033 and 0034)",
+                        DOF_NAMES[d], jl.joint
+                    ),
+                ));
+            }
+        }
+    }
+    for (k, jd) in m.joint_displacements.iter().enumerate() {
+        let Some(&j) = joint_index.get(&jd.joint) else { continue };
+        for d in held(j) {
+            if jd.values[d] != 0.0 {
+                issues.push(issue(
+                    format!("joint displacement #{k}"),
+                    "values",
+                    format!(
+                        "{} of joint '{}' is out of the plane of a plane or axisymmetric area: the displacement would not be imposed (decisions 0033 and 0034)",
+                        DOF_NAMES[d], jd.joint
+                    ),
+                ));
+            }
+        }
+    }
+    for (j, joint) in m.joints.iter().enumerate() {
+        for d in held(j) {
+            if joint.springs[d] > 0.0 {
+                issues.push(issue(
+                    format!("joint {}", joint.name),
+                    &format!("springs[{}]", DOF_NAMES[d]),
+                    "out of the plane of a plane or axisymmetric area: the spring would not be used (decisions 0033 and 0034)",
+                ));
+            }
+        }
     }
 }
 
@@ -578,7 +1059,9 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
         frame_refs.push((ji.unwrap_or(usize::MAX), jj.unwrap_or(usize::MAX), sk.unwrap_or(usize::MAX), mk));
     }
 
-    check_areas(&m, &mat_idx, &joint_index, &mut connected, &mut issues);
+    let mut plane_axis_of: HashMap<usize, usize> = HashMap::new();
+    check_areas(&m, &mat_idx, &joint_index, &mut connected, &mut plane_axis_of, &mut issues);
+    check_plane_dofs(&m, &joint_index, &plane_axis_of, &mut issues);
     index_unique("constraint", m.constraints.iter().map(|c| c.name()), &mut issues);
     let mut constrained: HashMap<usize, &str> = HashMap::new();
     for c in &m.constraints {
@@ -688,6 +1171,22 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
         }
         if !frame_index.contains_key(&fl.frame) {
             issues.push(issue(&e, "frame", format!("unknown frame '{}'", fl.frame)));
+        }
+        // Every kind carries a direction, and none of them can be the
+        // centrifugal body force of a revolution (decision 0034).
+        let dir = match fl.load {
+            FrameLoadKind::Uniform { direction, .. }
+            | FrameLoadKind::Point { direction, .. }
+            | FrameLoadKind::Trapezoidal { direction, .. }
+            | FrameLoadKind::PointMoment { direction, .. }
+            | FrameLoadKind::TrapezoidalMoment { direction, .. } => direction,
+        };
+        if dir == LoadDirection::Centrifugal {
+            issues.push(issue(
+                &e,
+                "direction",
+                "a centrifugal load needs an area with an axisymmetric section: a bar cannot take one (decision 0034)",
+            ));
         }
         match fl.load {
             FrameLoadKind::Uniform { value, .. } => check_finite(value, &e, "value", &mut issues),
@@ -811,6 +1310,7 @@ pub fn hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::laminate::Layer;
     use crate::units::{ForceUnit, LengthUnit, UnitSystem};
 
     fn cantilever() -> Model {
@@ -933,7 +1433,7 @@ mod tests {
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
         v["schema_version"] = 1.into();
         v["sections"][0]["as2"] = 0.005.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 1 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 1, .. })));
     }
 
     #[test]
@@ -1041,12 +1541,22 @@ mod tests {
         let rejected = |change: fn(&mut serde_json::Value)| {
             let mut w = v.clone();
             change(&mut w);
-            matches!(model_from_json(&w.to_string()), Err(LoadError::UnsupportedSchema { found: 2 }))
+            matches!(model_from_json(&w.to_string()), Err(LoadError::NewerField { found: 2, .. }))
         };
         assert!(rejected(|w| w["frames"][0]["offsets"] = serde_json::json!({"i": [0.0, 0.0, 1.0]})));
-        assert!(rejected(|w| w["constraints"] = serde_json::json!([])));
-        assert!(rejected(|w| w["joint_displacements"] = serde_json::json!([])));
         assert!(rejected(|w| w["joints"][1]["springs"] = serde_json::json!([0.0, 0.0, 1.0, 0.0, 0.0, 0.0])));
+        // A field the v2 file does not use is still a v2 file: an empty array is
+        // the same as an absent field.
+        assert!(rejected(|w| w["constraints"] =
+            serde_json::json!([{"kind": "Diaphragm", "name": "D", "axis": "Z", "joints": ["2"]}])));
+        assert!(rejected(|w| w["joint_displacements"] =
+            serde_json::json!([{"pattern": "P1", "joint": "2", "values": [0.0, 0.0, -0.001, 0.0, 0.0, 0.0]}])));
+        let mut empty = v.clone();
+        empty["constraints"] = serde_json::json!([]);
+        empty["joint_displacements"] = serde_json::json!([]);
+        empty["frames"][0]["offsets"] = serde_json::Value::Null;
+        let loaded = model_from_json(&empty.to_string());
+        assert!(loaded.is_ok(), "empty v3 fields load as a v2 file: {:?}", loaded.err());
     }
 
     #[test]
@@ -1172,7 +1682,7 @@ mod tests {
         assert!(validate(&m).is_ok());
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 4.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 4 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 4, .. })));
     }
 
     #[test]
@@ -1180,7 +1690,7 @@ mod tests {
         let m = with_frame_load(FrameLoadKind::PointMoment { direction: LoadDirection::Local3, rel: 0.5, value: 1.0 });
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 3.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 3 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 3, .. })));
     }
 
     #[test]
@@ -1338,15 +1848,48 @@ mod tests {
             thickness: 0.2,
             bending_thickness: None,
             behavior: AreaBehavior::Shell,
+            layers: Vec::new(),
         }];
         m.areas = vec![Area {
             name: "Q".into(),
             joints: vec!["A0".to_string(), "A1".to_string(), "A2".to_string(), "A3".to_string()],
             section: "S1".into(),
+            auto_mesh: None,
         }];
         m
     }
 
+    #[test]
+    fn laminated_sections_carry_their_layers() {
+        let mut m = with_area([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]]);
+        for (name, e) in [("SKIN", 2e11), ("CORE", 10e9)] {
+            m.materials.push(Material { name: name.into(), e, nu: 0.3, g: None, unit_weight: 0.0, mass_density: 0.0 });
+        }
+        let layer = |t: f64, name: &str| Layer { thickness: t, material: name.into() };
+        m.area_sections[0].layers = vec![layer(0.01, "SKIN"), layer(0.18, "CORE"), layer(0.01, "SKIN")];
+        assert!(validate(&m).is_ok());
+
+        // The layers have to add up to the thickness.
+        let mut short = m.clone();
+        short.area_sections[0].layers[1].thickness = 0.17;
+        assert!(validate(&short).expect_err("fail").iter().any(|i| i.field == "layers"));
+
+        // A stack that couples bending and extension is refused, not approximated.
+        let mut coupled = m.clone();
+        coupled.area_sections[0].layers = vec![layer(0.1, "SKIN"), layer(0.1, "CORE")];
+        let text = format!("{:?}", validate(&coupled).expect_err("must fail"));
+        assert!(text.contains("couples"), "{text}");
+
+        // With layers, bending_thickness has nothing to say.
+        let mut both = m.clone();
+        both.area_sections[0].bending_thickness = Some(0.15);
+        assert!(validate(&both).expect_err("fail").iter().any(|i| i.field == "bending_thickness"));
+
+        // A file from before the layers existed cannot carry them.
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 9.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 9, .. })));
+    }
     #[test]
     fn a_mass_source_needs_schema_7_and_known_patterns() {
         let mut m = cantilever();
@@ -1360,7 +1903,7 @@ mod tests {
 
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 6.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 6 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 6, .. })));
     }
 
     #[test]
@@ -1384,7 +1927,7 @@ mod tests {
         validate(&m).expect("valid");
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 7.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 7 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 7, .. })));
     }
 
     #[test]
@@ -1396,7 +1939,7 @@ mod tests {
 
         let mut v5 = serde_json::to_value(&m).expect("json");
         v5["schema_version"] = 5.into();
-        assert!(matches!(model_from_json(&v5.to_string()), Err(LoadError::UnsupportedSchema { found: 5 })));
+        assert!(matches!(model_from_json(&v5.to_string()), Err(LoadError::NewerField { found: 5, .. })));
 
         // In a line, or repeating a joint.
         let mut line = m.clone();
@@ -1573,7 +2116,47 @@ mod tests {
         let mut v: serde_json::Value =
             serde_json::from_str(&model_to_json(&shaped(SectionShape::Circle { diameter: 1.0 }))).expect("json");
         v["schema_version"] = 4.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 4 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 4, .. })));
+    }
+
+    #[test]
+    fn empty_newer_collections_do_not_make_an_older_file_newer() {
+        // A writer that always emits its keys produces `"area_loads": []` in a
+        // v1 file. An empty array means the same as an absent field, so the file
+        // is a v1 file and loads (S-02).
+        let plain: serde_json::Value = serde_json::from_str(&model_to_json(&cantilever())).expect("json");
+        // A genuinely v1 file: no shear areas, which are the v2 fields, and no
+        // v3 springs (all-zero ones included).
+        let mut v1 = plain.clone();
+        v1["schema_version"] = 1.into();
+        for section in v1["sections"].as_array_mut().expect("sections") {
+            if let Some(map) = section.as_object_mut() {
+                map.remove("as2");
+                map.remove("as3");
+            }
+        }
+        for joint in v1["joints"].as_array_mut().expect("joints") {
+            if let Some(map) = joint.as_object_mut() {
+                map.remove("springs");
+            }
+        }
+        for frame in v1["frames"].as_array_mut().expect("frames") {
+            if let Some(map) = frame.as_object_mut() {
+                map.remove("offsets");
+            }
+        }
+        for key in ["area_sections", "areas", "area_loads"] {
+            let mut v = v1.clone();
+            v[key] = serde_json::json!([]);
+            if let Err(e) = model_from_json(&v.to_string()) {
+                panic!("empty {key} must not need a newer schema: {e}");
+            }
+        }
+        // With content it is a newer file, and the error names the field.
+        let mut v = v1.clone();
+        v["area_loads"] = serde_json::json!([{"area": "A", "direction": "Gravity", "value": 1.0}]);
+        let err = model_from_json(&v.to_string()).expect_err("must fail").to_string();
+        assert!(err.contains("area_loads"), "{err}");
     }
 
     #[test]
@@ -1593,7 +2176,7 @@ mod tests {
         }
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 4.into();
-        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 4 })));
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 4, .. })));
     }
 
     #[test]
@@ -1625,5 +2208,287 @@ mod tests {
         c.sections[0].i33 = 2e-4;
         let c = validate(&c).expect("ok");
         assert_ne!(a.hash, c.hash);
+    }
+    /// The cantilever plus a flat area with a plane section.
+    fn plane_area(corners: [[f64; 3]; 4]) -> Model {
+        let mut m = with_area(corners);
+        m.area_sections[0].behavior = AreaBehavior::Plane;
+        m
+    }
+
+    /// The cantilever plus a wall in the plane y = 5.
+    fn plane_wall() -> Model {
+        plane_area([[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 5.0, 3.0], [0.0, 5.0, 3.0]])
+    }
+
+    #[test]
+    fn plane_axis_is_the_one_coordinate_that_does_not_move() {
+        assert_eq!(plane_axis(&[[0.0, 0.0, 2.0], [1.0, 0.0, 2.0], [1.0, 1.0, 2.0]]), Some(2));
+        assert_eq!(plane_axis(&[[0.0, 4.0, 0.0], [0.0, 4.0, 3.0], [2.0, 4.0, 3.0]]), Some(1));
+        assert_eq!(plane_axis(&[[5.0, 0.0, 0.0], [5.0, 1.0, 0.0], [5.0, 1.0, 1.0]]), Some(0));
+        // Tilted: no coordinate stays put.
+        assert_eq!(plane_axis(&[[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]), None);
+        // A line is not a plane, and neither is a single point.
+        assert_eq!(plane_axis(&[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]), None);
+        assert_eq!(plane_axis(&[[1.0, 1.0, 1.0]]), None);
+    }
+
+    #[test]
+    fn a_plane_section_has_no_plate_and_its_area_has_to_be_flat() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+        assert!(validate(&plane_area(flat)).is_ok());
+
+        let tilted = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 1.0], [0.0, 7.0, 1.0]];
+        let errs = validate(&plane_area(tilted)).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("global axis plane")), "{errs:?}");
+
+        let mut plate = plane_area(flat);
+        plate.area_sections[0].bending_thickness = Some(0.1);
+        assert!(validate(&plate).expect_err("fail").iter().any(|i| i.field == "bending_thickness"));
+
+        let mut layered = plane_area(flat);
+        layered.area_sections[0].layers = vec![Layer { thickness: 0.2, material: "S".into() }];
+        assert!(validate(&layered).expect_err("fail").iter().any(|i| i.field == "layers"));
+    }
+
+    #[test]
+    fn a_plane_area_does_not_mix_with_3d_elements_or_with_another_plane() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+
+        // The joint of a frame, held by the plane area, would hold the frame.
+        let mut m = plane_area(flat);
+        m.areas[0].joints[0] = "1".into();
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("shares a joint with a frame")), "{errs:?}");
+
+        // Two planes through one joint: that joint would be held twice over.
+        // A wall standing on the edge A0A1 of the horizontal area.
+        let mut m = plane_area(flat);
+        m.joints.push(Joint {
+            name: "V".into(),
+            x: 1.0,
+            y: 5.0,
+            z: 2.0,
+            restraint: [false; 6],
+            springs: [0.0; 6],
+            added_mass: [0.0; 6],
+        });
+        m.area_sections.push(AreaSection {
+            name: "PW".into(),
+            material: "S".into(),
+            thickness: 0.2,
+            bending_thickness: None,
+            behavior: AreaBehavior::Plane,
+            layers: Vec::new(),
+        });
+        m.areas.push(Area {
+            name: "W".into(),
+            joints: vec!["A0".into(), "A1".into(), "V".into()],
+            section: "PW".into(),
+            auto_mesh: None,
+        });
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("different plane")), "{errs:?}");
+    }
+
+    #[test]
+    fn loads_out_of_the_plane_of_a_plane_area_are_refused() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+        let load =
+            |d: LoadDirection, v: f64| AreaLoad { pattern: "P".into(), area: "Q".into(), direction: d, value: v };
+
+        // Gravity is out of a horizontal plane.
+        let mut m = plane_area(flat);
+        m.area_loads = vec![load(LoadDirection::Gravity, 1e3)];
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.field == "direction"), "{errs:?}");
+
+        // Local 3 is the normal, and a zero value carries nothing.
+        let mut m = plane_area(flat);
+        m.area_loads = vec![load(LoadDirection::Local3, 1e3)];
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "direction"));
+        let mut m = plane_area(flat);
+        m.area_loads = vec![load(LoadDirection::Local3, 0.0), load(LoadDirection::GlobalX, 1e3)];
+        assert!(validate(&m).is_ok());
+
+        // A wall keeps gravity in its plane and loses the load along its normal.
+        let mut m = plane_wall();
+        m.area_loads = vec![load(LoadDirection::Gravity, 1e3), load(LoadDirection::Local1, 1e3)];
+        assert!(validate(&m).is_ok());
+        let mut m = plane_wall();
+        m.area_loads = vec![load(LoadDirection::GlobalY, 1e3)];
+        assert!(validate(&m).expect_err("fail").iter().any(|i| i.field == "direction"));
+    }
+
+    #[test]
+    fn the_weight_of_a_horizontal_plane_area_is_refused() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+        let mut m = plane_area(flat);
+        m.materials[0].unit_weight = 78000.0;
+        assert!(validate(&m).is_ok(), "no pattern applies it");
+        m.load_patterns[0].self_weight_multiplier = 1.0;
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("weight")), "{errs:?}");
+
+        // A wall carries its own weight: it acts in its plane.
+        let mut m = plane_wall();
+        m.materials[0].unit_weight = 78000.0;
+        m.load_patterns[0].self_weight_multiplier = 1.0;
+        assert!(validate(&m).is_ok());
+    }
+
+    #[test]
+    fn joint_loads_and_springs_out_of_the_plane_are_refused() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+
+        // A load the element has no stiffness against would be dropped.
+        let mut m = plane_area(flat);
+        m.joint_loads.push(JointLoad {
+            pattern: "P".into(),
+            joint: "A0".into(),
+            values: [0.0, 0.0, 5.0, 0.0, 0.0, 0.0],
+        });
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("out of the plane")), "{errs:?}");
+
+        // Same for a grounded spring: the analysis holds that component, so the
+        // spring would never deform.
+        let mut m = plane_area(flat);
+        m.joints[2].springs[2] = 1e6;
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.field == "springs[UZ]"), "{errs:?}");
+
+        // In plane, both are ordinary.
+        let mut m = plane_area(flat);
+        m.joint_loads.push(JointLoad {
+            pattern: "P".into(),
+            joint: "A0".into(),
+            values: [5.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        });
+        assert!(validate(&m).is_ok());
+    }
+
+    #[test]
+    fn a_file_from_before_the_plane_behaviour_cannot_carry_it() {
+        let flat = [[0.0, 5.0, 0.0], [2.0, 5.0, 0.0], [2.0, 7.0, 0.0], [0.0, 7.0, 0.0]];
+        let m = plane_area(flat);
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 10.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 10, .. })));
+    }
+
+    /// The cantilever plus an axisymmetric area with these corners: its
+    /// section is the one the analysis revolves about the global z axis
+    /// (decision 0034).
+    fn axisym_at(corners: [[f64; 3]; 4]) -> Model {
+        let mut m = with_area(corners);
+        m.area_sections[0].behavior = AreaBehavior::Axisymmetric;
+        m
+    }
+
+    /// The cantilever plus an axisymmetric area in the plane x = 0, between
+    /// r = 1 m and r = 2 m and one metre tall.
+    fn axisym_area() -> Model {
+        axisym_at([[0.0, 1.0, 0.0], [0.0, 2.0, 0.0], [0.0, 2.0, 1.0], [0.0, 1.0, 1.0]])
+    }
+
+    #[test]
+    fn an_axisymmetric_area_needs_a_section_through_z_and_a_radius() {
+        // The right shape: a plane through the axis, radius >= 0, and the
+        // joints running counterclockwise in (r, z).
+        assert!(validate(&axisym_area()).is_ok());
+
+        // Three joints: the element of an axisymmetric area is a quadrilateral.
+        let mut m = axisym_area();
+        m.areas[0].joints.pop();
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("four joints")), "{errs:?}");
+
+        // A horizontal plane does not contain z, so it cannot be revolved.
+        let m = axisym_at([[1.0, 1.0, 5.0], [2.0, 1.0, 5.0], [2.0, 2.0, 5.0], [1.0, 2.0, 5.0]]);
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("not a horizontal plane")), "{errs:?}");
+
+        // Parallel to z but not through it: the plane x = 5 has no axis in it.
+        let m = axisym_at([[5.0, 1.0, 0.0], [5.0, 2.0, 0.0], [5.0, 2.0, 1.0], [5.0, 1.0, 1.0]]);
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("pass through the z axis")), "{errs:?}");
+
+        // The radius is measured from z, so it cannot be negative.
+        let m = axisym_at([[0.0, -1.0, 0.0], [0.0, 2.0, 0.0], [0.0, 2.0, 1.0], [0.0, 1.0, 1.0]]);
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("radius")), "{errs:?}");
+
+        // The axes of the element are fixed by the revolution, so the order of
+        // the joints is the only thing that can turn the section over.
+        let mut m = axisym_area();
+        m.areas[0].joints.reverse();
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("clockwise")), "{errs:?}");
+    }
+
+    #[test]
+    fn a_centrifugal_load_needs_an_axisymmetric_section_and_a_density() {
+        let load = |value: f64| AreaLoad {
+            pattern: "P".into(),
+            area: "Q".into(),
+            direction: LoadDirection::Centrifugal,
+            value,
+        };
+
+        // On a shell area there is no radius to spin it about.
+        let mut m = with_area([[0.0, 1.0, 0.0], [0.0, 2.0, 0.0], [0.0, 2.0, 1.0], [0.0, 1.0, 1.0]]);
+        m.area_loads.push(load(1.0));
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("axisymmetric section")), "{errs:?}");
+
+        // The ρ of ρ ω² r comes from the material of the area.
+        let mut m = axisym_area();
+        m.area_loads.push(load(1.0));
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("mass_density")), "{errs:?}");
+
+        // A negative ω would square into a positive force: refuse it instead
+        // of spinning the other way for free.
+        let mut m = axisym_area();
+        m.materials[0].mass_density = 1.0;
+        m.area_loads.push(load(-3.0));
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("angular velocity")), "{errs:?}");
+
+        // The real thing: ω = 2 rad/s on a material with a density.
+        let mut m = axisym_area();
+        m.materials[0].mass_density = 1.0;
+        m.area_loads.push(load(2.0));
+        assert!(validate(&m).is_ok());
+    }
+
+    #[test]
+    fn a_file_from_before_the_axisymmetric_behaviour_cannot_carry_it() {
+        let m = axisym_area();
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 11.into();
+        assert!(matches!(
+            model_from_json(&v.to_string()),
+            Err(LoadError::NewerField { found: 11, ref field }) if field.contains("Axisymmetric")
+        ));
+    }
+
+    #[test]
+    fn a_file_from_before_the_centrifugal_direction_cannot_carry_it() {
+        // A shell area so that only the direction is newer than the schema.
+        let mut m = with_area([[0.0, 1.0, 0.0], [0.0, 2.0, 0.0], [0.0, 2.0, 1.0], [0.0, 1.0, 1.0]]);
+        m.area_loads.push(AreaLoad {
+            pattern: "P".into(),
+            area: "Q".into(),
+            direction: LoadDirection::Centrifugal,
+            value: 1.0,
+        });
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 11.into();
+        assert!(matches!(
+            model_from_json(&v.to_string()),
+            Err(LoadError::NewerField { found: 11, ref field }) if field.contains("Centrifugal")
+        ));
     }
 }

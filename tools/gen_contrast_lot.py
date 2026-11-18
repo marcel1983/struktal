@@ -110,7 +110,29 @@ No se han abierto nunca en SAP2000: si alguno da error al importarlo, ese error 
 1. Abre cada `.s2k` con File > Import > SAP2000 .s2k Text File.
 2. Ejecuta todos los casos.
 3. Exporta a `.s2k` con File > Export, con las tablas de modelo y de resultados, incluidas `JOINT DISPLACEMENTS`, `JOINT REACTIONS`, `ELEMENT FORCES - FRAMES` y `FRAME SECTION PROPERTIES 01 - GENERAL`.
-4. Deja los archivos exportados en esta misma carpeta, y anota el build exacto.
+4. Saca ademÃ¡s un CSV por modelo con las tablas de nudos (`File > Export > Tables`, o `Display > Tables` y copiar). Una fila por caso y nudo, con columnas `Case`, `Joint` y `UX UY UZ RX RY RZ` (desplazamientos) y `FX FY FZ MX MY MZ` (reacciones).
+5. Deja los archivos exportados en esta misma carpeta, y anota el build exacto.
+
+## Correr la campaña
+
+Con SAP2000 abierto y su licencia, en el equipo con Python:
+
+    pip install comtypes
+    python tools/run_sap2000_campaign.py RUTA_DE_LA_CARPETA
+
+El script abre cada modelo, importa el `.s2k`, ejecuta todos los casos y escribe `<modelo>-sap2000.s2k` (el modelo con sus resultados, en texto). Comprueba el código de retorno de cada llamada y se detiene en la primera que falla, diciendo cuál. Con `--dry-run` lista lo que haría sin lanzar SAP2000.
+
+## Comparar
+
+En el equipo con Struktal, sobre la misma carpeta:
+
+    python tools/check_contrast_lot.py RUTA_DE_LA_CARPETA
+
+Compara contra el CSV si lo hay y, si no, contra el `-sap2000.s2k`.
+
+El informe dice, por componente, si SAP2000 coincide, si coincide **con el signo cambiado** o si difiere. Eso es lo que resuelve la convenciÃ³n de signos de V2, V3, M2 y M3 (decisiÃ³n 0003) y lo que ningÃºn orÃ¡culo open source puede decidir.
+
+Con `--sample CARPETA` escribe un CSV de ejemplo con el formato aceptado.
 
 ## Qué aclara cada uno
 
@@ -126,13 +148,19 @@ Estos archivos y sus resultados no van al repositorio público.
 
 
 def main():
+    if len(sys.argv) < 2:
+        # A usage error is a message, not a traceback.
+        print("uso: python tools/gen_contrast_lot.py CARPETA_DE_DESTINO", file=sys.stderr)
+        return 2
     out = Path(sys.argv[1])
     out.mkdir(parents=True, exist_ok=True)
     for name, text in LOT.items():
         (out / name).write_text(text + "END TABLE DATA\n", encoding="utf-8", newline="\n")
     (out / "LEEME.md").write_text(README, encoding="utf-8", newline="\n")
-    print(f"{len(LOT)} models written to {out}")
+    print(f"{len(LOT)} modelos escritos en {out}")
+    print("Ahora: python tools/run_sap2000_campaign.py " + str(out))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::laminate::Layer;
 use crate::units::{Dim, UnitSystem};
 
 /// v2 (2026-10-30): shear areas `as2`, `as3` on frame sections. v1 files are
@@ -20,7 +21,17 @@ use crate::units::{Dim, UnitSystem};
 /// v7 (2026-11-06): mass_source. Older files have none (decision 0022).
 /// v8 (2026-11-09): auto_seismic on load patterns. Older files have none
 /// (decision 0024).
-pub const SCHEMA_VERSION: u32 = 8;
+/// v9 (2026-11-16): automatic subdivision of areas, `areas[].auto_mesh`.
+/// Older files have none (decision 0031).
+/// v10 (2026-11-16): laminated area sections, `area_sections[].layers`. Older
+/// files have none, so they migrate unchanged (decision 0032).
+/// v11 (2026-11-17): plane area sections, `area_sections[].behavior: Plane`.
+/// An older reader cannot parse that value, so it refuses the file instead of
+/// reading it as something else (decision 0033).
+/// v12 (2026-11-17): axisymmetric area sections and the centrifugal direction,
+/// `behavior: Axisymmetric` and `direction: Centrifugal`. Same rule: an older
+/// reader cannot parse either value (decision 0034).
+pub const SCHEMA_VERSION: u32 = 12;
 
 pub type Name = String;
 
@@ -203,6 +214,12 @@ pub enum AreaBehavior {
     Shell,
     Membrane,
     Plate,
+    /// Plane stress: two degrees of freedom per node, in a global coordinate
+    /// plane (decision 0033).
+    Plane,
+    /// Axisymmetric: two degrees of freedom per node, the radial and the
+    /// axial one, in a plane that contains the z axis (decision 0034).
+    Axisymmetric,
 }
 
 /// Homogeneous isotropic area section (decision 0019).
@@ -217,6 +234,22 @@ pub struct AreaSection {
     pub bending_thickness: Option<f64>,
     #[serde(default)]
     pub behavior: AreaBehavior,
+    /// Layers of a laminated section, from the −3 face to the +3 one
+    /// (decision 0032). Their thicknesses add up to `thickness`; with layers
+    /// present `bending_thickness` does not apply.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<Layer>,
+}
+
+/// Subdivision of an area for the analysis, in its own natural coordinates
+/// (decision 0031).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AreaMesh {
+    /// Divisions along the first natural coordinate.
+    pub m: u32,
+    /// Divisions along the second one.
+    pub n: u32,
 }
 
 /// Flat four-node area, its joints counterclockwise seen from local axis 3.
@@ -227,6 +260,9 @@ pub struct Area {
     /// Three or four, in order around the area.
     pub joints: Vec<Name>,
     pub section: Name,
+    /// Subdivide the area for the analysis; the model keeps one object.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_mesh: Option<AreaMesh>,
 }
 
 /// Uniform force per unit area. Local 3 is the normal; Gravity is global −Z.
@@ -472,6 +508,10 @@ pub enum LoadDirection {
     GlobalZ,
     /// Global −Z.
     Gravity,
+    /// Centrifugal body force `ρ ω² r` of an axisymmetric area, radial, with
+    /// `value` as the angular velocity ω in rad/s (decision 0034). It is not a
+    /// direction: only an area with an axisymmetric section can carry it.
+    Centrifugal,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -648,6 +688,9 @@ impl Model {
         for s in &mut m.area_sections {
             s.thickness *= l;
             s.bending_thickness = s.bending_thickness.map(|t| t * l);
+            for layer in &mut s.layers {
+                layer.thickness *= l;
+            }
         }
         for a in &mut m.area_loads {
             a.value *= u.factor(Dim::STRESS);

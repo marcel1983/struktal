@@ -8,5 +8,5 @@
 pub mod import;
 pub mod parser;
 
-pub use import::{Imported, Problem, import};
+pub use import::{ImportOptions, Imported, Problem, import, import_with_options};
 pub use parser::{ParseError, Row, S2k, Table, parse};

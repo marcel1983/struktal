@@ -1,0 +1,442 @@
+{
+  "area_sections": [
+    {
+      "name": "AX",
+      "material": "STEEL",
+      "thickness": 0.05,
+      "behavior": "Axisymmetric"
+    }
+  ],
+  "areas": [
+    {
+      "name": "A0",
+      "section": "AX",
+      "joints": [
+        "D0_0",
+        "D1_0",
+        "D1_1",
+        "D0_1"
+      ]
+    },
+    {
+      "name": "A1",
+      "section": "AX",
+      "joints": [
+        "D1_0",
+        "D2_0",
+        "D2_1",
+        "D1_1"
+      ]
+    },
+    {
+      "name": "A2",
+      "section": "AX",
+      "joints": [
+        "D2_0",
+        "D3_0",
+        "D3_1",
+        "D2_1"
+      ]
+    },
+    {
+      "name": "A3",
+      "section": "AX",
+      "joints": [
+        "D3_0",
+        "D4_0",
+        "D4_1",
+        "D3_1"
+      ]
+    },
+    {
+      "name": "A4",
+      "section": "AX",
+      "joints": [
+        "D4_0",
+        "D5_0",
+        "D5_1",
+        "D4_1"
+      ]
+    },
+    {
+      "name": "A5",
+      "section": "AX",
+      "joints": [
+        "D5_0",
+        "D6_0",
+        "D6_1",
+        "D5_1"
+      ]
+    },
+    {
+      "name": "A6",
+      "section": "AX",
+      "joints": [
+        "D6_0",
+        "D7_0",
+        "D7_1",
+        "D6_1"
+      ]
+    },
+    {
+      "name": "A7",
+      "section": "AX",
+      "joints": [
+        "D7_0",
+        "D8_0",
+        "D8_1",
+        "D7_1"
+      ]
+    }
+  ],
+  "area_loads": [
+    {
+      "pattern": "S",
+      "area": "A0",
+      "direction": "Centrifugal",
+      "value": 100.0
+    },
+    {
+      "pattern": "S",
+      "area": "A1",
+      "direction": "Centrifugal",
+      "value": 100.0
+    },
+    {
+      "pattern": "S",
+      "area": "A2",
+      "direction": "Centrifugal",
+      "value": 100.0
+    },
+    {
+      "pattern": "S",
+      "area": "A3",
+      "direction": "Centrifugal",
+      "value": 100.0
+    },
+    {
+      "pattern": "S",
+      "area": "A4",
+      "direction": "Centrifugal",
+      "value": 100.0
+    },
+    {
+      "pattern": "S",
+      "area": "A5",
+      "direction": "Centrifugal",
+      "value": 100.0
+    },
+    {
+      "pattern": "S",
+      "area": "A6",
+      "direction": "Centrifugal",
+      "value": 100.0
+    },
+    {
+      "pattern": "S",
+      "area": "A7",
+      "direction": "Centrifugal",
+      "value": 100.0
+    }
+  ],
+  "schema_version": 12,
+  "title": "V-AXI-002 rotating disk",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0,
+      "mass_density": 7850.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "B",
+      "material": "STEEL",
+      "area": 0.01,
+      "i33": 0.0001,
+      "i22": 0.0001,
+      "j": 0.0002
+    }
+  ],
+  "joints": [
+    {
+      "name": "D0_0",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "restraint": [
+        false,
+        true,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D0_1",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.05,
+      "restraint": [
+        false,
+        true,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D1_0",
+      "x": 0.0,
+      "y": 0.025,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D1_1",
+      "x": 0.0,
+      "y": 0.025,
+      "z": 0.05,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D2_0",
+      "x": 0.0,
+      "y": 0.05,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D2_1",
+      "x": 0.0,
+      "y": 0.05,
+      "z": 0.05,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D3_0",
+      "x": 0.0,
+      "y": 0.07500000000000001,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D3_1",
+      "x": 0.0,
+      "y": 0.07500000000000001,
+      "z": 0.05,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D4_0",
+      "x": 0.0,
+      "y": 0.1,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D4_1",
+      "x": 0.0,
+      "y": 0.1,
+      "z": 0.05,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D5_0",
+      "x": 0.0,
+      "y": 0.125,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D5_1",
+      "x": 0.0,
+      "y": 0.125,
+      "z": 0.05,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D6_0",
+      "x": 0.0,
+      "y": 0.15000000000000002,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D6_1",
+      "x": 0.0,
+      "y": 0.15000000000000002,
+      "z": 0.05,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D7_0",
+      "x": 0.0,
+      "y": 0.17500000000000002,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D7_1",
+      "x": 0.0,
+      "y": 0.17500000000000002,
+      "z": 0.05,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D8_0",
+      "x": 0.0,
+      "y": 0.2,
+      "z": 0.0,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "D8_1",
+      "x": 0.0,
+      "y": 0.2,
+      "z": 0.05,
+      "restraint": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "frames": [],
+  "load_patterns": [
+    {
+      "name": "S"
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "LC1",
+      "loads": [
+        {
+          "pattern": "S",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

@@ -8,7 +8,46 @@
 //! (the normal one in a diaphragm, all in a body, none in an equal), and
 //! θ_s = θ_m.
 
-use struktal_core::Snapshot;
+use std::collections::HashSet;
+
+use struktal_core::{AreaBehavior, Snapshot, plane_axis};
+
+/// Restraints the analysis uses: the model's own, plus the four out-of-plane
+/// DOFs that a plane or axisymmetric area leaves without stiffness (decisions
+/// 0033 and 0034).
+///
+/// Both are two-dimensional idealisations: their element has two degrees of
+/// freedom per node, in the plane of the section, and nothing else. Holding the
+/// other four is not a modelling choice the user has to make, and it is not
+/// written back to the model: it belongs to the analysis of that area. The four
+/// are the translation normal to the plane and the three rotations; validation
+/// has already refused an area that is not parallel to a global axis plane, so
+/// the normal is one component.
+pub fn held_joints(s: &Snapshot) -> Vec<[bool; 6]> {
+    let m = &s.model;
+    let mut held: Vec<[bool; 6]> = m.joints.iter().map(|j| j.restraint).collect();
+    let flat: HashSet<&str> = m
+        .area_sections
+        .iter()
+        .filter(|sec| matches!(sec.behavior, AreaBehavior::Plane | AreaBehavior::Axisymmetric))
+        .map(|sec| sec.name.as_str())
+        .collect();
+    for a in &m.areas {
+        if !flat.contains(a.section.as_str()) {
+            continue;
+        }
+        let pts: Vec<[f64; 3]> =
+            a.joints.iter().filter_map(|n| s.joint_index.get(n)).map(|&k| s.joint_xyz(k)).collect();
+        let Some(axis) = plane_axis(&pts) else { continue };
+        for name in &a.joints {
+            if let Some(&k) = s.joint_index.get(name) {
+                held[k][axis] = true;
+                held[k][3..6].fill(true);
+            }
+        }
+    }
+    held
+}
 
 use crate::linear_static::cross;
 
@@ -86,11 +125,12 @@ impl DofMap {
             }
         }
 
+        let held = held_joints(s);
         let mut eq = vec![usize::MAX; ndof];
         let mut count = 0usize;
-        for (j, joint) in m.joints.iter().enumerate() {
+        for j in 0..m.joints.len() {
             for d in 0..6 {
-                if !joint.restraint[d] && tied_rows[6 * j + d].is_none() {
+                if !held[j][d] && tied_rows[6 * j + d].is_none() {
                     eq[6 * j + d] = count;
                     count += 1;
                 }
@@ -301,5 +341,91 @@ mod tests {
             let rhs: f64 = map.reduce(&f).iter().zip(&x).map(|(a, b)| a * b).sum();
             assert!((lhs - rhs).abs() < 1e-13);
         }
+    }
+    /// A model with one plane area, in the plane the corners give.
+    fn plane(joints: serde_json::Value, corners: serde_json::Value) -> Snapshot {
+        let text = serde_json::json!({
+            "schema_version": 11,
+            "materials": [{"name": "S", "e": 2e11, "nu": 0.3}],
+            "sections": [{"name": "B", "material": "S", "area": 0.01, "i33": 1e-4, "i22": 1e-4, "j": 2e-4}],
+            "area_sections": [{"name": "P", "material": "S", "thickness": 0.1, "behavior": "Plane"}],
+            "joints": joints,
+            "frames": [],
+            "areas": [{"name": "Q", "section": "P", "joints": corners}],
+        })
+        .to_string();
+        struktal_core::validate(&struktal_core::model_from_json(&text).expect("parse")).expect("valid")
+    }
+
+    #[test]
+    fn held_joints_hold_the_normal_and_the_rotations_of_a_plane_area() {
+        // A horizontal area: z and the three rotations, plus what the model
+        // restrains itself.
+        let s = plane(
+            serde_json::json!([
+                {"name": "A", "x": 0.0, "y": 0.0, "z": 0.0, "restraint": [true, false, false, false, false, false]},
+                {"name": "B", "x": 1.0, "y": 0.0, "z": 0.0},
+                {"name": "C", "x": 1.0, "y": 1.0, "z": 0.0},
+                {"name": "D", "x": 0.0, "y": 1.0, "z": 0.0},
+            ]),
+            serde_json::json!(["A", "B", "C", "D"]),
+        );
+        let held = held_joints(&s);
+        assert_eq!(held[0], [true, false, true, true, true, true], "the model's UX, then z and the rotations");
+        for (k, h) in held.iter().enumerate().skip(1) {
+            assert_eq!(*h, [false, false, true, true, true, true], "joint {k}");
+        }
+        // Four joints x two in-plane DOF, minus the one the model restrains.
+        assert_eq!(DofMap::build(&s).n, 7);
+    }
+
+    #[test]
+    fn held_joints_hold_the_normal_of_a_wall() {
+        // The same area standing up in the plane y = 5: y is the normal.
+        let s = plane(
+            serde_json::json!([
+                {"name": "A", "x": 0.0, "y": 5.0, "z": 0.0},
+                {"name": "B", "x": 2.0, "y": 5.0, "z": 0.0},
+                {"name": "C", "x": 2.0, "y": 5.0, "z": 3.0},
+                {"name": "D", "x": 0.0, "y": 5.0, "z": 3.0},
+            ]),
+            serde_json::json!(["A", "B", "C", "D"]),
+        );
+        let held = held_joints(&s);
+        for (k, h) in held.iter().enumerate() {
+            assert_eq!(*h, [false, true, false, true, true, true], "joint {k}");
+        }
+        assert_eq!(DofMap::build(&s).n, 8, "four joints x two in-plane DOF, none restrained by the model");
+    }
+
+    #[test]
+    fn held_joints_hold_the_tangential_dof_of_an_axisymmetric_area() {
+        // The area stands in the plane x = 0, between r = 1 m and r = 2 m: x
+        // is the tangential direction of the revolution, and the element has
+        // radial and axial degrees of freedom only (decision 0034).
+        let text = serde_json::json!({
+            "schema_version": 12,
+            "materials": [{"name": "S", "e": 2e11, "nu": 0.3}],
+            "sections": [{"name": "B", "material": "S", "area": 0.01, "i33": 1e-4, "i22": 1e-4, "j": 2e-4}],
+            "area_sections": [{"name": "R", "material": "S", "thickness": 0.1, "behavior": "Axisymmetric"}],
+            "joints": [
+                {"name": "A", "x": 0.0, "y": 1.0, "z": 0.0},
+                {"name": "B", "x": 0.0, "y": 2.0, "z": 0.0},
+                {"name": "C", "x": 0.0, "y": 2.0, "z": 1.0},
+                {"name": "D", "x": 0.0, "y": 1.0, "z": 1.0}
+            ],
+            "frames": [],
+            "areas": [{"name": "Q", "section": "R", "joints": ["A", "B", "C", "D"]}],
+        })
+        .to_string();
+        let s = struktal_core::validate(&struktal_core::model_from_json(&text).expect("parse")).expect("valid");
+
+        let held = held_joints(&s);
+        for (k, h) in held.iter().enumerate() {
+            assert_eq!(*h, [true, false, false, true, true, true], "joint {k}: x and the rotations");
+        }
+        // Four joints x two degrees of freedom, radial and axial, none held by
+        // the model: 8 equations.
+        assert_eq!(DofMap::build(&s).n, 8);
     }
 }

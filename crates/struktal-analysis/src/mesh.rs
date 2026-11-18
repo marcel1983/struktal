@@ -8,7 +8,8 @@
 //! Generated names use `~`: frame and joint `F~1`, `F~2`...
 
 use struktal_core::{
-    AutoMesh, EndOffsets, EndReleases, Frame, FrameLoad, FrameLoadKind, Joint, Model, Snapshot, validate,
+    Area, AreaLoad, AutoMesh, EndOffsets, EndReleases, Frame, FrameLoad, FrameLoadKind, Joint, Model, Snapshot,
+    validate,
 };
 
 /// A joint within this fraction of the length from the flexible axis is on it.
@@ -36,9 +37,18 @@ impl Parent {
     }
 }
 
+/// The areas of the model as their elements, when the analysis mesh split them.
+#[derive(Debug, Clone)]
+pub struct AreaParent {
+    pub name: String,
+    /// Names of the elements that came out of the object, in order.
+    pub elements: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Mesh {
     pub parents: Vec<Parent>,
+    pub area_parents: Vec<AreaParent>,
     /// Joints at or above this index were generated.
     pub user_joints: usize,
     pub messages: Vec<String>,
@@ -56,7 +66,7 @@ impl Mesh {
                 Parent { name: fr.name.clone(), length: distance(xi, xj), pieces: vec![f], starts: vec![0.0] }
             })
             .collect();
-        Mesh { parents, user_joints: s.model.joints.len(), messages: vec![] }
+        Mesh { parents, area_parents: Vec::new(), user_joints: s.model.joints.len(), messages: vec![] }
     }
 }
 
@@ -150,11 +160,17 @@ fn cut_load(kind: &FrameLoadKind, r0: f64, r1: f64, last: bool) -> Option<FrameL
 /// model. Generated entities can clash with user names: that is an error.
 pub fn expand(s: &Snapshot) -> Result<(Option<Snapshot>, Mesh), String> {
     let m = &s.model;
-    if m.frames.iter().all(|f| f.auto_mesh.is_none()) {
+    let frames_mesh = m.frames.iter().any(|f| f.auto_mesh.is_some());
+    let areas_mesh = m.areas.iter().any(|a| a.auto_mesh.is_some());
+    if !frames_mesh && !areas_mesh {
         return Ok((None, Mesh::identity(s)));
     }
     let mut messages = Vec::new();
-    let mut out = Model { frames: Vec::new(), frame_loads: Vec::new(), ..m.clone() };
+    let mut out = Model {
+        frames: if frames_mesh { Vec::new() } else { m.frames.clone() },
+        frame_loads: if frames_mesh { Vec::new() } else { m.frame_loads.clone() },
+        ..m.clone()
+    };
     let mut parents = Vec::with_capacity(m.frames.len());
     for (f, fr) in m.frames.iter().enumerate() {
         let cut_list = fr.auto_mesh.map_or_else(Vec::new, |a| cuts(s, f, a, &mut messages));
@@ -229,16 +245,249 @@ pub fn expand(s: &Snapshot) -> Result<(Option<Snapshot>, Mesh), String> {
             starts: bounds[..pieces].iter().map(|r| r * length).collect(),
         });
     }
+    let area_parents = if areas_mesh { expand_areas(s, &mut out, &mut messages)? } else { Vec::new() };
+
     let mut expanded = validate(&out).map_err(|issues| {
         let text: Vec<String> = issues.iter().map(ToString::to_string).collect();
         format!("analysis mesh: {}", text.join("; "))
     })?;
     expanded.hash = s.hash.clone();
     expanded.original_units = s.original_units;
-    let mesh = Mesh { parents, user_joints: m.joints.len(), messages };
+    let mesh = Mesh { parents, area_parents, user_joints: m.joints.len(), messages };
     Ok((Some(expanded), mesh))
 }
 
+/// One point of an area in natural coordinates: (r, s) in the unit square for a
+/// quadrilateral, barycentric (u, v) with u + v <= 1 for a triangle.
+fn area_point(corners: &[[f64; 3]], r: f64, s: f64) -> [f64; 3] {
+    let mut p = [0.0; 3];
+    if corners.len() == 3 {
+        for k in 0..3 {
+            p[k] = corners[0][k] + r * (corners[1][k] - corners[0][k]) + s * (corners[2][k] - corners[0][k]);
+        }
+        return p;
+    }
+    for k in 0..3 {
+        p[k] = (1.0 - r) * (1.0 - s) * corners[0][k]
+            + r * (1.0 - s) * corners[1][k]
+            + r * s * corners[2][k]
+            + (1.0 - r) * s * corners[3][k];
+    }
+    p
+}
+
+/// Position key, so a point shared by two areas is one joint.
+fn key_of(p: [f64; 3]) -> (i64, i64, i64) {
+    let k = |v: f64| (v * 1e9).round() as i64;
+    (k(p[0]), k(p[1]), k(p[2]))
+}
+
+/// The corner (or the two corners of the edge) a grid point sits on.
+fn edge_corners(i: usize, j: usize, nu: usize, nv: usize, triangles: bool) -> Option<(usize, usize)> {
+    if triangles {
+        if i == 0 && j == 0 {
+            Some((0, 0))
+        } else if i == nu && j == 0 {
+            Some((1, 1))
+        } else if i == 0 && j == nu {
+            Some((2, 2))
+        } else if j == 0 {
+            Some((0, 1))
+        } else if i == 0 {
+            Some((0, 2))
+        } else if i + j == nu {
+            Some((1, 2))
+        } else {
+            None
+        }
+    } else if i == 0 && j == 0 {
+        Some((0, 0))
+    } else if i == nu && j == 0 {
+        Some((1, 1))
+    } else if i == nu && j == nv {
+        Some((2, 2))
+    } else if i == 0 && j == nv {
+        Some((3, 3))
+    } else if j == 0 {
+        Some((0, 1))
+    } else if i == nu {
+        Some((1, 2))
+    } else if j == nv {
+        Some((2, 3))
+    } else if i == 0 {
+        Some((3, 0))
+    } else {
+        None
+    }
+}
+
+/// The joint of a grid point: the object's corner when it is one, the joint
+/// already at that position when there is one, a new one otherwise.
+///
+/// A new point on the boundary inherits the components both corners of that
+/// edge restrain, so meshing a supported slab does not quietly unsupport it.
+fn mesh_node(
+    out: &mut Model,
+    corners: &[(String, [f64; 3])],
+    restraints: &[Option<[bool; 6]>],
+    p: [f64; 3],
+    edge: Option<(usize, usize)>,
+    index: &mut std::collections::HashMap<(i64, i64, i64), String>,
+    prefix: &str,
+) -> String {
+    let key = key_of(p);
+    if let Some(name) = index.get(&key) {
+        return name.clone();
+    }
+    for (name, xyz) in corners {
+        if key_of(*xyz) == key {
+            index.insert(key, name.clone());
+            return name.clone();
+        }
+    }
+    let mut res = [false; 6];
+    if let Some((a, b)) = edge.filter(|(a, b)| a != b) {
+        let (ra, rb) = (restraints[a].unwrap_or([false; 6]), restraints[b].unwrap_or([false; 6]));
+        for k in 0..6 {
+            res[k] = ra[k] && rb[k];
+        }
+    }
+    let name = format!("{}~{}", prefix, out.joints.len() + 1);
+    out.joints.push(Joint {
+        name: name.clone(),
+        x: p[0],
+        y: p[1],
+        z: p[2],
+        restraint: res,
+        springs: [0.0; 6],
+        added_mass: [0.0; 6],
+    });
+    index.insert(key, name.clone());
+    name
+}
+
+/// Subdivides every area that asks for it, in its own natural coordinates, and
+/// replaces it by its elements (decision 0031).
+///
+/// Two neighbouring areas share the nodes of their common edge, because a point
+/// is reused when its position already exists: the mesh of a slab does not come
+/// apart where two objects meet.
+fn expand_areas(s: &Snapshot, out: &mut Model, messages: &mut Vec<String>) -> Result<Vec<AreaParent>, String> {
+    let m = &s.model;
+    let by_name: std::collections::HashMap<&str, &Joint> = m.joints.iter().map(|j| (j.name.as_str(), j)).collect();
+
+    let mut parents = Vec::new();
+    let mut areas = Vec::new();
+    // The loads of the objects that are not meshed stay as they are.
+    let mut loads: Vec<AreaLoad> = m
+        .area_loads
+        .iter()
+        .filter(|l| m.areas.iter().all(|a| a.name != l.area || a.auto_mesh.is_none()))
+        .cloned()
+        .collect();
+    let mut index: std::collections::HashMap<(i64, i64, i64), String> = std::collections::HashMap::new();
+
+    for area in &m.areas {
+        let Some(mesh) = area.auto_mesh else {
+            areas.push(area.clone());
+            continue;
+        };
+        let mut corners: Vec<(String, [f64; 3])> = Vec::with_capacity(area.joints.len());
+        let mut restraints: Vec<Option<[bool; 6]>> = Vec::with_capacity(area.joints.len());
+        for name in &area.joints {
+            let j = by_name.get(name.as_str()).ok_or_else(|| format!("area {}: unknown joint {}", area.name, name))?;
+            corners.push((name.clone(), [j.x, j.y, j.z]));
+            restraints.push(Some(j.restraint));
+        }
+        let triangles = corners.len() == 3;
+        // A triangle has a single division count: n, on every edge.
+        let (nu, nv) = if triangles {
+            (mesh.n.max(1) as usize, mesh.n.max(1) as usize)
+        } else {
+            (mesh.m.max(1) as usize, mesh.n.max(1) as usize)
+        };
+
+        let xyz: Vec<[f64; 3]> = corners.iter().map(|c| c.1).collect();
+        let mut grid: Vec<Vec<String>> = vec![vec![String::new(); nv + 1]; nu + 1];
+        for (i, row) in grid.iter_mut().enumerate() {
+            for (j, cell) in row.iter_mut().enumerate() {
+                if triangles && i + j > nu {
+                    continue;
+                }
+                let p = area_point(&xyz, i as f64 / nu as f64, j as f64 / nv as f64);
+                let edge = edge_corners(i, j, nu, nv, triangles);
+                *cell = mesh_node(out, &corners, &restraints, p, edge, &mut index, &area.name);
+            }
+        }
+
+        let mut elements = Vec::new();
+        let mut k = 1;
+        for i in 0..nu {
+            for j in 0..nv {
+                if triangles {
+                    if i + j >= nu {
+                        continue;
+                    }
+                    let mut tris = vec![[grid[i][j].clone(), grid[i + 1][j].clone(), grid[i][j + 1].clone()]];
+                    if i + j + 2 <= nu {
+                        tris.push([grid[i + 1][j].clone(), grid[i + 1][j + 1].clone(), grid[i][j + 1].clone()]);
+                    }
+                    for tri in tris {
+                        let name = format!("{}#{}", area.name, k);
+                        k += 1;
+                        areas.push(Area {
+                            name: name.clone(),
+                            joints: tri.to_vec(),
+                            section: area.section.clone(),
+                            auto_mesh: None,
+                        });
+                        elements.push(name);
+                    }
+                } else {
+                    let quad = vec![
+                        grid[i][j].clone(),
+                        grid[i + 1][j].clone(),
+                        grid[i + 1][j + 1].clone(),
+                        grid[i][j + 1].clone(),
+                    ];
+                    let name = format!("{}#{}", area.name, k);
+                    k += 1;
+                    areas.push(Area {
+                        name: name.clone(),
+                        joints: quad,
+                        section: area.section.clone(),
+                        auto_mesh: None,
+                    });
+                    elements.push(name);
+                }
+            }
+        }
+
+        // The load of the object goes to every element: the intensity is the
+        // same, so the resultant is preserved exactly.
+        for load in &m.area_loads {
+            if load.area == area.name {
+                for element in &elements {
+                    loads.push(AreaLoad {
+                        pattern: load.pattern.clone(),
+                        area: element.clone(),
+                        direction: load.direction,
+                        value: load.value,
+                    });
+                }
+            }
+        }
+        if elements.is_empty() {
+            return Err(format!("area {}: the mesh produced no element", area.name));
+        }
+        messages.push(format!("area {}: {} elements", area.name, elements.len()));
+        parents.push(AreaParent { name: area.name.clone(), elements });
+    }
+
+    out.areas = areas;
+    out.area_loads = loads;
+    Ok(parents)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -351,5 +600,117 @@ mod tests {
         assert!(cut_load(&point, 0.5, 1.0, true).is_none());
         let at_i = FrameLoadKind::Point { direction: Gravity, rel: 0.0, value: 1.0 };
         assert!(cut_load(&at_i, 0.0, 0.5, false).is_some());
+    }
+    fn area_snapshot(areas: serde_json::Value, joints: serde_json::Value, loads: serde_json::Value) -> Snapshot {
+        let text = serde_json::json!({
+            "schema_version": 9,
+            "materials": [{"name": "S", "e": 2e11, "nu": 0.3}],
+            "sections": [],
+            "area_sections": [{"name": "S1", "material": "S", "thickness": 0.1}],
+            "joints": joints,
+            "areas": areas,
+            "load_patterns": [{"name": "L"}],
+            "area_loads": loads,
+        })
+        .to_string();
+        validate(&struktal_core::model_from_json(&text).expect("parse")).expect("valid")
+    }
+
+    #[test]
+    fn a_quad_meshed_m_by_n_becomes_m_times_n_areas() {
+        let s = area_snapshot(
+            serde_json::json!([{
+                "name": "A", "joints": ["1", "2", "3", "4"], "section": "S1",
+                "auto_mesh": {"m": 2, "n": 3},
+            }]),
+            serde_json::json!([
+                {"name": "1", "x": 0.0, "y": 0.0, "z": 0.0},
+                {"name": "2", "x": 2.0, "y": 0.0, "z": 0.0},
+                {"name": "3", "x": 2.0, "y": 1.0, "z": 0.0},
+                {"name": "4", "x": 0.0, "y": 1.0, "z": 0.0},
+            ]),
+            serde_json::json!([]),
+        );
+        let (model, mesh) = expand(&s).expect("ok");
+        let model = model.expect("expanded");
+        assert_eq!(model.model.areas.len(), 6, "m x n = 2 x 3");
+        assert_eq!(model.model.joints.len(), 12, "(m+1)(n+1) = 3 x 4");
+        assert_eq!(mesh.area_parents.len(), 1);
+        assert_eq!(mesh.area_parents[0].elements.len(), 6);
+        // The area is still one object in the model: no area keeps auto_mesh.
+        assert!(model.model.areas.iter().all(|a| a.auto_mesh.is_none()));
+    }
+
+    #[test]
+    fn a_triangle_meshed_n_times_has_n_squared_elements() {
+        let s = area_snapshot(
+            serde_json::json!([{
+                "name": "T", "joints": ["1", "2", "3"], "section": "S1",
+                "auto_mesh": {"m": 2, "n": 2},
+            }]),
+            serde_json::json!([
+                {"name": "1", "x": 0.0, "y": 0.0, "z": 0.0},
+                {"name": "2", "x": 2.0, "y": 0.0, "z": 0.0},
+                {"name": "3", "x": 0.0, "y": 2.0, "z": 0.0},
+            ]),
+            serde_json::json!([]),
+        );
+        let (model, _) = expand(&s).expect("ok");
+        let model = model.expect("expanded");
+        assert_eq!(model.model.areas.len(), 4, "n^2 = 2^2");
+        assert!(model.model.areas.iter().all(|a| a.joints.len() == 3));
+    }
+
+    #[test]
+    fn two_neighbouring_areas_share_the_edge_nodes() {
+        // Two quads side by side, each meshed 2 x 2: the middle of the common
+        // edge is one joint, not two, or the slab would come apart there.
+        let s = area_snapshot(
+            serde_json::json!([
+                {"name": "A", "joints": ["1", "2", "3", "4"], "section": "S1", "auto_mesh": {"m": 2, "n": 2}},
+                {"name": "B", "joints": ["2", "5", "6", "3"], "section": "S1", "auto_mesh": {"m": 2, "n": 2}},
+            ]),
+            serde_json::json!([
+                {"name": "1", "x": 0.0, "y": 0.0, "z": 0.0},
+                {"name": "2", "x": 2.0, "y": 0.0, "z": 0.0},
+                {"name": "3", "x": 2.0, "y": 1.0, "z": 0.0},
+                {"name": "4", "x": 0.0, "y": 1.0, "z": 0.0},
+                {"name": "5", "x": 4.0, "y": 0.0, "z": 0.0},
+                {"name": "6", "x": 4.0, "y": 1.0, "z": 0.0},
+            ]),
+            serde_json::json!([]),
+        );
+        let (model, _) = expand(&s).expect("ok");
+        let model = model.expect("expanded");
+        // 3 x 3 per area, less the 3 shared with the neighbour.
+        assert_eq!(model.model.joints.len(), 15, "9 + 9 - 3");
+        assert_eq!(model.model.areas.len(), 8, "4 + 4");
+    }
+
+    #[test]
+    fn a_meshed_area_keeps_its_load_on_every_element() {
+        let s = area_snapshot(
+            serde_json::json!([{
+                "name": "A", "joints": ["1", "2", "3", "4"], "section": "S1",
+                "auto_mesh": {"m": 2, "n": 2},
+            }]),
+            serde_json::json!([
+                {"name": "1", "x": 0.0, "y": 0.0, "z": 0.0},
+                {"name": "2", "x": 2.0, "y": 0.0, "z": 0.0},
+                {"name": "3", "x": 2.0, "y": 1.0, "z": 0.0},
+                {"name": "4", "x": 0.0, "y": 1.0, "z": 0.0},
+            ]),
+            serde_json::json!([{"pattern": "L", "area": "A", "direction": "Gravity", "value": 1000.0}]),
+        );
+        let (model, _) = expand(&s).expect("ok");
+        let model = model.expect("expanded");
+        // One load per element, with the object's intensity: the resultant is
+        // the same 1000 N/m over the same 2 m2.
+        assert_eq!(model.model.area_loads.len(), 4);
+        assert!(model.model.area_loads.iter().all(|l| l.value == 1000.0));
+        let names: Vec<&str> = model.model.areas.iter().map(|a| a.name.as_str()).collect();
+        for load in &model.model.area_loads {
+            assert!(names.contains(&load.area.as_str()), "load on a missing element");
+        }
     }
 }

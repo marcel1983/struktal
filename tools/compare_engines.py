@@ -18,10 +18,19 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-RUNNERS = {"opensees": "opensees_runner.py", "pynite": "pynite_runner.py"}
+RUNNERS = {
+    "opensees": "opensees_runner.py",
+    "pynite": "pynite_runner.py",
+    "calculix": "calculix_runner.py",
+    "frame3dd": "frame3dd_runner.py",
+}
 COMPONENTS = ["UX", "UY", "UZ", "RX", "RY", "RZ"]
 REACTIONS = ["FX", "FY", "FZ", "MX", "MY", "MZ"]
 RTOL = 1e-6        # relative to the larger of the two values
+# An engine whose output is printed with few decimals cannot be held to RTOL
+# alone: Frame3DD writes six decimals, so its rounding is absolute, and a
+# rotation of 1e-4 carries 5e-7 of it. Allow the printing step on top.
+ENGINE_ATOL = {"frame3dd": 1e-6}
 FLOOR = 1e-9       # relative to the largest value of that kind in the case
 
 
@@ -47,7 +56,7 @@ def case_rtol(case_dir):
     return {"mesh-convergence-v1": 0.03, "drilling-penalty-v1": 0.12, "linear-closed-form-area-v1": 1e-5}.get(tol, RTOL)
 
 
-def compare_case(st, ref, joints_model, rtol=RTOL):
+def compare_case(st, ref, joints_model, rtol=RTOL, atol=0.0):
     """Returns (checks, worst relative error, what, list of differences)."""
     points = [(j["x"], j["y"], j["z"]) for j in joints_model.values()]
     extent = max((max(c) - min(c) for c in zip(*points)), default=1.0) or 1.0
@@ -64,7 +73,7 @@ def compare_case(st, ref, joints_model, rtol=RTOL):
         if not (math.isfinite(a) and math.isfinite(b)):
             diffs.append(f"{label}: non-finite, struktal {a}, engine {b}")
             return
-        allowed = rtol * max(abs(a), abs(b)) + max(FLOOR, rtol / 1000) * floor
+        allowed = rtol * max(abs(a), abs(b)) + atol + max(FLOOR, rtol / 1000) * floor
         err = abs(a - b)
         ratio = err / allowed if allowed > 0 else (0.0 if err == 0 else float("inf"))
         if ratio > worst:
@@ -81,10 +90,14 @@ def compare_case(st, ref, joints_model, rtol=RTOL):
             diffs.append(f"joint {name} missing in the engine")
             continue
         for d in range(6):
+            if r["disp"][d] is None:
+                continue  # the engine does not report this component
             check(j["displacement"][d], r["disp"][d], sd[0 if d < 3 else 1], f"{name} {COMPONENTS[d]}")
         info = joints_model[name]
         for d in range(6):
-            if j["reaction"] and (info.get("restraint", [False] * 6)[d] or (info.get("springs") or [0.0] * 6)[d] > 0):
+            if not j["reaction"] or r["reaction"][d] is None:
+                continue  # no reaction, or the engine does not report it
+            if info.get("restraint", [False] * 6)[d] or (info.get("springs") or [0.0] * 6)[d] > 0:
                 check(j["reaction"][d], r["reaction"][d], sr[0 if d < 3 else 1], f"{name} {REACTIONS[d]}")
     return checks, worst, what, diffs
 
@@ -153,7 +166,7 @@ def main():
                         state, detail = "ENG-FAIL", r["reason"]
                         any_diff = True
                     else:
-                        checks, worst, what, diffs = compare_case(s, r, joints_model, rtol)
+                        checks, worst, what, diffs = compare_case(s, r, joints_model, rtol, ENGINE_ATOL.get(engine, 0.0))
                         # At a mesh, formulations legitimately differ: the case's
                         # own reference judges it, so this is shown but not a failure.
                         state = ("FORM-DIFF" if discretized else "DIFF") if diffs else "match"
