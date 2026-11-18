@@ -146,9 +146,16 @@ comparar.
 
 ## Pendiente
 
-- **Casos de verificación**: T-004 los añade en `verification/cases/` y allí
-  entran las comparaciones con tolerancia (Lamé con presión en los nudos, disco
-  en rotación).
+- **Casos de verificación**: cubiertos por T-004 — `V-AXI-001` (cilindro de
+  pared gruesa contra Lamé, con la presión de la bóveda repartida en sus dos
+  nudos) y `V-AXI-002` (disco en rotación con `εz = 0` y la carga centrífuga).
+  Ambos comparan contra el cerrado con `mesh-convergence-v1`, que gana `Pa`
+  en `atol`: las tensiones axisimétricas se dan en pascales y esa unidad no
+  estaba en ningún `atol`. En el disco las tensiones se miran en el primer y
+  en el elemento central, porque `εr` cambia de signo en el borde libre y una
+  malla de 8 no lo resuelve con error relativo. Ningún oráculo externo
+  traduce estos casos: `tools/oracles/common.py` declara `unsupported` la
+  sección axisimétrica y la carga centrífuga, y salen como `n/a`.
 - **Triángulos**: el núcleo es de 4 nudos; un triángulo axisimétrico no
   existe todavía.
 - **Carga de borde**: no hay; la presión de la pared entra por nudos.
