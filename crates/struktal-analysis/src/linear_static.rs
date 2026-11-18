@@ -74,6 +74,10 @@ fn global_dir(dir: LoadDirection, axes: &[Vec3; 3]) -> Vec3 {
         LoadDirection::GlobalY => [0.0, 1.0, 0.0],
         LoadDirection::GlobalZ => [0.0, 0.0, 1.0],
         LoadDirection::Gravity => [0.0, 0.0, -1.0],
+        // Not a direction: `ρ ω² r` grows with the radius, so the centrifugal
+        // body force has its own path in the assembly (decision 0034) and
+        // never reaches this function.
+        LoadDirection::Centrifugal => [0.0; 3],
     }
 }
 
@@ -189,6 +193,12 @@ fn build_case_loads(
     };
     let pscale = |name: &str| s.pattern_index.get(name).and_then(|p| scale_of.get(p)).copied().unwrap_or(0.0);
 
+    // The joints of an axisymmetric area carry generalized forces: their
+    // radial DOF moves a whole circle, so their loads and reactions are not
+    // vector forces and stay out of the global resultants, which the
+    // equilibrium check compares (decision 0034).
+    let axisym = areas::axisym_joints(area_data);
+
     for jl in &m.joint_loads {
         let sc = pscale(&jl.pattern);
         if sc == 0.0 {
@@ -197,6 +207,9 @@ fn build_case_loads(
         let j = s.joint_index[&jl.joint];
         for d in 0..6 {
             joint_loads[6 * j + d] += sc * jl.values[d];
+        }
+        if axisym.contains(&j) {
+            continue;
         }
         let at = s.joint_xyz(j);
         add_resultant(&mut resultant, at, [0, 1, 2].map(|k| sc * jl.values[k]));
@@ -213,7 +226,9 @@ fn build_case_loads(
             for d in 0..6 {
                 joint_loads[6 * j + d] += sc * c[d];
             }
-            add_resultant(&mut resultant, s.joint_xyz(j), [0, 1, 2].map(|k| sc * c[k]));
+            if !axisym.contains(&j) {
+                add_resultant(&mut resultant, s.joint_xyz(j), [0, 1, 2].map(|k| sc * c[k]));
+            }
         }
     }
     let mut imposed = vec![0.0; ndof];
@@ -313,27 +328,62 @@ fn build_case_loads(
             }
         }
     }
+    // The centrifugal body force is ρ ω² r, which grows with the radius and so
+    // is not a uniform intensity: it is collected apart and integrated with
+    // the radius of each node (decision 0034).
+    let mut centrifugal: Vec<(usize, f64, f64, f64)> = Vec::new();
     for l in &m.area_loads {
         let sc = pscale(&l.pattern);
         if sc != 0.0 {
             let k = m.areas.iter().position(|a| a.name == l.area).expect("validated area");
+            if l.direction == LoadDirection::Centrifugal {
+                // Validation refuses it without a density; a missing one
+                // would load nothing rather than panic.
+                let density = m
+                    .areas
+                    .iter()
+                    .find(|a| a.name == l.area)
+                    .and_then(|a| m.area_sections.iter().find(|s| s.name == a.section))
+                    .and_then(|s| m.materials.iter().find(|x| x.name == s.material))
+                    .map_or(0.0, |x| x.mass_density);
+                centrifugal.push((k, l.value, sc, density));
+                continue;
+            }
             let g = global_dir(l.direction, &area_data[k].axes);
             for c in 0..3 {
                 intensity[k][c] += g[c] * l.value * sc;
             }
         }
     }
-    let mut area_nodal = Vec::with_capacity(area_data.len());
-    for (a, &w) in area_data.iter().zip(&intensity) {
+    let mut area_nodal = vec![[0.0; 24]; area_data.len()];
+    for (k, (a, &w)) in area_data.iter().zip(&intensity).enumerate() {
         let f = a.uniform_load(w);
-        for (k, &d) in a.dofs.iter().enumerate() {
-            f_full[d] += f[k];
+        for (i, &d) in a.dofs.iter().enumerate() {
+            f_full[d] += f[i];
+            area_nodal[k][i] += f[i];
         }
         // Σ xᵢ ∫Nᵢ dA = ∫x dA, so the nodal forces carry the exact moment too.
-        for (n, corner) in a.corners.iter().enumerate() {
-            add_resultant(&mut resultant, *corner, [f[6 * n], f[6 * n + 1], f[6 * n + 2]]);
+        // An axisymmetric area keeps out of the resultant with its joints
+        // (decision 0034): its meridional forces are generalized ones.
+        if a.axisym.is_none() {
+            for (n, corner) in a.corners.iter().enumerate() {
+                add_resultant(&mut resultant, *corner, [f[6 * n], f[6 * n + 1], f[6 * n + 2]]);
+            }
         }
-        area_nodal.push(f);
+    }
+    for (k, omega, sc, density) in centrifugal {
+        // The load stays proportional to the pattern scale, so the scale
+        // multiplies the force and not the angular velocity.
+        let f = area_data[k].centrifugal_load(omega, density).map(|v| v * sc);
+        for (i, &d) in area_data[k].dofs.iter().enumerate() {
+            f_full[d] += f[i];
+            area_nodal[k][i] += f[i];
+        }
+        if area_data[k].axisym.is_none() {
+            for (n, corner) in area_data[k].corners.iter().enumerate() {
+                add_resultant(&mut resultant, *corner, [f[6 * n], f[6 * n + 1], f[6 * n + 2]]);
+            }
+        }
     }
     CaseLoads { f_full, joint_loads, span, resultant, imposed, area_nodal }
 }
@@ -974,6 +1024,10 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
         // Largest single reaction: the scale of the equilibrium check when the
         // reactions balance each other, as under support movements alone.
         let mut gross = [0.0_f64; 2];
+        // A reaction of an axisymmetric joint is generalized as well, so it
+        // stays out of the resultant and out of the scale of the check
+        // (decision 0034); the per-joint vector still reports it.
+        let axisym = areas::axisym_joints(&area_data);
         let joints: Vec<JointResult> = (0..nj)
             .map(|j| {
                 let reaction = restrained_joint[j].then(|| {
@@ -987,12 +1041,14 @@ pub fn run(s: &Snapshot, opts: &Options) -> RunResult {
                         };
                         reaction_work += *rd * cl.imposed[g];
                     }
-                    add_resultant(&mut reaction_res, s.joint_xyz(j), [r[0], r[1], r[2]]);
-                    let arm = cross(s.joint_xyz(j), [r[0], r[1], r[2]]);
-                    for k in 0..3 {
-                        reaction_res[3 + k] += r[3 + k];
-                        gross[0] = gross[0].max(r[k].abs());
-                        gross[1] = gross[1].max(r[3 + k].abs()).max(arm[k].abs());
+                    if !axisym.contains(&j) {
+                        add_resultant(&mut reaction_res, s.joint_xyz(j), [r[0], r[1], r[2]]);
+                        let arm = cross(s.joint_xyz(j), [r[0], r[1], r[2]]);
+                        for k in 0..3 {
+                            reaction_res[3 + k] += r[3 + k];
+                            gross[0] = gross[0].max(r[k].abs());
+                            gross[1] = gross[1].max(r[3 + k].abs()).max(arm[k].abs());
+                        }
                     }
                     r
                 });
@@ -1421,5 +1477,253 @@ mod tests {
         let checks = c.checks.as_ref().expect("checks");
         assert!(checks.equilibrium_force_error < 1e-12, "{checks:?}");
         assert!(checks.residual_relative < 1e-12, "{checks:?}");
+    }
+
+    /// The single case of an axisymmetric model, with the analysis completed:
+    /// the tests below read the case itself.
+    fn ring_case(s: &Snapshot) -> CaseResult {
+        let out = run(s, &Options::default());
+        let case = out.cases.into_iter().next().expect("one case");
+        assert_eq!(case.status.completion(), Completion::Complete, "{:?}", case.messages);
+        case
+    }
+
+    /// An axisymmetric ring between r = 0.5 m and r = 1 m, one metre tall, in
+    /// the plane x = 0: joint y is the radius of the revolution (decision
+    /// 0034). Every joint is held in z, so `w = 0` and the field `u = C r`
+    /// with `C = p (1 + nu)(1 - 2 nu) / E` gives `εr = εθ = C`, `εz = 0` and
+    /// the state `σr = σθ = p`, `σz = 2 ν p`. It is bilinear in (r, z), so the
+    /// element holds it exactly, and `p` is applied as the consistent nodal
+    /// forces of the traction `σ · n` of the inner face (r = 0.5) and the
+    /// outer one (r = 1): the top and bottom faces only carry axial traction,
+    /// which the held z degrees of freedom take as reactions.
+    fn ring(e: f64) -> Snapshot {
+        let inner = -1e6 * std::f64::consts::FRAC_PI_2;
+        let outer = 1e6 * std::f64::consts::PI;
+        let text = serde_json::json!({
+            "schema_version": 12,
+            "title": "axisymmetric ring",
+            "units": {"force": "N", "length": "m"},
+            "materials": [{"name": "S", "e": e, "nu": 0.3, "unit_weight": 0.0}],
+            "sections": [{"name": "B", "material": "S", "area": 0.01, "i33": 1e-4, "i22": 1e-4, "j": 2e-4}],
+            "area_sections": [{"name": "R", "material": "S", "thickness": 0.1, "behavior": "Axisymmetric"}],
+            "joints": [
+                {"name": "A0", "x": 0.0, "y": 0.5, "z": 0.0, "restraint": [false, false, true, false, false, false]},
+                {"name": "A1", "x": 0.0, "y": 1.0, "z": 0.0, "restraint": [false, false, true, false, false, false]},
+                {"name": "A2", "x": 0.0, "y": 1.0, "z": 1.0, "restraint": [false, false, true, false, false, false]},
+                {"name": "A3", "x": 0.0, "y": 0.5, "z": 1.0, "restraint": [false, false, true, false, false, false]}
+            ],
+            "areas": [{"name": "Q", "section": "R", "joints": ["A0", "A1", "A2", "A3"]}],
+            "area_loads": [],
+            "load_patterns": [{"name": "T"}],
+            "joint_loads": [
+                {"pattern": "T", "joint": "A0", "values": [0.0, inner, 0.0, 0.0, 0.0, 0.0]},
+                {"pattern": "T", "joint": "A3", "values": [0.0, inner, 0.0, 0.0, 0.0, 0.0]},
+                {"pattern": "T", "joint": "A1", "values": [0.0, outer, 0.0, 0.0, 0.0, 0.0]},
+                {"pattern": "T", "joint": "A2", "values": [0.0, outer, 0.0, 0.0, 0.0, 0.0]}
+            ],
+            "frame_loads": [],
+            "load_cases": [{"type": "LinearStatic", "name": "T", "loads": [{"pattern": "T", "scale": 1.0}]}],
+            "combinations": []
+        })
+        .to_string();
+        validate(&model_from_json(&text).expect("parse")).expect("valid")
+    }
+
+    #[test]
+    fn an_axisymmetric_ring_in_uniform_radial_stress_is_exact() {
+        let p = 1e6;
+        let nu = 0.3;
+        let e = 2e11;
+        let s = ring(e);
+        // Four joints x two degrees of freedom, radial and axial, minus the
+        // four the model holds in z.
+        assert_eq!(DofMap::build(&s).n, 4, "every joint of the ring is held in z");
+
+        let case = ring_case(&s);
+        let at = |name: &str| case.joints.iter().find(|j| j.joint == name).expect("joint");
+        let close = |a: f64, b: f64| (a - b).abs() <= 1e-9 * b.abs().max(1e-18);
+        let strain = p * (1.0 + nu) * (1.0 - 2.0 * nu) / e;
+        assert!(close(at("A0").displacement[1], 0.5 * strain), "{:?}", at("A0").displacement);
+        assert!(close(at("A3").displacement[1], 0.5 * strain), "{:?}", at("A3").displacement);
+        assert!(close(at("A1").displacement[1], strain), "{:?}", at("A1").displacement);
+        assert!(close(at("A2").displacement[1], strain), "{:?}", at("A2").displacement);
+        for j in &case.joints {
+            assert_eq!(j.displacement[0], 0.0, "{}: the tangential dof is held", j.joint);
+            assert_eq!(&j.displacement[2..], &[0.0; 4], "{}", j.joint);
+        }
+
+        // The state is uniform, so the centre of the section carries it.
+        let a = case.areas.first().expect("area result");
+        assert!(close(a.center[0], p), "{:?}", a.center);
+        assert!(close(a.center[1], 2.0 * nu * p), "{:?}", a.center);
+        assert!(a.center[2].abs() <= 1e-6 * p, "no shear in a radial state: {:?}", a.center);
+        assert!(close(a.center[3], p), "{:?}", a.center);
+        assert_eq!(&a.center[4..], &[0.0; 4], "an axisymmetric area has no plate");
+
+        // The solve is exact to round-off, and the generalized radial forces
+        // keep out of the resultants the check compares (decision 0034).
+        let checks = case.checks.as_ref().expect("checks");
+        assert!(checks.residual_relative < 1e-12, "{checks:?}");
+        assert!(checks.equilibrium_force_error < 1e-12, "{checks:?}");
+        assert!(checks.equilibrium_moment_error < 1e-12, "{checks:?}");
+        assert_eq!(checks.applied_resultant, [0.0; 6], "{:?}", checks.applied_resultant);
+        assert_eq!(checks.reaction_resultant, [0.0; 6], "{:?}", checks.reaction_resultant);
+
+        // The held z degree of freedom is not generalized: ∮ Nᵢ σz dA over
+        // each face, the base pulled down and the top pulled up, cancelling.
+        let pi = std::f64::consts::PI;
+        assert!(close(at("A0").reaction.expect("restrained")[2], -2e5 * pi), "{:?}", at("A0").reaction);
+        assert!(close(at("A1").reaction.expect("restrained")[2], -2.5e5 * pi), "{:?}", at("A1").reaction);
+        assert!(close(at("A2").reaction.expect("restrained")[2], 2.5e5 * pi), "{:?}", at("A2").reaction);
+        assert!(close(at("A3").reaction.expect("restrained")[2], 2e5 * pi), "{:?}", at("A3").reaction);
+        let axial: f64 = case.joints.iter().filter_map(|j| j.reaction).map(|r| r[2]).sum();
+        assert!(axial.abs() <= 1e-6, "the two faces pull against each other: {axial}");
+
+        // Half the modulus: twice the displacement, the same stresses.
+        let s = ring(1e11);
+        let case = ring_case(&s);
+        let at = |name: &str| case.joints.iter().find(|j| j.joint == name).expect("joint");
+        let soft = p * (1.0 + nu) * (1.0 - 2.0 * nu) / 1e11;
+        assert!(close(soft, 2.0 * strain), "{soft} vs {}", 2.0 * strain);
+        assert!(close(at("A0").displacement[1], 0.5 * soft), "{:?}", at("A0").displacement);
+        assert!(close(at("A1").displacement[1], soft), "{:?}", at("A1").displacement);
+        let a = case.areas.first().expect("area result");
+        assert!(close(a.center[0], p), "{:?}", a.center);
+        assert!(close(a.center[1], 2.0 * nu * p), "{:?}", a.center);
+        assert!(close(a.center[3], p), "{:?}", a.center);
+    }
+
+    /// The same ring weighing γ = 1000 N/m³ over the section, which for an
+    /// axisymmetric area is the whole revolution of 0.75 π m³ (decision 0034),
+    /// with its base held in z and its top free.
+    fn heavy_ring() -> Snapshot {
+        let text = serde_json::json!({
+            "schema_version": 12,
+            "title": "axisymmetric ring under its weight",
+            "units": {"force": "N", "length": "m"},
+            "materials": [{"name": "S", "e": 2e11, "nu": 0.3, "unit_weight": 1000.0}],
+            "sections": [{"name": "B", "material": "S", "area": 0.01, "i33": 1e-4, "i22": 1e-4, "j": 2e-4}],
+            "area_sections": [{"name": "R", "material": "S", "thickness": 0.1, "behavior": "Axisymmetric"}],
+            "joints": [
+                {"name": "A0", "x": 0.0, "y": 0.5, "z": 0.0, "restraint": [false, false, true, false, false, false]},
+                {"name": "A1", "x": 0.0, "y": 1.0, "z": 0.0, "restraint": [false, false, true, false, false, false]},
+                {"name": "A2", "x": 0.0, "y": 1.0, "z": 1.0},
+                {"name": "A3", "x": 0.0, "y": 0.5, "z": 1.0}
+            ],
+            "areas": [{"name": "Q", "section": "R", "joints": ["A0", "A1", "A2", "A3"]}],
+            "area_loads": [],
+            "load_patterns": [{"name": "W", "self_weight_multiplier": 1.0}],
+            "joint_loads": [],
+            "frame_loads": [],
+            "load_cases": [{"type": "LinearStatic", "name": "W", "loads": [{"pattern": "W", "scale": 1.0}]}],
+            "combinations": []
+        })
+        .to_string();
+        validate(&model_from_json(&text).expect("parse")).expect("valid")
+    }
+
+    #[test]
+    fn the_weight_of_an_axisymmetric_ring_is_carried_by_its_base() {
+        let s = heavy_ring();
+        // Four joints x two degrees of freedom, minus the two z the model holds.
+        assert_eq!(DofMap::build(&s).n, 6, "the base of the ring is held in z");
+
+        let case = ring_case(&s);
+        let at = |name: &str| case.joints.iter().find(|j| j.joint == name).expect("joint");
+        let close = |a: f64, b: f64| (a - b).abs() <= 1e-9 * b.abs();
+
+        // 1000 N/m³ x 0.75 π m³. An axial translation is a rigid mode, so the
+        // axial internal forces add up to zero over the four joints and the
+        // base carries all of the weight: 750 π = 2356.194490192345 N.
+        let want = 750.0 * std::f64::consts::PI;
+        let base: f64 = case.joints.iter().filter_map(|j| j.reaction).map(|r| r[2]).sum();
+        assert!(close(base, want), "{base} vs {want}");
+        // Only the joints the model holds in z take it: the top is free there.
+        assert_eq!(at("A2").reaction.expect("reported")[2], 0.0, "the top is free in z");
+        assert_eq!(at("A3").reaction.expect("reported")[2], 0.0, "the top is free in z");
+        assert!(at("A2").displacement[2] < 0.0, "the weight pulls the top down: {:?}", at("A2").displacement);
+        assert!(at("A3").displacement[2] < 0.0, "the weight pulls the top down: {:?}", at("A3").displacement);
+
+        // The weight of an axisymmetric area is a generalized load too: it
+        // stays out of the resultants the check compares (decision 0034).
+        let checks = case.checks.as_ref().expect("checks");
+        assert_eq!(checks.applied_resultant, [0.0; 6], "{:?}", checks.applied_resultant);
+        assert_eq!(checks.reaction_resultant, [0.0; 6], "{:?}", checks.reaction_resultant);
+        assert!(checks.equilibrium_force_error < 1e-12, "{checks:?}");
+        assert!(checks.equilibrium_moment_error < 1e-12, "{checks:?}");
+        assert!(checks.residual_relative < 1e-12, "{checks:?}");
+    }
+
+    /// The same ring spun at ω = 1 rad/s between r = 1 m and r = 2 m, with
+    /// both degrees of freedom held on every joint: nothing moves, so the
+    /// reactions are the whole centrifugal load, `ρ ω² ∫ Nᵢ 2π r² dA`
+    /// (decision 0034).
+    fn spun_ring() -> Snapshot {
+        let text = serde_json::json!({
+            "schema_version": 12,
+            "title": "spun axisymmetric ring",
+            "units": {"force": "N", "length": "m"},
+            "materials": [{"name": "S", "e": 2e11, "nu": 0.3, "unit_weight": 0.0, "mass_density": 1.0}],
+            "sections": [{"name": "B", "material": "S", "area": 0.01, "i33": 1e-4, "i22": 1e-4, "j": 2e-4}],
+            "area_sections": [{"name": "R", "material": "S", "thickness": 0.1, "behavior": "Axisymmetric"}],
+            "joints": [
+                {"name": "A0", "x": 0.0, "y": 1.0, "z": 0.0, "restraint": [false, true, true, false, false, false]},
+                {"name": "A1", "x": 0.0, "y": 2.0, "z": 0.0, "restraint": [false, true, true, false, false, false]},
+                {"name": "A2", "x": 0.0, "y": 2.0, "z": 1.0, "restraint": [false, true, true, false, false, false]},
+                {"name": "A3", "x": 0.0, "y": 1.0, "z": 1.0, "restraint": [false, true, true, false, false, false]}
+            ],
+            "areas": [{"name": "Q", "section": "R", "joints": ["A0", "A1", "A2", "A3"]}],
+            "area_loads": [{"pattern": "S", "area": "Q", "direction": "Centrifugal", "value": 1.0}],
+            "load_patterns": [{"name": "S"}],
+            "joint_loads": [],
+            "frame_loads": [],
+            "load_cases": [{"type": "LinearStatic", "name": "S", "loads": [{"pattern": "S", "scale": 1.0}]}],
+            "combinations": []
+        })
+        .to_string();
+        validate(&model_from_json(&text).expect("parse")).expect("valid")
+    }
+
+    #[test]
+    fn the_centrifugal_load_is_the_radius_weighted_volume_integral() {
+        let s = spun_ring();
+        // Radial and axial held on every joint: no equation is left.
+        assert_eq!(DofMap::build(&s).n, 0, "both degrees of freedom are held everywhere");
+
+        let case = ring_case(&s);
+        let at = |name: &str| case.joints.iter().find(|j| j.joint == name).expect("joint");
+        let close = |a: f64, b: f64| (a - b).abs() <= 1e-9 * b.abs().max(1.0);
+        let pi = std::f64::consts::PI;
+
+        // f = ρ ω² ∫ Nᵢ 2π r² dA with ρ ω² = 1: (π/4)(14/3 - 1) on the nodes
+        // at r = 1 and (π/4)(14/3 + 1) on those at r = 2, and the reaction is
+        // the opposite of the load.
+        for name in ["A0", "A3"] {
+            assert!(close(at(name).reaction.expect("held")[1], -11.0 * pi / 12.0), "{name}: {:?}", at(name).reaction);
+        }
+        for name in ["A1", "A2"] {
+            assert!(close(at(name).reaction.expect("held")[1], -17.0 * pi / 12.0), "{name}: {:?}", at(name).reaction);
+        }
+        let total: f64 = case.joints.iter().filter_map(|j| j.reaction).map(|r| r[1]).sum();
+        assert!(close(total, -14.0 * pi / 3.0), "{total} vs {}", -14.0 * pi / 3.0);
+
+        // Nothing else moves or reacts: the load is radial and u = 0.
+        for j in &case.joints {
+            let r = j.reaction.expect("held");
+            assert_eq!(r[0], 0.0, "{}: tangential", j.joint);
+            assert_eq!(r[2], 0.0, "{}: axial", j.joint);
+            assert_eq!(&r[3..], &[0.0; 3], "{}", j.joint);
+            assert_eq!(j.displacement, [0.0; 6], "{}", j.joint);
+        }
+
+        // There is no equation to solve, and the generalized load stays out of
+        // the resultants the check compares (decision 0034).
+        let checks = case.checks.as_ref().expect("checks");
+        assert_eq!(checks.residual_relative, 0.0, "{checks:?}");
+        assert_eq!(checks.applied_resultant, [0.0; 6], "{:?}", checks.applied_resultant);
+        assert_eq!(checks.reaction_resultant, [0.0; 6], "{:?}", checks.reaction_resultant);
+        assert!(checks.equilibrium_force_error < 1e-12, "{checks:?}");
+        assert!(checks.equilibrium_moment_error < 1e-12, "{checks:?}");
     }
 }

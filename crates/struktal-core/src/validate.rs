@@ -177,6 +177,24 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
             return Err(newer("area_sections[].behavior: Plane"));
         }
     }
+    if ver < 12 {
+        // Same rule for the axisymmetric behaviour and the centrifugal
+        // direction: an older reader cannot parse either value (decision 0034).
+        let has_axisym = raw.get("area_sections").and_then(|v| v.as_array()).is_some_and(|secs| {
+            secs.iter().any(|s| s.get("behavior").and_then(|b| b.as_str()) == Some("Axisymmetric"))
+        });
+        if has_axisym {
+            return Err(newer("area_sections[].behavior: Axisymmetric"));
+        }
+        let has_centrifugal = ["area_loads", "frame_loads"].iter().any(|key| {
+            raw.get(*key).and_then(|v| v.as_array()).is_some_and(|loads| {
+                loads.iter().any(|l| l.get("direction").and_then(|d| d.as_str()) == Some("Centrifugal"))
+            })
+        });
+        if has_centrifugal {
+            return Err(newer("loads[].direction: Centrifugal"));
+        }
+    }
     if ver < 7 && has_value(&raw, "mass_source") {
         return Err(newer("mass_source"));
     }
@@ -473,6 +491,75 @@ pub fn plane_axis(points: &[[f64; 3]]) -> Option<usize> {
     }
 }
 
+/// Is the section of an area one of the two whose element carries two degrees
+/// of freedom per node? The analysis holds the other four of their joints
+/// (decisions 0033 and 0034).
+fn is_2d_section(behavior: Option<AreaBehavior>) -> bool {
+    matches!(behavior, Some(AreaBehavior::Plane | AreaBehavior::Axisymmetric))
+}
+
+/// Geometry an axisymmetric section has to have (decision 0034): four joints,
+/// a plane that contains the z axis, and a radius of at least zero. Returns
+/// whether the area can be registered as one of the two-degree sections.
+fn axisymmetric_geometry(e: &str, axis: usize, pts: &[[f64; 3]], issues: &mut Vec<Issue>) -> bool {
+    let mut ok = true;
+    if pts.len() != 4 {
+        issues.push(issue(
+            e,
+            "joints",
+            "an axisymmetric area has four joints: its element is the quadrilateral (decision 0034)",
+        ));
+        ok = false;
+    }
+    if axis > 1 {
+        issues.push(issue(
+            e,
+            "joints",
+            "an axisymmetric area stands in a plane that contains the z axis: x = 0 or y = 0, not a horizontal plane (decision 0034)",
+        ));
+        return false;
+    }
+    let scale = pts.iter().flat_map(|p| p.iter().map(|v| v.abs())).fold(1.0, f64::max);
+    let tol = 1e-9 * scale;
+    if pts.iter().any(|p| p[axis].abs() > tol) {
+        issues.push(issue(
+            e,
+            "joints",
+            "the plane of an axisymmetric area has to pass through the z axis: its constant coordinate is 0 (decision 0034)",
+        ));
+        ok = false;
+    }
+    let radius = 1 - axis;
+    if pts.iter().any(|p| p[radius] < -tol) {
+        issues.push(issue(
+            e,
+            "joints",
+            "the radius of an axisymmetric area has to be >= 0: it is measured from the z axis (decision 0034)",
+        ));
+        ok = false;
+    }
+    // The element integrates with the sign of the Jacobian of its (r, z)
+    // coordinates, and its axes are fixed by the revolution, so the joint
+    // order is the only thing that can flip it (decision 0034).
+    if pts.len() == 4 {
+        let signed: f64 = (0..4)
+            .map(|i| {
+                let j = (i + 1) % 4;
+                pts[i][radius] * pts[j][2] - pts[j][radius] * pts[i][2]
+            })
+            .sum();
+        if signed < 0.0 {
+            issues.push(issue(
+                e,
+                "joints",
+                "the joints of an axisymmetric area run clockwise in its (r, z) section: they have to go counterclockwise (decision 0034)",
+            ));
+            ok = false;
+        }
+    }
+    ok
+}
+
 fn check_areas(
     m: &Model,
     materials: &HashMap<Name, usize>,
@@ -493,9 +580,9 @@ fn check_areas(
         if !materials.contains_key(&s.material) {
             issues.push(issue(&e, "material", format!("unknown material '{}'", s.material)));
         }
-        if s.behavior == AreaBehavior::Plane {
-            // A plane section has no plate: the element takes E, nu and t
-            // (decision 0033).
+        if matches!(s.behavior, AreaBehavior::Plane | AreaBehavior::Axisymmetric) {
+            // A plane or axisymmetric section has no plate: the element takes
+            // E, nu and t (decisions 0033 and 0034).
             if s.bending_thickness.is_some() {
                 issues.push(issue(&e, "bending_thickness", "a plane section has no bending thickness"));
             }
@@ -585,12 +672,14 @@ fn check_areas(
             let j = &m.joints[found[k]];
             [j.x, j.y, j.z]
         };
-        if behavior.get(a.section.as_str()) == Some(&AreaBehavior::Plane) {
-            // A plane area is a 2D idealisation: two DOF per node, with the
-            // other four held by the analysis (decision 0033). Its plane has
-            // to be parallel to a global axis so that the held components are
-            // a fixed set, and two plane areas that share a joint have to lie
-            // in the same plane, or that joint would be held twice over.
+        let behavior_of = behavior.get(a.section.as_str()).copied();
+        if is_2d_section(behavior_of) {
+            // A plane or axisymmetric area is a 2D idealisation: two DOF per
+            // node, with the other four held by the analysis (decisions 0033
+            // and 0034). Its plane has to be parallel to a global axis so that
+            // the held components are a fixed set, and two of them that share
+            // a joint have to lie in the same plane, or that joint would be
+            // held twice over.
             let pts: Vec<[f64; 3]> = (0..found.len()).map(&at).collect();
             match plane_axis(&pts) {
                 None => issues.push(issue(
@@ -599,16 +688,20 @@ fn check_areas(
                     "a plane area must be parallel to a global axis plane: one of x, y, z constant over its joints",
                 )),
                 Some(axis) => {
-                    let other = found.iter().find(|&&k| plane_axis_of.get(&k).is_some_and(|&a| a != axis));
-                    if other.is_some() {
-                        issues.push(issue(
-                            &e,
-                            "joints",
-                            "a plane area shares a joint with a plane area in a different plane (decision 0033)",
-                        ));
-                    } else {
-                        for &k in &found {
-                            plane_axis_of.entry(k).or_insert(axis);
+                    let usable = behavior_of != Some(AreaBehavior::Axisymmetric)
+                        || axisymmetric_geometry(&e, axis, &pts, issues);
+                    if usable {
+                        let other = found.iter().find(|&&k| plane_axis_of.get(&k).is_some_and(|&a| a != axis));
+                        if other.is_some() {
+                            issues.push(issue(
+                                &e,
+                                "joints",
+                                "a plane area shares a joint with a plane area in a different plane (decisions 0033 and 0034)",
+                            ));
+                        } else {
+                            for &k in &found {
+                                plane_axis_of.entry(k).or_insert(axis);
+                            }
                         }
                     }
                 }
@@ -669,7 +762,7 @@ fn check_areas(
             }
         }
         for a in &m.areas {
-            if behavior.get(a.section.as_str()) == Some(&AreaBehavior::Plane) {
+            if is_2d_section(behavior.get(a.section.as_str()).copied()) {
                 continue;
             }
             for name in &a.joints {
@@ -692,15 +785,16 @@ fn check_areas(
             issues.push(issue(&e, "area", format!("unknown area '{}'", l.area)));
         }
         check_finite(l.value, &e, "value", issues);
-        // A load out of the plane of a plane area reaches an element with no
-        // stiffness there: it would be dropped without a word (decision 0033).
+        let subject = m
+            .areas
+            .iter()
+            .find(|a| a.name == l.area)
+            .filter(|a| is_2d_section(behavior.get(a.section.as_str()).copied()));
         if l.value != 0.0 {
-            let plane = m
-                .areas
-                .iter()
-                .find(|a| a.name == l.area)
-                .filter(|a| behavior.get(a.section.as_str()) == Some(&AreaBehavior::Plane));
-            if let Some(a) = plane {
+            // A load out of the plane of a plane or axisymmetric area reaches
+            // an element with no stiffness there: it would be dropped without
+            // a word (decisions 0033 and 0034).
+            if let Some(a) = subject {
                 let axis = a.joints.first().and_then(|n| joint_index.get(n)).and_then(|&k| plane_axis_of.get(&k));
                 let out_of_plane = match l.direction {
                     LoadDirection::Local3 => true,
@@ -708,12 +802,42 @@ fn check_areas(
                     LoadDirection::GlobalX => axis == Some(&0),
                     LoadDirection::GlobalY => axis == Some(&1),
                     LoadDirection::GlobalZ | LoadDirection::Gravity => axis == Some(&2),
+                    // Radial by construction, so it is always in the plane.
+                    LoadDirection::Centrifugal => false,
                 };
                 if out_of_plane {
                     issues.push(issue(
                         &e,
                         "direction",
-                        "out of the plane of a plane area: the load would not be carried (decision 0033)",
+                        "out of the plane of a plane or axisymmetric area: the load would not be carried (decisions 0033 and 0034)",
+                    ));
+                }
+            }
+        }
+        // The centrifugal body force needs a radius and a density (0034).
+        if l.direction == LoadDirection::Centrifugal {
+            let section = m
+                .areas
+                .iter()
+                .find(|a| a.name == l.area)
+                .and_then(|a| m.area_sections.iter().find(|s| s.name == a.section));
+            let axisym = section.is_some_and(|s| s.behavior == AreaBehavior::Axisymmetric);
+            if !axisym {
+                issues.push(issue(
+                    &e,
+                    "direction",
+                    "a centrifugal load needs an area with an axisymmetric section (decision 0034)",
+                ));
+            } else if l.value < 0.0 {
+                issues.push(issue(&e, "value", "the angular velocity must be >= 0"));
+            } else {
+                let density =
+                    section.and_then(|s| materials.get(&s.material)).map_or(0.0, |&i| m.materials[i].mass_density);
+                if density <= 0.0 {
+                    issues.push(issue(
+                        &e,
+                        "value",
+                        "the material of this area has no mass_density, which the centrifugal load needs (decision 0034)",
                     ));
                 }
             }
@@ -744,8 +868,8 @@ fn check_areas(
 }
 
 /// Loads, imposed displacements and springs on a component the analysis holds
-/// for a plane area (decision 0033): they would be dropped without a word,
-/// because the element has no stiffness there.
+/// for a plane or axisymmetric area (decisions 0033 and 0034): they would be
+/// dropped without a word, because the element has no stiffness there.
 fn check_plane_dofs(
     m: &Model,
     joint_index: &HashMap<Name, usize>,
@@ -766,7 +890,7 @@ fn check_plane_dofs(
                     format!("joint load #{k}"),
                     "values",
                     format!(
-                        "{} of joint '{}' is out of the plane of a plane area: the load would not be carried (decision 0033)",
+                        "{} of joint '{}' is out of the plane of a plane or axisymmetric area: the load would not be carried (decisions 0033 and 0034)",
                         DOF_NAMES[d], jl.joint
                     ),
                 ));
@@ -781,7 +905,7 @@ fn check_plane_dofs(
                     format!("joint displacement #{k}"),
                     "values",
                     format!(
-                        "{} of joint '{}' is out of the plane of a plane area: the displacement would not be imposed (decision 0033)",
+                        "{} of joint '{}' is out of the plane of a plane or axisymmetric area: the displacement would not be imposed (decisions 0033 and 0034)",
                         DOF_NAMES[d], jd.joint
                     ),
                 ));
@@ -794,7 +918,7 @@ fn check_plane_dofs(
                 issues.push(issue(
                     format!("joint {}", joint.name),
                     &format!("springs[{}]", DOF_NAMES[d]),
-                    "out of the plane of a plane area: the spring would not be used (decision 0033)",
+                    "out of the plane of a plane or axisymmetric area: the spring would not be used (decisions 0033 and 0034)",
                 ));
             }
         }
@@ -1047,6 +1171,22 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
         }
         if !frame_index.contains_key(&fl.frame) {
             issues.push(issue(&e, "frame", format!("unknown frame '{}'", fl.frame)));
+        }
+        // Every kind carries a direction, and none of them can be the
+        // centrifugal body force of a revolution (decision 0034).
+        let dir = match fl.load {
+            FrameLoadKind::Uniform { direction, .. }
+            | FrameLoadKind::Point { direction, .. }
+            | FrameLoadKind::Trapezoidal { direction, .. }
+            | FrameLoadKind::PointMoment { direction, .. }
+            | FrameLoadKind::TrapezoidalMoment { direction, .. } => direction,
+        };
+        if dir == LoadDirection::Centrifugal {
+            issues.push(issue(
+                &e,
+                "direction",
+                "a centrifugal load needs an area with an axisymmetric section: a bar cannot take one (decision 0034)",
+            ));
         }
         match fl.load {
             FrameLoadKind::Uniform { value, .. } => check_finite(value, &e, "value", &mut issues),
@@ -2235,5 +2375,120 @@ mod tests {
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 10.into();
         assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::NewerField { found: 10, .. })));
+    }
+
+    /// The cantilever plus an axisymmetric area with these corners: its
+    /// section is the one the analysis revolves about the global z axis
+    /// (decision 0034).
+    fn axisym_at(corners: [[f64; 3]; 4]) -> Model {
+        let mut m = with_area(corners);
+        m.area_sections[0].behavior = AreaBehavior::Axisymmetric;
+        m
+    }
+
+    /// The cantilever plus an axisymmetric area in the plane x = 0, between
+    /// r = 1 m and r = 2 m and one metre tall.
+    fn axisym_area() -> Model {
+        axisym_at([[0.0, 1.0, 0.0], [0.0, 2.0, 0.0], [0.0, 2.0, 1.0], [0.0, 1.0, 1.0]])
+    }
+
+    #[test]
+    fn an_axisymmetric_area_needs_a_section_through_z_and_a_radius() {
+        // The right shape: a plane through the axis, radius >= 0, and the
+        // joints running counterclockwise in (r, z).
+        assert!(validate(&axisym_area()).is_ok());
+
+        // Three joints: the element of an axisymmetric area is a quadrilateral.
+        let mut m = axisym_area();
+        m.areas[0].joints.pop();
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("four joints")), "{errs:?}");
+
+        // A horizontal plane does not contain z, so it cannot be revolved.
+        let m = axisym_at([[1.0, 1.0, 5.0], [2.0, 1.0, 5.0], [2.0, 2.0, 5.0], [1.0, 2.0, 5.0]]);
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("not a horizontal plane")), "{errs:?}");
+
+        // Parallel to z but not through it: the plane x = 5 has no axis in it.
+        let m = axisym_at([[5.0, 1.0, 0.0], [5.0, 2.0, 0.0], [5.0, 2.0, 1.0], [5.0, 1.0, 1.0]]);
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("pass through the z axis")), "{errs:?}");
+
+        // The radius is measured from z, so it cannot be negative.
+        let m = axisym_at([[0.0, -1.0, 0.0], [0.0, 2.0, 0.0], [0.0, 2.0, 1.0], [0.0, 1.0, 1.0]]);
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("radius")), "{errs:?}");
+
+        // The axes of the element are fixed by the revolution, so the order of
+        // the joints is the only thing that can turn the section over.
+        let mut m = axisym_area();
+        m.areas[0].joints.reverse();
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("clockwise")), "{errs:?}");
+    }
+
+    #[test]
+    fn a_centrifugal_load_needs_an_axisymmetric_section_and_a_density() {
+        let load = |value: f64| AreaLoad {
+            pattern: "P".into(),
+            area: "Q".into(),
+            direction: LoadDirection::Centrifugal,
+            value,
+        };
+
+        // On a shell area there is no radius to spin it about.
+        let mut m = with_area([[0.0, 1.0, 0.0], [0.0, 2.0, 0.0], [0.0, 2.0, 1.0], [0.0, 1.0, 1.0]]);
+        m.area_loads.push(load(1.0));
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("axisymmetric section")), "{errs:?}");
+
+        // The ρ of ρ ω² r comes from the material of the area.
+        let mut m = axisym_area();
+        m.area_loads.push(load(1.0));
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("mass_density")), "{errs:?}");
+
+        // A negative ω would square into a positive force: refuse it instead
+        // of spinning the other way for free.
+        let mut m = axisym_area();
+        m.materials[0].mass_density = 1.0;
+        m.area_loads.push(load(-3.0));
+        let errs = validate(&m).expect_err("fail");
+        assert!(errs.iter().any(|i| i.cause.contains("angular velocity")), "{errs:?}");
+
+        // The real thing: ω = 2 rad/s on a material with a density.
+        let mut m = axisym_area();
+        m.materials[0].mass_density = 1.0;
+        m.area_loads.push(load(2.0));
+        assert!(validate(&m).is_ok());
+    }
+
+    #[test]
+    fn a_file_from_before_the_axisymmetric_behaviour_cannot_carry_it() {
+        let m = axisym_area();
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 11.into();
+        assert!(matches!(
+            model_from_json(&v.to_string()),
+            Err(LoadError::NewerField { found: 11, ref field }) if field.contains("Axisymmetric")
+        ));
+    }
+
+    #[test]
+    fn a_file_from_before_the_centrifugal_direction_cannot_carry_it() {
+        // A shell area so that only the direction is newer than the schema.
+        let mut m = with_area([[0.0, 1.0, 0.0], [0.0, 2.0, 0.0], [0.0, 2.0, 1.0], [0.0, 1.0, 1.0]]);
+        m.area_loads.push(AreaLoad {
+            pattern: "P".into(),
+            area: "Q".into(),
+            direction: LoadDirection::Centrifugal,
+            value: 1.0,
+        });
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 11.into();
+        assert!(matches!(
+            model_from_json(&v.to_string()),
+            Err(LoadError::NewerField { found: 11, ref field }) if field.contains("Centrifugal")
+        ));
     }
 }

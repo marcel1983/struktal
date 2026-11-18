@@ -1,9 +1,10 @@
 //! Area elements in the assembly: local axes, stiffness in global axes, loads
 //! and section forces (decision 0019).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use struktal_core::{AreaBehavior, AreaSection, Model, Name, Snapshot, laminate_abc};
+use struktal_core::{AreaBehavior, AreaSection, Model, Name, Snapshot, laminate_abc, plane_axis};
+use struktal_elements::axisym::{self, AxisymProps};
 use struktal_elements::frame3d::Vec3;
 use struktal_elements::plane::{self, PlaneProps};
 use struktal_elements::shell3;
@@ -23,8 +24,11 @@ pub struct AreaData {
     pub props: ShellProps,
     /// Plane-stress properties, when the area is a plane one (decision 0033).
     pub plane: Option<PlaneProps>,
+    /// Axisymmetric properties, when the area is an axisymmetric one (0034).
+    pub axisym: Option<AxisymProps>,
     pub k_global: Mat24,
-    /// Weight per unit area.
+    /// Weight per unit area, or per unit volume of the revolution for an
+    /// axisymmetric area, which has no thickness (decision 0034).
     pub weight: f64,
 }
 
@@ -98,6 +102,32 @@ fn plane_local(xy: &[[f64; 2]; 4], nodes: usize, p: &PlaneProps) -> Mat24 {
     out
 }
 
+/// Axisymmetric stiffness in the 24-DOF frame: the 2 DOF of each node (radial
+/// and axial) in the element's local axes, which `to_global` rotates into the
+/// global ones (decision 0034).
+fn axisym_local(xy: &[[f64; 2]; 4], p: &AxisymProps) -> Mat24 {
+    let k = axisym::quad_stiffness(xy, p);
+    let mut out = [[0.0; 24]; 24];
+    for n in 0..4 {
+        for m in 0..4 {
+            for i in 0..2 {
+                for j in 0..2 {
+                    out[6 * n + i][6 * m + j] = k[2 * n + i][2 * m + j];
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Indices of the joints of the axisymmetric areas. Their in-plane DOF is the
+/// generalized coordinate of a whole circle, so their loads and reactions are
+/// not vector forces: they stay out of the global resultants that the
+/// equilibrium check compares (decision 0034).
+pub fn axisym_joints(area_data: &[AreaData]) -> HashSet<usize> {
+    area_data.iter().filter(|a| a.axisym.is_some()).flat_map(|a| (0..a.nodes).map(|n| a.dofs[6 * n] / 6)).collect()
+}
+
 /// Per area, in the order of the model. Sections and joints are validated.
 pub fn build(s: &Snapshot) -> Vec<AreaData> {
     let m = &s.model;
@@ -107,13 +137,25 @@ pub fn build(s: &Snapshot) -> Vec<AreaData> {
             let nodes = a.joints.len();
             let joints = [0, 1, 2, 3].map(|k: usize| s.joint_index[&a.joints[k.min(nodes - 1)]]);
             let corners = joints.map(|j| s.joint_xyz(j));
-            let axes = local_axes(&corners);
-            let center: Vec3 = [0, 1, 2].map(|k| corners[..nodes].iter().map(|c| c[k]).sum::<f64>() / nodes as f64);
-            let xy = corners.map(|c| {
-                let r = [c[0] - center[0], c[1] - center[1], c[2] - center[2]];
-                [dot(r, axes[0]), dot(r, axes[1])]
-            });
             let sec = m.area_sections.iter().find(|x| x.name == a.section).expect("validated section");
+            // An axisymmetric area has its own axes and its absolute (r, z)
+            // coordinates, which the radius of the hoop strain needs; the
+            // others are centred on the element (decisions 0033 and 0034).
+            let (axes, xy) = if sec.behavior == AreaBehavior::Axisymmetric {
+                let axis = plane_axis(&corners).expect("validated plane through the z axis");
+                let radial: Vec3 = if axis == 0 { [0.0, 1.0, 0.0] } else { [1.0, 0.0, 0.0] };
+                let axial: Vec3 = [0.0, 0.0, 1.0];
+                let xy = corners.map(|c| [dot(c, radial), c[2]]);
+                ([radial, axial, cross(radial, axial)], xy)
+            } else {
+                let axes = local_axes(&corners);
+                let center: Vec3 = [0, 1, 2].map(|k| corners[..nodes].iter().map(|c| c[k]).sum::<f64>() / nodes as f64);
+                let xy = corners.map(|c| {
+                    let r = [c[0] - center[0], c[1] - center[1], c[2] - center[2]];
+                    [dot(r, axes[0]), dot(r, axes[1])]
+                });
+                (axes, xy)
+            };
             let mat = m.materials.iter().find(|x| x.name == sec.material).expect("validated material");
             let g = mat.g.unwrap_or(mat.e / (2.0 * (1.0 + mat.nu)));
             let bending = sec.bending_thickness.unwrap_or(sec.thickness);
@@ -136,7 +178,14 @@ pub fn build(s: &Snapshot) -> Vec<AreaData> {
             // area, so the element matrix goes straight into the 24-DOF frame
             // and `to_global` does the rotation.
             let mut plane_props = None;
-            let local = if sec.behavior == AreaBehavior::Plane {
+            let mut axisym_props = None;
+            let local = if sec.behavior == AreaBehavior::Axisymmetric {
+                // Two DOF per node in the meridional plane, as a plane area;
+                // the section thickness means nothing here (decision 0034).
+                let ap = AxisymProps { e: mat.e, nu: mat.nu };
+                axisym_props = Some(ap);
+                axisym_local(&xy, &ap)
+            } else if sec.behavior == AreaBehavior::Plane {
                 let pp = PlaneProps { e: mat.e, nu: mat.nu, thickness: sec.thickness };
                 plane_props = Some(pp);
                 plane_local(&xy, nodes, &pp)
@@ -159,8 +208,12 @@ pub fn build(s: &Snapshot) -> Vec<AreaData> {
                 corners,
                 props,
                 plane: plane_props,
+                axisym: axisym_props,
                 k_global: to_global(&local, &axes),
-                weight: mat.unit_weight * sec.thickness,
+                // A plate-like area weighs per unit area; an axisymmetric one
+                // per unit volume of the revolution, which has no thickness
+                // (decision 0034).
+                weight: if axisym_props.is_some() { mat.unit_weight } else { mat.unit_weight * sec.thickness },
             }
         })
         .collect()
@@ -205,8 +258,12 @@ impl AreaData {
         out
     }
 
-    /// ∫ Nᵢ dA per node.
+    /// ∫ Nᵢ dA per node of the element's own coordinates: the meridional
+    /// section `(r, z)` for an axisymmetric area (decision 0034).
     pub fn nodal_areas(&self) -> [f64; 4] {
+        if self.axisym.is_some() {
+            return plane::quad_nodal_areas(&self.xy);
+        }
         if self.plane.is_some() {
             return if self.nodes == 3 {
                 plane::tri_nodal_areas(&[self.xy[0], self.xy[1], self.xy[2]])
@@ -215,6 +272,16 @@ impl AreaData {
             };
         }
         if self.nodes == 3 { shell3::nodal_areas(&self.triangle()) } else { shell4::nodal_areas(&self.xy) }
+    }
+
+    /// Volume behind each node's share: `thickness ·∫Nᵢ dA` of a plate-like
+    /// area, and the revolution's `∫Nᵢ 2π r dA` of an axisymmetric one, whose
+    /// section is the whole revolution and has no thickness (decision 0034).
+    pub fn nodal_volumes(&self, thickness: f64) -> [f64; 4] {
+        if self.axisym.is_some() {
+            return axisym::quad_nodal_volumes(&self.xy);
+        }
+        self.nodal_areas().map(|a| a * thickness)
     }
 
     /// The in-plane displacements of the nodes, as the plane element wants them.
@@ -246,13 +313,33 @@ impl AreaData {
         [self.xy[0], self.xy[1], self.xy[2]]
     }
 
-    /// Consistent nodal forces of a uniform load `g` per unit area, in global axes.
+    /// Consistent nodal forces of a uniform load `g`, in global axes: per unit
+    /// area on a plate-like area, and per unit volume of the revolution on an
+    /// axisymmetric one (decision 0034).
     pub fn uniform_load(&self, g: Vec3) -> [f64; 24] {
-        let shares = self.nodal_areas();
+        let shares = if self.axisym.is_some() { axisym::quad_nodal_volumes(&self.xy) } else { self.nodal_areas() };
         let mut f = [0.0; 24];
         for (n, a) in shares.iter().enumerate() {
             for k in 0..3 {
                 f[6 * n + k] = g[k] * a;
+            }
+        }
+        f
+    }
+
+    /// Consistent nodal forces of the centrifugal body force `ρ ω² r` per unit
+    /// volume of the revolution (decision 0034), radial in global axes. It is
+    /// not a uniform intensity: the force grows with the radius, so it is
+    /// integrated with `∫ Nᵢ 2π r² dA` instead.
+    pub fn centrifugal_load(&self, omega: f64, density: f64) -> [f64; 24] {
+        if self.axisym.is_none() {
+            return [0.0; 24];
+        }
+        let scale = density * omega * omega;
+        let mut f = [0.0; 24];
+        for (n, share) in axisym::quad_nodal_centrifugal(&self.xy).iter().enumerate() {
+            for d in 0..3 {
+                f[6 * n + d] = scale * share * self.axes[0][d];
             }
         }
         f
@@ -271,6 +358,22 @@ impl AreaData {
                 })
                 .collect();
             return AreaResult { area: name.to_string(), center, corners };
+        }
+        if let Some(ap) = &self.axisym {
+            // Stresses [σr, σz, τrz, σθ] at the centre of the section and at
+            // its corners, with zeros in the four plate slots: an axisymmetric
+            // area has no thickness, so these are stresses, not forces per
+            // unit length (decision 0034).
+            let at = |r: f64, s: f64| {
+                let uv = self.plane_uv(&local);
+                let st = axisym::quad_stress(&self.xy, ap, &uv, r, s);
+                [st[0], st[1], st[2], st[3], 0.0, 0.0, 0.0, 0.0]
+            };
+            return AreaResult {
+                area: name.to_string(),
+                center: at(0.0, 0.0),
+                corners: vec![at(-1.0, -1.0), at(1.0, -1.0), at(1.0, 1.0), at(-1.0, 1.0)],
+            };
         }
         if self.nodes == 3 {
             let tri = self.triangle();

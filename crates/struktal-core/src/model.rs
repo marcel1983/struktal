@@ -28,7 +28,10 @@ use crate::units::{Dim, UnitSystem};
 /// v11 (2026-11-17): plane area sections, `area_sections[].behavior: Plane`.
 /// An older reader cannot parse that value, so it refuses the file instead of
 /// reading it as something else (decision 0033).
-pub const SCHEMA_VERSION: u32 = 11;
+/// v12 (2026-11-17): axisymmetric area sections and the centrifugal direction,
+/// `behavior: Axisymmetric` and `direction: Centrifugal`. Same rule: an older
+/// reader cannot parse either value (decision 0034).
+pub const SCHEMA_VERSION: u32 = 12;
 
 pub type Name = String;
 
@@ -214,6 +217,9 @@ pub enum AreaBehavior {
     /// Plane stress: two degrees of freedom per node, in a global coordinate
     /// plane (decision 0033).
     Plane,
+    /// Axisymmetric: two degrees of freedom per node, the radial and the
+    /// axial one, in a plane that contains the z axis (decision 0034).
+    Axisymmetric,
 }
 
 /// Homogeneous isotropic area section (decision 0019).
@@ -502,6 +508,10 @@ pub enum LoadDirection {
     GlobalZ,
     /// Global −Z.
     Gravity,
+    /// Centrifugal body force `ρ ω² r` of an axisymmetric area, radial, with
+    /// `value` as the angular velocity ω in rad/s (decision 0034). It is not a
+    /// direction: only an area with an axisymmetric section can carry it.
+    Centrifugal,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

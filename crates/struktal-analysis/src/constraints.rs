@@ -13,22 +13,27 @@ use std::collections::HashSet;
 use struktal_core::{AreaBehavior, Snapshot, plane_axis};
 
 /// Restraints the analysis uses: the model's own, plus the four out-of-plane
-/// DOFs that a plane area leaves without stiffness (decision 0033).
+/// DOFs that a plane or axisymmetric area leaves without stiffness (decisions
+/// 0033 and 0034).
 ///
-/// A plane area is a two-dimensional idealisation: its element has two degrees
-/// of freedom per node, in the plane of the area, and nothing else. Holding the
+/// Both are two-dimensional idealisations: their element has two degrees of
+/// freedom per node, in the plane of the section, and nothing else. Holding the
 /// other four is not a modelling choice the user has to make, and it is not
-/// written back to the model: it belongs to the analysis of a plane area. The
-/// four are the translation normal to the plane and the three rotations;
-/// validation has already refused an area that is not parallel to a global
-/// axis plane, so the normal is one component.
+/// written back to the model: it belongs to the analysis of that area. The four
+/// are the translation normal to the plane and the three rotations; validation
+/// has already refused an area that is not parallel to a global axis plane, so
+/// the normal is one component.
 pub fn held_joints(s: &Snapshot) -> Vec<[bool; 6]> {
     let m = &s.model;
     let mut held: Vec<[bool; 6]> = m.joints.iter().map(|j| j.restraint).collect();
-    let plane: HashSet<&str> =
-        m.area_sections.iter().filter(|sec| sec.behavior == AreaBehavior::Plane).map(|sec| sec.name.as_str()).collect();
+    let flat: HashSet<&str> = m
+        .area_sections
+        .iter()
+        .filter(|sec| matches!(sec.behavior, AreaBehavior::Plane | AreaBehavior::Axisymmetric))
+        .map(|sec| sec.name.as_str())
+        .collect();
     for a in &m.areas {
-        if !plane.contains(a.section.as_str()) {
+        if !flat.contains(a.section.as_str()) {
             continue;
         }
         let pts: Vec<[f64; 3]> =
@@ -391,5 +396,36 @@ mod tests {
             assert_eq!(*h, [false, true, false, true, true, true], "joint {k}");
         }
         assert_eq!(DofMap::build(&s).n, 8, "four joints x two in-plane DOF, none restrained by the model");
+    }
+
+    #[test]
+    fn held_joints_hold_the_tangential_dof_of_an_axisymmetric_area() {
+        // The area stands in the plane x = 0, between r = 1 m and r = 2 m: x
+        // is the tangential direction of the revolution, and the element has
+        // radial and axial degrees of freedom only (decision 0034).
+        let text = serde_json::json!({
+            "schema_version": 12,
+            "materials": [{"name": "S", "e": 2e11, "nu": 0.3}],
+            "sections": [{"name": "B", "material": "S", "area": 0.01, "i33": 1e-4, "i22": 1e-4, "j": 2e-4}],
+            "area_sections": [{"name": "R", "material": "S", "thickness": 0.1, "behavior": "Axisymmetric"}],
+            "joints": [
+                {"name": "A", "x": 0.0, "y": 1.0, "z": 0.0},
+                {"name": "B", "x": 0.0, "y": 2.0, "z": 0.0},
+                {"name": "C", "x": 0.0, "y": 2.0, "z": 1.0},
+                {"name": "D", "x": 0.0, "y": 1.0, "z": 1.0}
+            ],
+            "frames": [],
+            "areas": [{"name": "Q", "section": "R", "joints": ["A", "B", "C", "D"]}],
+        })
+        .to_string();
+        let s = struktal_core::validate(&struktal_core::model_from_json(&text).expect("parse")).expect("valid");
+
+        let held = held_joints(&s);
+        for (k, h) in held.iter().enumerate() {
+            assert_eq!(*h, [true, false, false, true, true, true], "joint {k}: x and the rotations");
+        }
+        // Four joints x two degrees of freedom, radial and axial, none held by
+        // the model: 8 equations.
+        assert_eq!(DofMap::build(&s).n, 8);
     }
 }

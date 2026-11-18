@@ -103,6 +103,23 @@ pub fn quad_nodal_volumes(xy: &[[f64; 2]; 4]) -> [f64; 4] {
     v
 }
 
+/// ∫ Nᵢ 2π r² dA per node: the radius-weighted share of each node for the
+/// centrifugal body force `ρ ω² r`, which grows with the radius and so is not
+/// a uniform load.
+pub fn quad_nodal_centrifugal(xy: &[[f64; 2]; 4]) -> [f64; 4] {
+    let mut v = [0.0; 4];
+    for &r in &[-GAUSS, GAUSS] {
+        for &s in &[-GAUSS, GAUSS] {
+            let pt = quad_point(xy, r, s);
+            let radius: f64 = (0..4).map(|i| pt.n[i] * xy[i][0]).sum();
+            for i in 0..4 {
+                v[i] += 2.0 * PI * pt.n[i] * radius * radius * pt.det;
+            }
+        }
+    }
+    v
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,6 +245,19 @@ mod tests {
         assert!(quad_nodal_volumes(&rect).iter().all(|&v| v > 0.0));
         let distorted: f64 = quad_nodal_volumes(&QUAD).iter().sum();
         assert!(distorted > 0.0, "{distorted}");
+    }
+
+    #[test]
+    fn centrifugal_shares_add_up_to_the_radius_weighted_volume() {
+        // ∫ 2π r² dA over r in [1, 2] and z in [0, 3]: 2π · (2³ - 1³) / 3 · 3.
+        let rect = [[1.0, 0.0], [2.0, 0.0], [2.0, 3.0], [1.0, 3.0]];
+        let want = 14.0 * PI;
+        let total: f64 = quad_nodal_centrifugal(&rect).iter().sum();
+        assert!(close(total, want), "{total} vs {want}");
+        assert!(quad_nodal_centrifugal(&rect).iter().all(|&v| v > 0.0));
+        // The same integral on a distorted element stays finite and positive.
+        let distorted: f64 = quad_nodal_centrifugal(&QUAD).iter().sum();
+        assert!(distorted > 0.0 && distorted.is_finite(), "{distorted}");
     }
 
     #[test]
