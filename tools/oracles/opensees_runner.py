@@ -15,9 +15,14 @@ with it says little. `STRUKTAL_OPENSEES_SHELL=dkgq` asks for the DKG family
     V-TRI-001 BEN       match (334)              match (334)
     V-TRI-001 MIX       DIFF 35/334, spurious MZ DIFF 35/334, spurious MZ
     V-TRI-001 Q         match (334)              match (334)
+    V-PLANE-001 LC1     match (28)               DIFF 12/28, RZ = 2.4e10
 
 Both families produce the same spurious MZ at the triangle corners of V-TRI-001,
 so that one is the drilling of OpenSees' triangle, not the shell family.
+V-PLANE-001 is plane stress with 2 dof per joint (decision 0033): DKGQ has no
+drilling stiffness, so the rotation that Struktal holds runs away in the engine
+and drags the corner reactions with it, while MITC4 keeps it finite.
+Axisymmetric areas are refused by `common` before this runner sees them.
 """
 import importlib.metadata
 import math

@@ -156,6 +156,29 @@ def load_model(path):
         if area.get("auto_mesh"):
             m["unsupported"] = f"area {area['name']}: external engines do not mesh areas"
             break
+    # An axisymmetric area revolves its section about z with a 2*pi*r weight and
+    # reports generalized radial forces (decision 0034). None of these engines
+    # builds such an element, and translating it as a shell would return numbers
+    # that mean nothing, so the model says so instead of pretending.
+    if not m.get("unsupported"):
+        for s in m.get("area_sections", []):
+            if s.get("layers"):
+                # A laminated section carries its own A and D per unit width
+                # (decision 0032); the engines here would take the total
+                # thickness with the modulus of one material and solve a
+                # different plate, which measures nothing.
+                m["unsupported"] = f"area section {s['name']}: a laminated section is not translated"
+                break
+    if not m.get("unsupported"):
+        for s in m.get("area_sections", []):
+            if s.get("behavior") == "Axisymmetric":
+                m["unsupported"] = f"area section {s['name']}: no engine here revolves a section about the z axis"
+                break
+    if not m.get("unsupported"):
+        for al in m.get("area_loads", []):
+            if al.get("direction") == "Centrifugal":
+                m["unsupported"] = f"area load on {al['area']}: a centrifugal load is the body force of a revolution"
+                break
     return m
 
 

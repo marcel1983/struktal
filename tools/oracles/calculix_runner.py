@@ -40,6 +40,15 @@ Two differences are expected and are reported, not hidden:
   come back in the .dat. The three joints carry the triangle HT and nothing
   else, which is why the rest of the model is unaffected. It is a limitation of
   reading ccx, not a result to compare.
+* V-PLANE-001 differs only in UZ at the four corners (1e-6 m in ccx, 0 in
+  Struktal): the case is plane stress with 2 dof per joint, so the analysis
+  holds the normal and the rotations (decision 0033), while ccx's shell node
+  leaves them free. The in-plane components agree.
+
+Axisymmetric areas and laminated sections are refused by `common` before this
+runner sees them: ccx could take a composite, but this translation does not
+build one, and a homogeneous plate of the total thickness would only measure
+the translation.
 """
 import importlib.metadata
 import json
