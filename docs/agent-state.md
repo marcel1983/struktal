@@ -1,10 +1,10 @@
 # Estado del agente (para retomar sin el contexto de la conversación)
 
-Actualizado: 2026-11-13. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBILIDAD_SAP2000.md` v1 (subida por el usuario, no incluida en el repo).
+Actualizado: 2026-11-27. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBILIDAD_SAP2000.md` v1 (subida por el usuario, no incluida en el repo).
 
 ## Repositorio
 
-- Remoto público: https://github.com/marcel1983/struktal. Licencia AGPL-3.0-only desde el 2026-11-13, antes GPL-3.0 (decisión 0026); no se ha incorporado código de otros motores. Esquema de modelo v8 (v1 a v7 se migran). SHA: ver `git log -1`.
+- Remoto público: https://github.com/marcel1983/struktal. Licencia AGPL-3.0-only desde el 2026-11-13, antes GPL-3.0 (decisión 0026); no se ha incorporado código de otros motores. Esquema de modelo v9 (v1 a v8 se migran). SHA: ver `git log -1`.
 - Toolchain: rustc/cargo 1.97.0. Plataformas probadas: Linux x86_64 y Windows 10 x86_64 (MSVC); benchmarks solo en Linux.
 - Proyecto anterior del usuario, fuente de lo que se porta: PAS (fuera del repo). Portar con casos analíticos propios, sin archivos de SAP2000 ni afirmar como verificado lo que PAS afirma; ver decisiones 0010 y 0011.
 
@@ -19,22 +19,35 @@ Actualizado: 2026-11-13. Guía de origen: `GUIA_AGENTE_MOTOR_FEM_RUST_COMPATIBIL
 | P04 | Parcial. Barra 3D Timoshenko/Euler–Bernoulli (As2, As3; decisión 0007), sección general, cargas nodales/uniformes/trapezoidales/puntuales/momentos en vano/peso propio con fuerzas de empotramiento exactas (decisión 0014), suma lineal. Falta: secciones paramétricas (y As automático) y variables, cargas térmicas, envolventes, importación S2K mínima. | `struktal-elements`, `struktal-analysis`, V-LIN-001..005, V-TRAP-*, V-MOM-* |
 | P05 | Parcial: liberaciones y fijación parcial (decisión 0008); offsets rígidos vectoriales (decisión 0010); diafragma, body y equal por eliminación exacta (decisión 0011); resortes de nudo y asientos (decisión 0012). Falta: puntos cardinales y zonas rígidas por factor, restricciones locales y weld, ejes locales de nudo, masas. | `release.rs`, `frame3d::offset_transformation`, `struktal-analysis/src/constraints.rs`, V-REL-*, V-OFF-*, V-DIA-*, V-BODY-*, V-EQ-*, V-SPR-*, V-SET-*, V-MECH-006..008 |
 | P06 (láminas) | Parcial: lámina de 4 nudos, membrana QM6, placa MITC4 y taladro Hughes-Brezzi (decisión 0019); lámina de 3 nudos con membrana constante y placa MITC3 (decisión 0021); cargas uniformes y esfuerzos. Falta: mallado propio. | `shell4.rs`, `shell3.rs`, `areas.rs`, V-SHELL-*, V-TRI-*, V-MECH-009, V-MECH-010 |
-| Dinámica | Parcial: masas, fuente de masa, modos y espectro (decisiones 0020 y 0022); carga sísmica por coeficiente de usuario (decisión 0024). Falta: masa faltante, combinación direccional, historia en el tiempo, coeficientes de norma. | `eigen.rs`, `dynamics.rs`, V-MOD-*, V-SPEC-*, V-MASS-* |
+| Dinámica | Parcial: masas, fuente de masa, modos y espectro (decisiones 0020 y 0022); carga sísmica por coeficiente de usuario, con W de nudos libres y excentricidad por diafragmas (decisiones 0024 y 0029); barras solo carga (decisión 0027). Falta: masa faltante, combinación direccional, historia en el tiempo, coeficientes de norma. | `eigen.rs`, `dynamics.rs`, V-MOD-*, V-SPEC-*, V-MASS-* |
 | Resto de P07–P16 | No iniciados, salvo lector S2K de P13, con malla de áreas, fuente de masa, modos y espectros (decisiones 0018, 0021 y 0022). La numeración exacta depende de la guía, que no está en el repo. | `spec/features.csv` |
 
 ## Último resultado de pruebas (ejecutado)
 
 - `cargo fmt --all -- --check`: OK.
 - `cargo clippy --workspace --all-targets -- -D warnings`: OK.
-- `cargo test --workspace`: 176 pruebas, 0 fallos. `cargo test -p struktal-math --no-default-features` (solo skyline): 24, 0 fallos.
-- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 66/66 `pass` con ambos; todos `oracle_pending` para SAP2000.
+- `cargo test --workspace`: todas pasan (2026-11-27). `cargo test -p struktal-math --no-default-features` (solo skyline): 24, 0 fallos.
+- `struktal verify --backend {faer,skyline} verification/cases/*/case.json`: 70/70 `pass` con ambos; todos `oracle_pending` para SAP2000.
 - `tools/compare_engines.py`: comparación opcional con OpenSeesPy y Pynite (decisión 0013); con triángulos da DIFF en V-TRI-001, explicado en la decisión 0021. CI en `.github/workflows/ci.yml`: `add290a` y `65feef9` fallaron solo en el trabajo de referencias, porque `sin` y `cos` redondean distinto entre Linux y Windows. `tools/check_cases.py` lo corrige en dos pasos, el segundo para el hash de `model.json`; CI en verde desde `199b727`. Benchmarks de los ejemplos de OpenSees: decisión 0023. Comparación ampliada con OpenSees (malla, masa, sismo, espectro): decisión 0013.
 - Benchmarks: docs/benchmarks.md.
+
+## Contrastes con archivos reales del usuario (2026-11-27)
+
+Los archivos y resultados quedan fuera del repo (decisión 0018).
+
+- **Edificios EDF, EDF2, EDF3 y EDF4.** Los cuatro se importan sin modificarlos. Las reacciones basales del sismo por coeficiente coinciden con SAP2000, con 78393,0 kgf de cortante y torsores −330152,4, −325864,4 y −12864,0 kgf·m. Para eso hizo falta la regla de W de la decisión 0029. Con la regla anterior (decisión 0024) el cortante salía un 1,46 % alto.
+- **Ejemplo 2-012a.** U3 a un 0,18 %. El patch test es exacto.
+- **Ejemplos 2-001 y 2-004, gruesos y delgados.** Ver decisión 0027.
+- **Espectro sin excentricidad.** Coincide. Con excentricidad, la forma está identificada, un torsor estático por diafragma sumado en valor absoluto con un desajuste del 0,13 %. El tamaño encaja en Y. En X hace falta un ancho efectivo de 22,9 m que no se explica. No se implementa sin el manual (decisión 0029).
+- **Láminas alabeadas.** Siguen rechazadas (decisión 0028). El usuario revisará cómo lo resuelve PAS.
 
 ## Decisiones pendientes
 
 1. Backend para matrices indefinidas (pandeo, multiplicadores): MUMPS por FFI u otra opción; faer LBLᵀ intranodal descartado. Los diafragmas ya no lo necesitan (decisión 0011).
 2. Convención de signos de salida compatible con SAP2000: requiere oráculo.
+3. Láminas alabeadas: taladro G/1000 con rechazo (actual), o membrana tipo Allman. Espera la revisión de PAS por el usuario (decisión 0028).
+4. Excentricidad accidental en espectros: requiere el manual (decisión 0029).
+5. Una sola sesión escribe en el repo. Este cambio concilia el PR #7 con `main`.
 
 ## Siguiente paso concreto
 

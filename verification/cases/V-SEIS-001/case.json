@@ -13,7 +13,7 @@
     "kind": "analytical",
     "source": "Coefficient method on lumped masses; Euler-Bernoulli cantilever under point loads",
     "derivation": [
-      "W = g sum(m), base mass included; V = C W",
+      "W = g sum(m) over joints free in the load direction: the restrained base is out (decision 0029); V = C W",
       "F_i = V m_i h_i^k / sum(m h^k), h from the lowest joint, so the base takes no force",
       "base reaction: FX = -V, MY = -sum(F h); in Y: FY = -V, MX = +sum(F h)",
       "deflection at z of a load P at a: P z^2 (3a - z)/(6EI) below it, P a^2 (3z - a)/(6EI) above it"
@@ -26,7 +26,7 @@
       "case": "SX",
       "entity": "N0",
       "component": "FX",
-      "value": -5099.458,
+      "value": -4412.992499999999,
       "unit": "N"
     },
     {
@@ -34,7 +34,7 @@
       "case": "SX",
       "entity": "N0",
       "component": "MY",
-      "value": -35084.27104,
+      "value": -30361.388399999996,
       "unit": "N*m"
     },
     {
@@ -42,7 +42,7 @@
       "case": "SY",
       "entity": "N0",
       "component": "FY",
-      "value": -15298.374,
+      "value": -13238.977499999997,
       "unit": "N"
     },
     {
@@ -50,7 +50,7 @@
       "case": "SY",
       "entity": "N0",
       "component": "MX",
-      "value": 122564.88006976742,
+      "value": 106065.76159883721,
       "unit": "N*m"
     },
     {
@@ -58,7 +58,7 @@
       "case": "SX",
       "entity": "N1",
       "component": "UX",
-      "value": 0.006746582934,
+      "value": 0.005838389077499999,
       "unit": "m"
     },
     {
@@ -66,7 +66,7 @@
       "case": "SX",
       "entity": "N2",
       "component": "UX",
-      "value": 0.022672190268,
+      "value": 0.019620164654999994,
       "unit": "m"
     },
     {
@@ -74,7 +74,7 @@
       "case": "SX",
       "entity": "N3",
       "component": "UX",
-      "value": 0.04969251839066667,
+      "value": 0.04300314091499999,
       "unit": "m"
     },
     {
@@ -82,7 +82,7 @@
       "case": "SY",
       "entity": "N1",
       "component": "UY",
-      "value": 0.024134963865697676,
+      "value": 0.02088602642223837,
       "unit": "m"
     },
     {
@@ -90,7 +90,7 @@
       "case": "SY",
       "entity": "N2",
       "component": "UY",
-      "value": 0.08313154220406975,
+      "value": 0.07194075767659884,
       "unit": "m"
     },
     {
@@ -98,7 +98,7 @@
       "case": "SY",
       "entity": "N3",
       "component": "UY",
-      "value": 0.18606350897383722,
+      "value": 0.161016498150436,
       "unit": "m"
     }
   ],
