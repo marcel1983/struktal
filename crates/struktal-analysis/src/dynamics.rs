@@ -1,6 +1,6 @@
 //! Lumped masses, natural modes and response spectra (decision 0020).
 
-use struktal_core::{AutoSeismic, ModalCombination, Snapshot, SpectrumFunction};
+use struktal_core::{AutoSeismic, Constraint, GlobalAxis, ModalCombination, Snapshot, SpectrumFunction};
 use struktal_math::Csc;
 use struktal_math::eigen;
 use struktal_math::factor::Factor;
@@ -86,6 +86,9 @@ pub(crate) fn lumped_mass(
     }
     if elements {
         for (fd, &(_, _, sec, mat)) in frames.iter().zip(&s.frame_refs) {
+            if fd.load_only {
+                continue;
+            }
             let half = 0.5 * m.materials[mat].mass_density * m.sections[sec].area * fd.length;
             for d in 0..3 {
                 lumped[fd.dofs[d]] += half;
@@ -154,7 +157,11 @@ pub(crate) fn auto_seismic_forces(
     // A joint this close to the lowest one is at the base: no force, even with k = 0.
     let base = HEIGHT_TOL_REL * (high - low);
     let mass: Vec<f64> = (0..nj).map(|j| lumped.values[6 * j + d]).collect();
-    let weight = STANDARD_GRAVITY * mass.iter().sum::<f64>();
+    // W counts the mass of joints free in the load direction: on a restrained
+    // component it goes to the support directly. Checked against the generated
+    // forces of a real file, where free joints at the base level count in W and
+    // take no force (decision 0029).
+    let weight = STANDARD_GRAVITY * (0..nj).filter(|&j| !s.model.joints[j].restraint[d]).map(|j| mass[j]).sum::<f64>();
     let share: Vec<f64> =
         (0..nj).map(|j| if z[j] - low > base { mass[j] * (z[j] - low).powf(a.exponent) } else { 0.0 }).collect();
     let sum: f64 = share.iter().sum();
@@ -167,7 +174,34 @@ pub(crate) fn auto_seismic_forces(
     for j in 0..nj {
         forces[6 * j + d] = shear * share[j] / sum;
     }
-    Ok((forces, format!("auto seismic along {axis}: weight {weight:e} N, base shear {shear:e} N")))
+    // Accidental eccentricity: on each joint of a horizontal diaphragm,
+    // MZ = −e B F (X) or +e B F (Y), B the diaphragm size normal to the load.
+    let mut eccentric = 0;
+    if a.eccentricity != 0.0 {
+        let normal = 1 - d;
+        let sign = if d == 0 { -1.0 } else { 1.0 };
+        for c in &s.model.constraints {
+            let Constraint::Diaphragm { axis: GlobalAxis::Z, joints, .. } = c else { continue };
+            let idx: Vec<usize> = joints.iter().map(|n| s.joint_index[n]).collect();
+            let lo = idx.iter().map(|&j| s.joint_xyz(j)[normal]).fold(f64::INFINITY, f64::min);
+            let hi = idx.iter().map(|&j| s.joint_xyz(j)[normal]).fold(f64::NEG_INFINITY, f64::max);
+            for &j in &idx {
+                forces[6 * j + 5] += sign * a.eccentricity * (hi - lo) * forces[6 * j + d];
+            }
+            eccentric += 1;
+        }
+    }
+    let ecc = if eccentric > 0 {
+        format!(", eccentricity {} on {eccentric} diaphragm(s)", a.eccentricity)
+    } else {
+        String::new()
+    };
+    Ok((
+        forces,
+        format!(
+            "auto seismic along {axis}: weight {weight:e} N (joints free along {axis}), base shear {shear:e} N{ecc}"
+        ),
+    ))
 }
 
 /// A solved modal case, kept for the spectra that use it.

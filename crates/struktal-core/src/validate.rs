@@ -105,6 +105,16 @@ pub fn model_from_json(text: &str) -> Result<Model, LoadError> {
     if ver < 8 && has_auto_seismic {
         return Err(LoadError::UnsupportedSchema { found: ver });
     }
+    // v9: eccentricity of automatic seismic loads and load-only frames.
+    let has_eccentricity = raw
+        .get("load_patterns")
+        .and_then(|v| v.as_array())
+        .is_some_and(|ps| ps.iter().any(|p| p.pointer("/auto_seismic/eccentricity").is_some()));
+    let has_load_only =
+        raw.get("frames").and_then(|v| v.as_array()).is_some_and(|fs| fs.iter().any(|f| f.get("load_only").is_some()));
+    if ver < 9 && (has_eccentricity || has_load_only) {
+        return Err(LoadError::UnsupportedSchema { found: ver });
+    }
     if ver < 6 {
         let has_triangle = raw.get("areas").and_then(|v| v.as_array()).is_some_and(|areas| {
             areas.iter().any(|a| a.get("joints").and_then(|j| j.as_array()).is_some_and(|j| j.len() != 4))
@@ -535,6 +545,9 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
             issues.push(issue(&e, "section", format!("unknown section '{}'", f.section)));
         }
         check_finite(f.angle_deg, &e, "angle_deg", &mut issues);
+        if f.load_only && (f.releases.is_some() || f.offsets.is_some()) {
+            issues.push(issue(&e, "load_only", "a load-only frame cannot have releases or offsets"));
+        }
         if let Some(r) = &f.releases {
             for (end, rel, springs) in [("i", &r.i, &r.i_springs), ("j", &r.j, &r.j_springs)] {
                 for c in 0..6 {
@@ -643,6 +656,17 @@ pub fn validate(input: &Model) -> Result<Snapshot, Vec<Issue>> {
                 if !v.is_finite() || v < 0.0 {
                     issues.push(issue(&e, field, "must be finite and >= 0"));
                 }
+            }
+            if !a.eccentricity.is_finite() {
+                issues.push(issue(&e, "auto_seismic.eccentricity", "must be finite"));
+            } else if a.eccentricity != 0.0
+                && !m.constraints.iter().any(|c| matches!(c, Constraint::Diaphragm { axis: GlobalAxis::Z, .. }))
+            {
+                issues.push(issue(
+                    &e,
+                    "auto_seismic.eccentricity",
+                    "acts through horizontal diaphragms, and there are none",
+                ));
             }
         }
     }
@@ -867,6 +891,7 @@ mod tests {
                 releases: None,
                 offsets: None,
                 auto_mesh: None,
+                load_only: false,
             }],
             area_sections: vec![],
             areas: vec![],
@@ -1367,7 +1392,7 @@ mod tests {
     fn auto_seismic_needs_schema_8_a_lateral_direction_and_no_mass_role() {
         let mut m = cantilever();
         m.load_patterns[0].auto_seismic =
-            Some(AutoSeismic { direction: GlobalAxis::Z, coefficient: -0.1, exponent: f64::NAN });
+            Some(AutoSeismic { direction: GlobalAxis::Z, coefficient: -0.1, exponent: f64::NAN, eccentricity: 0.0 });
         m.mass_source = Some(MassSource {
             elements: true,
             added_masses: true,
@@ -1380,11 +1405,30 @@ mod tests {
 
         m.mass_source = None;
         m.load_patterns[0].auto_seismic =
-            Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.1, exponent: 1.0 });
+            Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.1, exponent: 1.0, eccentricity: 0.0 });
         validate(&m).expect("valid");
         let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
         v["schema_version"] = 7.into();
         assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 7 })));
+    }
+
+    #[test]
+    fn eccentricity_needs_diaphragms_and_v9_fields_need_schema_9() {
+        let mut m = cantilever();
+        m.load_patterns[0].auto_seismic =
+            Some(AutoSeismic { direction: GlobalAxis::X, coefficient: 0.1, exponent: 1.0, eccentricity: 0.05 });
+        let text = format!("{:?}", validate(&m).expect_err("no diaphragm"));
+        assert!(text.contains("diaphragms"), "{text}");
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 8.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 8 })));
+
+        let mut m = cantilever();
+        m.frames[0].load_only = true;
+        validate(&m).expect("a load-only frame is valid");
+        let mut v: serde_json::Value = serde_json::from_str(&model_to_json(&m)).expect("json");
+        v["schema_version"] = 8.into();
+        assert!(matches!(model_from_json(&v.to_string()), Err(LoadError::UnsupportedSchema { found: 8 })));
     }
 
     #[test]

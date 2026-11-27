@@ -20,7 +20,9 @@ use crate::units::{Dim, UnitSystem};
 /// v7 (2026-11-06): mass_source. Older files have none (decision 0022).
 /// v8 (2026-11-09): auto_seismic on load patterns. Older files have none
 /// (decision 0024).
-pub const SCHEMA_VERSION: u32 = 8;
+/// v9 (2026-11-27): accidental eccentricity of automatic seismic loads and
+/// load-only frames. Older files have neither (decisions 0027 and 0029).
+pub const SCHEMA_VERSION: u32 = 9;
 
 pub type Name = String;
 
@@ -194,6 +196,11 @@ pub struct Frame {
     /// Automatic subdivision for analysis (decision 0015).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_mesh: Option<AutoMesh>,
+    /// A frame with no stiffness and no mass that only delivers its loads to
+    /// its joints, as the fixed-end forces of a prismatic member with its
+    /// section (decision 0027). Used to apply line loads along other elements.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub load_only: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -429,8 +436,9 @@ pub struct LoadPattern {
     pub auto_seismic: Option<AutoSeismic>,
 }
 
-/// Base shear V = C W, with W the weight of the mass along `direction`, shared
-/// among the joints as F = V m h^k / Σ m h^k, h measured from the lowest joint.
+/// Base shear V = C W, with W the weight of the mass along `direction` on
+/// joints free in that direction, shared among the joints as
+/// F = V m h^k / Σ m h^k, h measured from the lowest joint (decision 0029).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AutoSeismic {
@@ -439,6 +447,16 @@ pub struct AutoSeismic {
     pub coefficient: f64,
     /// k: 1 gives a linear distribution with height.
     pub exponent: f64,
+    /// Accidental eccentricity as a ratio of the diaphragm size normal to the
+    /// load. Each joint of a horizontal diaphragm also takes MZ = −e B F (X
+    /// loads) or +e B F (Y loads): the load shifted +e B along the normal axis.
+    /// It acts only on joints of diaphragms (decision 0029).
+    #[serde(default, skip_serializing_if = "is_zero_f64")]
+    pub eccentricity: f64,
+}
+
+fn is_zero_f64(v: &f64) -> bool {
+    *v == 0.0
 }
 
 /// Concentrated joint load in global axes: [FX, FY, FZ, MX, MY, MZ].

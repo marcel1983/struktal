@@ -12,7 +12,7 @@ Era lo único que impedía importar `ejemplo_lineal` y, con las combinaciones au
 
 **Cálculo**, para un factor 1 del patrón:
 
-- W = g Σ m, con m la masa concentrada de cada nudo en la dirección de la carga, según la fuente de masa (decisiones 0020 y 0022). Incluye la de los nudos de la base.
+- W = g Σ m, con m la masa concentrada de cada nudo en la dirección de la carga, según la fuente de masa (decisiones 0020 y 0022). Incluye la de los nudos de la base. **Sustituido por la decisión 0029: solo cuentan los nudos libres en la dirección.**
 - V = C W.
 - F_i = V m_i h_iᵏ / Σ m h^k, con h medida desde el nudo más bajo del modelo. Un nudo a esa altura no recibe fuerza, ni siquiera con k = 0.
 - Las fuerzas van a los nudos de la malla de análisis antes de reducir por restricciones, como cargas de nudo. Una fuerza sobre una componente restringida va a la reacción.
