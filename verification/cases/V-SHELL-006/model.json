@@ -1,0 +1,253 @@
+{
+  "joint_displacements": [
+    {
+      "pattern": "TEN",
+      "joint": "1",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "TEN",
+      "joint": "2",
+      "values": [
+        0.001,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "TEN",
+      "joint": "3",
+      "values": [
+        0.001,
+        -0.0003,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "TEN",
+      "joint": "4",
+      "values": [
+        0,
+        -0.0003,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "BEN",
+      "joint": "1",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pattern": "BEN",
+      "joint": "2",
+      "values": [
+        0,
+        0,
+        -0.0005,
+        0,
+        0.001,
+        0
+      ]
+    },
+    {
+      "pattern": "BEN",
+      "joint": "3",
+      "values": [
+        0,
+        0,
+        -0.0005,
+        0.0003,
+        0.001,
+        0
+      ]
+    },
+    {
+      "pattern": "BEN",
+      "joint": "4",
+      "values": [
+        0,
+        0,
+        0,
+        0.0003,
+        0,
+        0
+      ]
+    }
+  ],
+  "area_sections": [
+    {
+      "name": "SH",
+      "material": "STEEL",
+      "thickness": 0.2,
+      "layers": [
+        {
+          "thickness": 0.01,
+          "material": "SKIN"
+        },
+        {
+          "thickness": 0.18,
+          "material": "CORE"
+        },
+        {
+          "thickness": 0.01,
+          "material": "SKIN"
+        }
+      ]
+    }
+  ],
+  "areas": [
+    {
+      "name": "A",
+      "joints": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "section": "SH"
+    }
+  ],
+  "area_loads": [],
+  "schema_version": 10,
+  "title": "V-SHELL-006 laminated area",
+  "units": {
+    "force": "N",
+    "length": "m"
+  },
+  "materials": [
+    {
+      "name": "STEEL",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    },
+    {
+      "name": "SKIN",
+      "e": 200000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    },
+    {
+      "name": "CORE",
+      "e": 10000000000.0,
+      "nu": 0.3,
+      "unit_weight": 0.0
+    }
+  ],
+  "sections": [],
+  "joints": [
+    {
+      "name": "1",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "2",
+      "x": 1,
+      "y": 0,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "3",
+      "x": 1,
+      "y": 1,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "4",
+      "x": 0,
+      "y": 1,
+      "z": 0,
+      "restraint": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    }
+  ],
+  "frames": [],
+  "load_patterns": [
+    {
+      "name": "TEN"
+    },
+    {
+      "name": "BEN"
+    }
+  ],
+  "joint_loads": [],
+  "frame_loads": [],
+  "load_cases": [
+    {
+      "type": "LinearStatic",
+      "name": "TEN",
+      "loads": [
+        {
+          "pattern": "TEN",
+          "scale": 1.0
+        }
+      ]
+    },
+    {
+      "type": "LinearStatic",
+      "name": "BEN",
+      "loads": [
+        {
+          "pattern": "BEN",
+          "scale": 1.0
+        }
+      ]
+    }
+  ],
+  "combinations": []
+}

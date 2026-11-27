@@ -9,7 +9,7 @@
   "mesh-convergence-v1": {
     "description": "A discretized result against the exact solution at a stated mesh: not rounding, but the error of that mesh. Fixed before evaluation. Equilibrium stays exact.",
     "rtol": 0.01,
-    "atol": { "m": 1e-12, "rad": 1e-12, "N": 1e-6, "N*m": 1e-6, "J": 1e-9, "N/m": 1e-3, "N*m/m": 1e-3 },
+    "atol": { "m": 1e-12, "rad": 1e-12, "N": 1e-6, "N*m": 1e-6, "J": 1e-9, "N/m": 1e-3, "N*m/m": 1e-3, "Pa": 1e-3 },
     "residual_max": 1e-9,
     "equilibrium_max": 1e-9
   },

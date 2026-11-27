@@ -1,0 +1,85 @@
+{
+  "case_id": "V-SHELL-006",
+  "title": "Laminated area: constant strain and constant curvature",
+  "feature_ids": [
+    "F03-004"
+  ],
+  "model": "model.json",
+  "model_sha256": "f6e6c2ad083439c44edd948880e82a56bef17629c3b3b6e1a91a420c3d24242e",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-area-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Laminated section under imposed constant strain and constant curvature: N = A eps and M = D kappa, with A and D the layer sums",
+    "derivation": [
+      "Q = E/(1-nu^2), A = sum Q t, D = sum Q (z1^3 - z0^3)/3, z from the mid-plane",
+      "TEN: u = (eps x, -nu eps y) gives N11 = eps (1-nu^2) A11, N22 = N12 = 0",
+      "BEN: w = -k x^2/2, theta_x = k x, theta_y = -nu k y gives kappa = (k, -nu k, 0)",
+      "M11 = (1 - nu^2) D11 k and M22 = M12 = 0: the anticlastic state, at no energy cost",
+      "the corner at x = 0 carries half of the edge: R = -N11 / 2"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "area_center",
+      "case": "TEN",
+      "entity": "A",
+      "component": "F11",
+      "value": 5800000.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "area_center",
+      "case": "TEN",
+      "entity": "A",
+      "component": "F22",
+      "value": 0.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "area_center",
+      "case": "TEN",
+      "entity": "A",
+      "component": "F12",
+      "value": 0.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "TEN",
+      "entity": "1",
+      "component": "FX",
+      "value": -2900000.0,
+      "unit": "N"
+    },
+    {
+      "result": "area_center",
+      "case": "BEN",
+      "entity": "A",
+      "component": "M11",
+      "value": 40993.33333333333,
+      "unit": "N*m/m"
+    },
+    {
+      "result": "area_center",
+      "case": "BEN",
+      "entity": "A",
+      "component": "M22",
+      "value": 0.0,
+      "unit": "N*m/m"
+    },
+    {
+      "result": "area_center",
+      "case": "BEN",
+      "entity": "A",
+      "component": "M12",
+      "value": 0.0,
+      "unit": "N*m/m"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

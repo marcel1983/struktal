@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use struktal_analysis::{
-    CaseResult, Completion, PhysicalStatus, RunResult, results::AREA_COMPONENTS, results::COMPONENTS,
-    results::REACTION_COMPONENTS, results::STATION_COMPONENTS,
+    CaseResult, Completion, PhysicalStatus, RunResult, results::AREA_AXISYM_COMPONENTS, results::AREA_COMPONENTS,
+    results::COMPONENTS, results::REACTION_COMPONENTS, results::STATION_COMPONENTS,
 };
 
 #[derive(Debug, Deserialize)]
@@ -178,7 +178,10 @@ fn lookup(r: &RunResult, e: &Expected) -> Result<f64, String> {
                 .iter()
                 .find(|a| a.area == e.entity)
                 .ok_or_else(|| format!("area '{}' not in results", e.entity))?;
-            Ok(a.center[comp(&AREA_COMPONENTS)?])
+            // A plane or shell area carries forces per unit length; an
+            // axisymmetric one carries stresses with their own names
+            // (decision 0034).
+            Ok(a.center[comp(&AREA_COMPONENTS).or_else(|_| comp(&AREA_AXISYM_COMPONENTS))?])
         }
         "envelope_joint_displacement" | "envelope_joint_reaction" | "envelope_frame_station" => {
             let env = c.envelope.as_ref().ok_or("case has no envelope")?;

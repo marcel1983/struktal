@@ -1,0 +1,134 @@
+{
+  "case_id": "V-PLANE-001",
+  "title": "Plane strip in uniaxial tension: the exact constant strain",
+  "feature_ids": [
+    "F03-005",
+    "F06-002"
+  ],
+  "model": "model.json",
+  "model_sha256": "84229668ca7abf1def5dd7a2f38ad307805f179c6b81987d38c354b222bd3c0a",
+  "tolerances_file": "../../tolerances.json",
+  "tolerances_id": "linear-closed-form-area-v1",
+  "reference": {
+    "kind": "analytical",
+    "source": "Uniaxial plane stress of a strip (Hooke): sigma_x = p, epsilon_x = p/E, epsilon_y = -nu p/E",
+    "derivation": [
+      "u = (p/E) x and v = -(nu p/E) y satisfy the four restraints and are bilinear, so they are the exact answer",
+      "the traction p t of the edge x = 2 integrates to p t h/2 = 50000 N at B and at C",
+      "the edge x = 0 carries -p t h, half of it at A and half at D; the edges y = 0 and y = 1 carry no traction",
+      "F11 = p t = 1e5 N/m, F22 = F12 = 0 and no plate: a plane area reports stresses times its thickness",
+      "external work = 0.5 (2 x 50000 N x 1e-5 m) = 0.5 J"
+    ]
+  },
+  "expected_status": [],
+  "expected": [
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "A",
+      "component": "UX",
+      "value": 0.0,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "B",
+      "component": "UX",
+      "value": 1e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C",
+      "component": "UX",
+      "value": 1e-05,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "C",
+      "component": "UY",
+      "value": -1.5e-06,
+      "unit": "m"
+    },
+    {
+      "result": "joint_displacement",
+      "case": "LC1",
+      "entity": "D",
+      "component": "UY",
+      "value": -1.5e-06,
+      "unit": "m"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "FX",
+      "value": -50000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "D",
+      "component": "FX",
+      "value": -50000.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "A",
+      "component": "FY",
+      "value": 0.0,
+      "unit": "N"
+    },
+    {
+      "result": "joint_reaction",
+      "case": "LC1",
+      "entity": "B",
+      "component": "FY",
+      "value": 0.0,
+      "unit": "N"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "Q",
+      "component": "F11",
+      "value": 100000.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "Q",
+      "component": "F22",
+      "value": 0.0,
+      "unit": "N/m"
+    },
+    {
+      "result": "area_center",
+      "case": "LC1",
+      "entity": "Q",
+      "component": "M11",
+      "value": 0.0,
+      "unit": "N*m/m"
+    },
+    {
+      "result": "external_work",
+      "case": "LC1",
+      "entity": "",
+      "component": "",
+      "value": 0.5,
+      "unit": "J"
+    }
+  ],
+  "oracle": {
+    "sap2000": "oracle_pending",
+    "independent": "analytical"
+  }
+}

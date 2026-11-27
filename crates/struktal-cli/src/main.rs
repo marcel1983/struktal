@@ -16,7 +16,7 @@ use struktal_math::Backend;
 #[command(
     name = "struktal",
     version,
-    about = "Linear 3D frame FEM engine (subset of the struktal SAP2000 compatibility profile)"
+    about = "Linear 3D frame FEM engine: static, modal and response-spectrum analysis of 3D frames and shells"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -50,6 +50,10 @@ enum Cmd {
         /// Output model file (stdout if omitted).
         #[arg(short, long)]
         output: Option<PathBuf>,
+        /// Keep the load cases that cannot be represented, listed on stderr,
+        /// instead of refusing the file.
+        #[arg(long)]
+        allow_partial: bool,
     },
     /// Print engine and solver backend capabilities as JSON.
     Capabilities,
@@ -86,19 +90,20 @@ fn load_snapshot(path: &Path) -> Result<struktal_core::Snapshot, Fail> {
     })
 }
 
-fn import_s2k(input: &Path, output: Option<&Path>) -> Result<bool, Fail> {
+fn import_s2k(input: &Path, output: Option<&Path>, allow_partial: bool) -> Result<bool, Fail> {
     // Lossy: file paths and names in legacy encodings must not stop the import.
     let bytes = std::fs::read(input).map_err(|e| Fail::Io(format!("{}: {e}", input.display())))?;
     let text = String::from_utf8_lossy(&bytes);
     let parsed = struktal_io_s2k::parse(&text).map_err(|e| Fail::Input(format!("{}: {e}", input.display())))?;
-    let imported = struktal_io_s2k::import(&parsed).map_err(|problems| {
-        Fail::Input(format!(
-            "{}: {} problem(s):\n{}",
-            input.display(),
-            problems.len(),
-            problems.iter().map(|p| format!("  - {p}")).collect::<Vec<_>>().join("\n")
-        ))
-    })?;
+    let imported = struktal_io_s2k::import_with_options(&parsed, struktal_io_s2k::ImportOptions { allow_partial })
+        .map_err(|problems| {
+            Fail::Input(format!(
+                "{}: {} problem(s):\n{}",
+                input.display(),
+                problems.len(),
+                problems.iter().map(|p| format!("  - {p}")).collect::<Vec<_>>().join("\n")
+            ))
+        })?;
     struktal_core::validate(&imported.model).map_err(|issues| {
         Fail::Input(format!(
             "{}: {} validation issue(s) in the imported model:\n{}",
@@ -141,8 +146,10 @@ fn write_out(path: Option<&Path>, text: &str) -> Result<(), Fail> {
         }
         Some(p) => {
             // Write to a temporary file then rename, so a crash never leaves a
-            // truncated results file under the final name.
-            let tmp = p.with_extension("tmp");
+            // truncated results file under the final name. The name carries the
+            // pid: two processes writing the same output must not share it.
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("struktal");
+            let tmp = p.with_file_name(format!("{name}.{}.tmp", std::process::id()));
             std::fs::write(&tmp, text).map_err(|e| Fail::Io(format!("{}: {e}", tmp.display())))?;
             std::fs::rename(&tmp, p).map_err(|e| Fail::Io(format!("{}: {e}", p.display())))
         }
@@ -229,7 +236,7 @@ fn main() -> ExitCode {
                 write_out(output.as_deref(), &json(&r)).map(|_| ok)
             })
         }
-        Cmd::Import { input, output } => import_s2k(&input, output.as_deref()),
+        Cmd::Import { input, output, allow_partial } => import_s2k(&input, output.as_deref(), allow_partial),
         Cmd::Capabilities => {
             let caps = serde_json::json!({
                 "engine": "struktal",

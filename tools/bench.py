@@ -7,12 +7,19 @@ Single run per size; stage timings come from the run manifest.
 """
 import json
 import os
-import resource
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+try:
+    import resource  # Unix only: RSS from getrusage
+except ImportError:
+    raise SystemExit("bench.py needs a Unix system: the benchmarks are Linux-only") from None
+
+if len(sys.argv) < 2:
+    print("uso: python3 tools/bench.py OUTDIR [backend ...]", file=sys.stderr)
+    raise SystemExit(2)
 out = Path(sys.argv[1])
 backends = sys.argv[2:] or ["skyline", "faer"]
 sizes = [(4, 4, 5), (8, 8, 10), (12, 12, 20), (16, 16, 30), (20, 20, 40), (24, 24, 60)]

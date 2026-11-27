@@ -142,6 +142,9 @@ struct Importer<'a> {
     s2k: &'a S2k,
     problems: Vec<Problem>,
     notes: Vec<String>,
+    /// Load cases that could not be represented. Problems unless the caller
+    /// asked for a partial import.
+    dropped: Vec<Problem>,
     /// Object name to the names of its elements, when the file has a mesh.
     area_elements: HashMap<String, Vec<String>>,
 }
@@ -180,6 +183,17 @@ fn vector_area(p: &[[f64; 3]]) -> [f64; 3] {
 impl Importer<'_> {
     fn problem(&mut self, table: &str, line: usize, cause: impl Into<String>) {
         self.problems.push(Problem { table: table.to_string(), line, cause: cause.into() });
+    }
+
+    /// A load case the importer cannot represent. It is a problem (the file is
+    /// refused) unless the caller asked to keep the rest of it, in which case it
+    /// is reported in the notes instead.
+    fn drop_case(&mut self, table: &str, line: usize, name: &str, why: impl Into<String>) {
+        self.dropped.push(Problem {
+            table: table.to_string(),
+            line,
+            cause: format!("case {name} not imported: {}", why.into()),
+        });
     }
 
     fn text(&mut self, table: &str, row: &Row, key: &str) -> Option<String> {
@@ -644,7 +658,7 @@ impl Importer<'_> {
                 self.problem(C, row.line, format!("area {name} has no section assignment"));
                 continue;
             };
-            objects.push(Area { name, joints: area_joints, section });
+            objects.push(Area { name, joints: area_joints, section, auto_mesh: None });
         }
         let areas = self.area_mesh(objects, joints, index, active);
         let used: Vec<String> = areas.iter().map(|a: &Area| a.section.clone()).collect();
@@ -683,7 +697,14 @@ impl Importer<'_> {
             }
             let thickness = self.need_num(P, row, "Thickness");
             let bending = self.opt_num(P, row, "BendThick").filter(|t| *t != thickness);
-            sections.push(AreaSection { name, material, thickness, bending_thickness: bending, behavior });
+            sections.push(AreaSection {
+                name,
+                material,
+                thickness,
+                bending_thickness: bending,
+                behavior,
+                layers: Vec::new(),
+            });
         }
         (sections, areas)
     }
@@ -778,6 +799,7 @@ impl Importer<'_> {
                 name,
                 joints: corners,
                 section: o.section.clone(),
+                auto_mesh: None,
             }));
         }
         if meshed > 0 {
@@ -1172,7 +1194,7 @@ impl Importer<'_> {
         for row in self.s2k.rows(D) {
             let Some(name) = self.text(D, row, "Case") else { continue };
             if row.get("InitialCond").is_some_and(|c| c != "Zero") {
-                self.notes.push(format!("case {name} not imported: it starts from the state of another case"));
+                self.drop_case(D, row.line, &name, "it starts from the state of another case");
                 continue;
             }
             match row.get("Type") {
@@ -1182,16 +1204,21 @@ impl Importer<'_> {
                 }
                 Some("LinModal") => match self.modal_case(&name) {
                     Ok(modes) => m.load_cases.push(LoadCase::Modal { name, modes }),
-                    Err(why) => self.notes.push(format!("case {name} not imported: {why}")),
+                    Err(why) => self.drop_case(D, row.line, &name, why),
                 },
-                Some("LinRespSpec") => spectra.push((name, row.get("ModalCase"))),
-                other => self.notes.push(format!("case {name} of type {} not imported", other.unwrap_or("unknown"))),
+                Some("LinRespSpec") => spectra.push((name, row.get("ModalCase"), row.line)),
+                other => self.drop_case(
+                    D,
+                    row.line,
+                    &name,
+                    format!("its type {} is not supported", other.unwrap_or("unknown")),
+                ),
             }
         }
-        for (name, modal_case) in spectra {
+        for (name, modal_case, line) in spectra {
             match self.spectrum_case(&name, modal_case, m) {
                 Ok(case) => m.load_cases.push(case),
-                Err(why) => self.notes.push(format!("case {name} not imported: {why}")),
+                Err(why) => self.drop_case(D, line, &name, why),
             }
         }
         // Without modes or automatic seismic loads, the mass has no effect on
@@ -1465,10 +1492,29 @@ fn with_unit_factors(mut section: FrameSection, weight: f64, mass: f64, material
     section
 }
 
+/// How the importer treats what it cannot represent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ImportOptions {
+    /// Refuse the whole file when a load case is left out. With `true`, the case
+    /// is reported in [`Imported::notes`] and the rest of the file is imported.
+    pub allow_partial: bool,
+}
+
 /// Reads a parsed file into a model in its declared units. The result still
 /// has to pass `struktal_core::validate`.
+///
+/// Strict by default: a load case that cannot be represented is a problem, like
+/// any other thing the importer does not read. Use [`import_with_options`] with
+/// [`ImportOptions::allow_partial`] to keep the rest of the file instead.
 pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
-    let mut im = Importer { s2k, problems: Vec::new(), notes: Vec::new(), area_elements: HashMap::new() };
+    import_with_options(s2k, ImportOptions::default())
+}
+
+/// [`import`], with the choice of refusing or keeping the load cases the
+/// importer cannot represent.
+pub fn import_with_options(s2k: &S2k, opts: ImportOptions) -> Result<Imported, Vec<Problem>> {
+    let mut im =
+        Importer { s2k, problems: Vec::new(), notes: Vec::new(), dropped: Vec::new(), area_elements: HashMap::new() };
     let ignored_tables = im.check_tables();
     let units = im.units();
 
@@ -1553,6 +1599,13 @@ pub fn import(s2k: &S2k) -> Result<Imported, Vec<Problem>> {
     im.combinations(&mut model);
     im.drop_orphan_joints(&mut model);
 
+    if im.problems.is_empty() {
+        if opts.allow_partial {
+            im.notes.extend(im.dropped.iter().map(ToString::to_string));
+        } else {
+            im.problems.extend(im.dropped.iter().cloned());
+        }
+    }
     if im.problems.is_empty() { Ok(Imported { model, ignored_tables, notes: im.notes }) } else { Err(im.problems) }
 }
 
@@ -1581,8 +1634,16 @@ mod tests {
         "TABLE:  \"CASE - STATIC 1 - LOAD ASSIGNMENTS\"\n   Case=C1   LoadType=\"Load pattern\"   LoadName=P1   LoadSF=2\n",
     );
 
+    /// The fixtures declare a modal case they do not define, so the unit tests ask
+    /// for the partial import: what they check is the model, not the refusal.
     fn run(extra: &str) -> Result<Imported, Vec<Problem>> {
-        import(&parse(&format!("{BASE}{extra}")).expect("parse"))
+        partial(&format!("{BASE}{extra}"))
+    }
+
+    /// [`import_with_options`] with the load cases that cannot be represented
+    /// kept as notes.
+    fn partial(text: &str) -> Result<Imported, Vec<Problem>> {
+        import_with_options(&parse(text).expect("parse"), ImportOptions { allow_partial: true })
     }
 
     fn causes(extra: &str) -> String {
@@ -1606,7 +1667,7 @@ mod tests {
     }
 
     fn import_text(text: &str) -> Imported {
-        import(&parse(text).expect("parse")).expect("ok")
+        import_with_options(&parse(text).expect("parse"), ImportOptions { allow_partial: true }).expect("ok")
     }
 
     /// The notes of a file where this text replaces that one.
@@ -1616,6 +1677,23 @@ mod tests {
         let im = import_text(&text.replace(from, to));
         assert!(!im.model.load_cases.iter().any(|c| c.name() == "SP"), "{to}");
         im.notes.join("\n")
+    }
+
+    #[test]
+    fn an_unrepresentable_case_refuses_the_file_by_default() {
+        // BASE declares a modal case with no CASE - MODAL 1 - GENERAL table.
+        let err = import(&parse(BASE).expect("parse")).expect_err("strict by default");
+        assert!(err.iter().any(|p| p.cause.contains("case MODAL not imported")), "{err:?}");
+        // Every problem names the table and the line it comes from.
+        assert!(err.iter().all(|p| !p.table.is_empty() && p.line > 0), "{err:?}");
+    }
+
+    #[test]
+    fn a_partial_import_keeps_the_rest_and_reports_the_case() {
+        let im = import_with_options(&parse(BASE).expect("parse"), ImportOptions { allow_partial: true })
+            .expect("partial import");
+        assert_eq!(im.model.load_cases.len(), 1);
+        assert!(im.notes.iter().any(|n| n.contains("case MODAL not imported")), "{:?}", im.notes);
     }
 
     #[test]
@@ -1851,8 +1929,8 @@ mod tests {
     #[test]
     fn i23_is_refused_unless_it_is_rounding_noise() {
         let text = |v: &str| BASE.replace("I23=0", &format!("I23={v}"));
-        assert!(import(&parse(&text("1.4E-20")).expect("parse")).is_ok());
-        assert!(import(&parse(&text("-1.7E-12")).expect("parse")).is_ok());
+        assert!(partial(&text("1.4E-20")).is_ok());
+        assert!(partial(&text("-1.7E-12")).is_ok());
         let found = import(&parse(&text("0.5")).expect("parse")).expect_err("must fail");
         assert!(found.iter().any(|p| p.to_string().contains("I23 is not zero")), "{found:?}");
     }
@@ -1898,7 +1976,7 @@ mod tests {
             "   SectionName=LIBRARY   Material=UNUSED   Area=1   TorsConst=1   I33=1   I22=1\n",
             "   SectionName=LIBRARY   Area=x   I23=7\n",
         );
-        assert!(import(&parse(&text).expect("parse")).is_ok());
+        assert!(partial(&text).is_ok());
     }
 
     #[test]
@@ -1948,7 +2026,7 @@ mod tests {
     #[test]
     fn modifiers_change_stiffness_but_not_weight() {
         let text = BASE.replace("AS2=5   AS3=4", "AS2=5   AS3=4   AMod=1000   I3Mod=2   WMod=0.5");
-        let im = import(&parse(&text).expect("parse")).expect("ok");
+        let im = partial(&text).expect("ok");
         let s = &im.model.sections[0];
         assert_eq!((s.area, s.i33), (10_000.0, 200.0));
         let mat = im.model.materials.iter().find(|m| m.name == s.material).expect("material");

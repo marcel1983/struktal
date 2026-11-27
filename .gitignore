@@ -3,3 +3,8 @@ target/
 verification/last-report.json
 __pycache__/
 verify-*.json
+
+# SAP2000 outputs never enter the repository (decision 0018): the campaign
+# writes <model>-sap2000.{s2k,sdb,LOG,msh,OUT,Y*,K_*} beside the lot.
+*.sdb
+*-sap2000.*

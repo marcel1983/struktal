@@ -164,6 +164,11 @@ pub struct ModeResult {
 
 pub const AREA_COMPONENTS: [&str; 8] = ["F11", "F22", "F12", "M11", "M22", "M12", "V13", "V23"];
 
+/// Names of the eight slots of an axisymmetric area's result: the stresses
+/// `[σr, σz, τrz, σθ]` in the first four, and zeros in the four plate slots
+/// that follow, which keep their names (decision 0034).
+pub const AREA_AXISYM_COMPONENTS: [&str; 8] = ["S11", "S22", "S12", "S33", "M22", "M12", "V13", "V23"];
+
 /// Section forces per unit length in the area's local axes, at its center and
 /// at its corners, in the order of its joints (decision 0019).
 #[derive(Debug, Clone, Serialize, Deserialize)]

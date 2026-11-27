@@ -95,9 +95,12 @@ pub(crate) fn lumped_mass(
         for (a, def) in areas.iter().zip(&m.areas) {
             let sec = m.area_sections.iter().find(|x| x.name == def.section).expect("validated section");
             let density = m.materials.iter().find(|x| x.name == sec.material).map_or(0.0, |x| x.mass_density);
-            for (n, share) in a.nodal_areas().iter().enumerate() {
+            // Each share is a volume: of the revolution for an axisymmetric
+            // area, which has no thickness, and of the section otherwise
+            // (decisions 0033 and 0034).
+            for (n, share) in a.nodal_volumes(sec.thickness).iter().enumerate() {
                 for d in 0..3 {
-                    lumped[a.dofs[6 * n + d]] += density * sec.thickness * share;
+                    lumped[a.dofs[6 * n + d]] += density * share;
                 }
             }
         }
